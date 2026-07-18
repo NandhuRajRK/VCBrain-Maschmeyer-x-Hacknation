@@ -6,6 +6,10 @@ readback. Source connectors normalize public signals, search/research APIs,
 registries, filings, patents, websites, and uploaded founder documents into
 the agreed source schema.
 
+See the complete route-by-route reference in
+[`docs/api-reference.md`](../../docs/api-reference.md) and the system-level
+design in [`docs/architecture.md`](../../docs/architecture.md).
+
 ## Run
 
 ```bash
