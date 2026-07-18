@@ -63,6 +63,7 @@ surface instead, so the dossier still shows evidence gaps explicitly.
 
 `OPENAI_API_KEY` enables structured parsing for `POST /founders/search`.
 Without it, the endpoint uses a deterministic parser for demo stability.
+Prompt text is use-case-specific and lives in `services/api/app/prompts.py`.
 
 ## Person A Scope
 

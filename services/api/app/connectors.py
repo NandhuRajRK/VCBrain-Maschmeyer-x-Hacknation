@@ -8,6 +8,7 @@ from html.parser import HTMLParser
 from typing import Any
 
 from .models import ConnectorKind, Signal
+from .prompts import PERPLEXITY_DILIGENCE_SYSTEM_PROMPT
 
 
 def pull_signals(
@@ -213,10 +214,10 @@ def _perplexity_signals(query: str) -> list[Signal]:
         {
             "model": "sonar",
             "messages": [
-                {
-                    "role": "system",
-                    "content": "Return concise venture diligence findings with cited web evidence.",
-                },
+            {
+                "role": "system",
+                "content": PERPLEXITY_DILIGENCE_SYSTEM_PROMPT,
+            },
                 {"role": "user", "content": f"Find recent startup diligence signals for {query}."},
             ],
         },

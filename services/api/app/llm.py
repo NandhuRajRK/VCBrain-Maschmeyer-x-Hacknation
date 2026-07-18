@@ -4,6 +4,7 @@ import urllib.request
 from typing import Any
 
 from .models import ClaimKind, ExtractedClaim, ParsedFounderQuery
+from .prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT, FOUNDER_SEARCH_SYSTEM_PROMPT
 
 
 SEARCH_QUERY_SCHEMA = {
@@ -76,10 +77,7 @@ def _parse_with_openai(query: str) -> ParsedFounderQuery | None:
         [
             {
                 "role": "system",
-                "content": (
-                    "Parse VC founder search text into database filters. "
-                    "Return only facts requested by the user. Do not score candidates."
-                ),
+                "content": FOUNDER_SEARCH_SYSTEM_PROMPT,
             },
             {"role": "user", "content": query},
         ],
@@ -98,10 +96,7 @@ def _extract_claims_with_openai(text: str) -> list[ExtractedClaim]:
         [
             {
                 "role": "system",
-                "content": (
-                    "Extract concise factual VC diligence claims from source text. "
-                    "Do not infer beyond the text. Prefer metrics, founders, product, market, and funding facts."
-                ),
+                "content": CLAIM_EXTRACTION_SYSTEM_PROMPT,
             },
             {"role": "user", "content": text[:6000]},
         ],
