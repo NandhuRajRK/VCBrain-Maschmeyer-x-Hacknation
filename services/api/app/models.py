@@ -195,6 +195,16 @@ class FounderSearchRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
 
 
+class ParsedFounderQuery(BaseModel):
+    sectors: list[str] = Field(default_factory=list)
+    geographies: list[str] = Field(default_factory=list)
+    stages: list[str] = Field(default_factory=list)
+    founder_traits: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    exclude_prior_vc: bool = False
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
 class SearchMatch(BaseModel):
     company: Company
     founder: Founder

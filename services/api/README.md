@@ -46,6 +46,8 @@ uvicorn app.main:app --reload --app-dir services/api
 
 Optional API keys:
 
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` defaults to `gpt-5`
 - `PRODUCT_HUNT_TOKEN`
 - `PERPLEXITY_API_KEY`
 - `EXA_API_KEY`
@@ -54,6 +56,9 @@ Optional API keys:
 
 Missing keys do not break the demo. The connector records a fallback/search
 surface instead, so the dossier still shows evidence gaps explicitly.
+
+`OPENAI_API_KEY` enables structured parsing for `POST /founders/search`.
+Without it, the endpoint uses a deterministic parser for demo stability.
 
 ## Person A Scope
 

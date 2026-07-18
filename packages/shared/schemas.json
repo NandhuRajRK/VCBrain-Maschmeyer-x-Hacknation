@@ -59,6 +59,15 @@
     "match_score": "number:0-100",
     "reasons": ["string"]
   },
+  "ParsedFounderQuery": {
+    "sectors": ["string"],
+    "geographies": ["string"],
+    "stages": ["string"],
+    "founder_traits": ["string"],
+    "keywords": ["string"],
+    "exclude_prior_vc": "boolean",
+    "confidence": "number:0-1"
+  },
   "ActivationDraft": {
     "founder_id": "string",
     "company_id": "string",
@@ -67,4 +76,3 @@
     "evidence_ids": ["string"]
   }
 }
-

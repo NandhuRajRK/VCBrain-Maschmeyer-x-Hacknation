@@ -75,6 +75,12 @@ technical founder, Berlin, AI infra, no prior VC backing
 Returns ranked `SearchMatch` objects with company, founder, score, match score,
 and reasons.
 
+When `OPENAI_API_KEY` is set, the query is parsed with OpenAI into structured
+filters (`ParsedFounderQuery`) before ranking. Without a key, the same endpoint
+uses a deterministic fallback parser. Ranking is based on matched filters,
+evidence coverage, and Founder Score confidence rather than LLM-generated
+investment judgment.
+
 `POST /founders/activate`
 
 Accepts a `founder_id` and returns a personalized outreach draft tied to the
@@ -95,6 +101,8 @@ for testing the claim/evidence ledger.
 
 The system can run without keys, but these unlock richer evidence:
 
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
 - `PRODUCT_HUNT_TOKEN`
 - `PERPLEXITY_API_KEY`
 - `EXA_API_KEY`
