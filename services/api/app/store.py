@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 
-from .models import Claim, Company, Evidence, Founder, Segment, Source
+from .models import Claim, Company, Evidence, Founder, FounderScore, Segment, Source, TriggerEvent
+from .persistence import FounderScoreRepository
 
 
 class Store:
@@ -11,6 +12,8 @@ class Store:
         self.segments: dict[str, Segment] = {}
         self.claims: dict[str, Claim] = {}
         self.evidence: dict[str, Evidence] = {}
+        self.founder_scores = FounderScoreRepository().load()
+        self.trigger_events: dict[str, TriggerEvent] = {}
 
     def company(self, company_id: str) -> Company:
         if company_id not in self.companies:
@@ -40,6 +43,14 @@ class Store:
             for evidence_id in claim.evidence_ids
         }
         return [item for item in self.evidence.values() if item.id in evidence_ids]
+
+    def company_founder_scores(self, company_id: str) -> list[FounderScore]:
+        founder_ids = {founder.id for founder in self.company_founders(company_id)}
+        return [score for score in self.founder_scores.values() if score.founder_id in founder_ids]
+
+    def company_trigger_events(self, company_id: str) -> list[TriggerEvent]:
+        self.company(company_id)
+        return [event for event in self.trigger_events.values() if event.company_id == company_id]
 
 
 store = Store()

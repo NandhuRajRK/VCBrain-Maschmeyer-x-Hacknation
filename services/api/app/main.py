@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 
 from .models import (
     Claim,
+    ConnectorKind,
     Company,
     CompanyCreate,
     Dossier,
@@ -11,8 +12,16 @@ from .models import (
     IngestionStatus,
     Source,
     SourceCreate,
+    SourcePullRequest,
+    SourcePullResult,
+    SourceType,
+    TriggerEvent,
+    TriggerKind,
 )
+from .connectors import pull_signals
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
+from .persistence import FounderScoreRepository
+from .scoring import update_founder_score
 from .store import store
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
@@ -27,6 +36,12 @@ def health() -> dict[str, str]:
 def create_company(payload: CompanyCreate) -> Company:
     company = Company(**payload.model_dump())
     store.companies[company.id] = company
+    event = TriggerEvent(
+        company_id=company.id,
+        kind=TriggerKind.new_application,
+        message=f"New startup application created for {company.name}.",
+    )
+    store.trigger_events[event.id] = event
     return company
 
 
@@ -37,6 +52,52 @@ def create_source(payload: SourceCreate) -> Source:
     source = Source(**payload.model_dump())
     store.sources[source.id] = source
     return source
+
+
+@app.post("/sources/pull", response_model=SourcePullResult)
+def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
+    company = store.company(payload.company_id)
+    query = payload.query or company.name
+    connectors = payload.connectors or [
+        ConnectorKind.github,
+        ConnectorKind.hacker_news,
+        ConnectorKind.arxiv,
+    ]
+    created: list[Source] = []
+    deduped = 0
+
+    signals = pull_signals(connectors, query, payload.github_user, payload.arxiv_query)
+    for signal in signals:
+        source_type = SourceType(signal.source.value)
+        key = f"{payload.company_id}:{source_type}:{signal.title.lower()}"
+        if key in store.sources:
+            deduped += 1
+            continue
+        source = Source(
+            company_id=payload.company_id,
+            source_type=source_type,
+            title=signal.title,
+            url=signal.url,
+            text=signal.text,
+            metadata={**signal.metadata, "observed_at": signal.observed_at.isoformat()},
+        )
+        store.sources[key] = source
+        created.append(source)
+
+    if len(created) >= 3:
+        event = TriggerEvent(
+            company_id=payload.company_id,
+            kind=TriggerKind.signal_threshold_crossed,
+            message="At least three new sourcing signals were collected.",
+            metadata={"created_sources": len(created)},
+        )
+        store.trigger_events[event.id] = event
+
+    return SourcePullResult(
+        company_id=payload.company_id,
+        created_sources=created,
+        deduped_sources=deduped,
+    )
 
 
 @app.post("/companies/{company_id}/ingest", response_model=IngestionRun)
@@ -71,6 +132,18 @@ def ingest_company(company_id: str) -> IngestionRun:
             parsed_segments += len(segments)
             extracted_claims += len(claims)
 
+    if not store.company_founders(company_id):
+        founder = Founder(
+            company_id=company_id,
+            name=f"{store.company(company_id).name} founder",
+        )
+        store.founders[f"{company_id}:unknown"] = founder
+
+    for founder in store.company_founders(company_id):
+        score = update_founder_score(founder, store.company_claims(company_id))
+        store.founder_scores[founder.id] = score
+    FounderScoreRepository().save(store.founder_scores)
+
     return IngestionRun(
         company_id=company_id,
         accepted_sources=len(sources),
@@ -89,6 +162,8 @@ def get_dossier(company_id: str) -> Dossier:
         segments=store.company_segments(company_id),
         claims=store.company_claims(company_id),
         evidence=store.company_evidence(company_id),
+        founder_scores=store.company_founder_scores(company_id),
+        trigger_events=store.company_trigger_events(company_id),
     )
 
 
@@ -105,3 +180,8 @@ def get_evidence(company_id: str) -> list[Evidence]:
 @app.get("/companies/{company_id}/founders", response_model=list[Founder])
 def get_founders(company_id: str) -> list[Founder]:
     return store.company_founders(company_id)
+
+
+@app.get("/companies/{company_id}/events", response_model=list[TriggerEvent])
+def get_events(company_id: str) -> list[TriggerEvent]:
+    return store.company_trigger_events(company_id)

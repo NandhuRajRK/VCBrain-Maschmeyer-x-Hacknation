@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -22,6 +24,9 @@ class SourceType(str, Enum):
     founder_linkedin = "founder_linkedin"
     github = "github"
     press = "press"
+    hacker_news = "hacker_news"
+    product_hunt = "product_hunt"
+    arxiv = "arxiv"
     crm_note = "crm_note"
     other = "other"
 
@@ -60,6 +65,39 @@ class Founder(BaseModel):
     name: str
     role: str | None = None
     linkedin: HttpUrl | None = None
+    github: str | None = None
+    cold_start: bool = True
+    updated_at: datetime = Field(default_factory=now)
+
+
+class ConnectorKind(str, Enum):
+    github = "github"
+    hacker_news = "hacker_news"
+    product_hunt = "product_hunt"
+    arxiv = "arxiv"
+
+
+class Signal(BaseModel):
+    source: ConnectorKind
+    title: str
+    url: HttpUrl | None = None
+    text: str
+    observed_at: datetime = Field(default_factory=now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourcePullRequest(BaseModel):
+    company_id: str
+    connectors: list[ConnectorKind] = Field(default_factory=list)
+    query: str | None = None
+    github_user: str | None = None
+    arxiv_query: str | None = None
+
+
+class SourcePullResult(BaseModel):
+    company_id: str
+    created_sources: list[Source]
+    deduped_sources: int
 
 
 class SourceCreate(BaseModel):
@@ -120,6 +158,30 @@ class Claim(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+class FounderScore(BaseModel):
+    founder_id: str
+    score: float = Field(ge=0, le=100)
+    confidence: float = Field(ge=0, le=1)
+    cold_start: bool
+    evidence_count: int
+    updated_at: datetime = Field(default_factory=now)
+    notes: list[str] = Field(default_factory=list)
+
+
+class TriggerKind(str, Enum):
+    new_application = "new_application"
+    signal_threshold_crossed = "signal_threshold_crossed"
+
+
+class TriggerEvent(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("event"))
+    company_id: str
+    kind: TriggerKind
+    message: str
+    created_at: datetime = Field(default_factory=now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class Dossier(BaseModel):
     company: Company
     founders: list[Founder]
@@ -127,6 +189,8 @@ class Dossier(BaseModel):
     segments: list[Segment]
     claims: list[Claim]
     evidence: list[Evidence]
+    founder_scores: list[FounderScore]
+    trigger_events: list[TriggerEvent]
 
 
 class IngestionRun(BaseModel):
