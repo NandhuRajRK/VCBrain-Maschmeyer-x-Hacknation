@@ -1,4 +1,6 @@
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+import os
+
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 
 from . import config as config
 from .document_parser import LLM_TASKS, parse_document
@@ -28,15 +30,20 @@ from .models import (
     ActivateRequest,
     ActivationDraft,
     VoiceNarrationRequest,
+    VoiceIntent,
+    VoiceQueryResponse,
+    VoiceTextQueryRequest,
 )
 from .connectors import pull_signals
+from .llm import parse_founder_query, parse_voice_command
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
 from .scoring import update_founder_score
 from .search import search_founders
 from .store import store
-from .voice import narrate_text
+from .voice import encode_audio, narrate_text, transcribe_audio
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
+MAX_VOICE_AUDIO_BYTES = 25_000_000
 
 
 @app.get("/health")
@@ -331,6 +338,80 @@ def narrate(payload: VoiceNarrationRequest) -> Response:
         media_type="audio/mpeg",
         headers={"Content-Disposition": 'inline; filename="vcbrain-narration.mp3"'},
     )
+
+
+@app.post("/voice/query", response_model=VoiceQueryResponse)
+async def query_by_voice(
+    audio: UploadFile = File(...),
+    speak_response: bool = Form(False),
+    voice_id: str | None = Form(None),
+    limit: int = Form(10),
+) -> VoiceQueryResponse:
+    if not 1 <= limit <= 50:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 50")
+    content = await audio.read(MAX_VOICE_AUDIO_BYTES + 1)
+    if len(content) > MAX_VOICE_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio input exceeds the 25 MB limit")
+    transcript = transcribe_audio(content, audio.filename or "voice.webm", audio.content_type)
+    return _run_voice_query(transcript, limit, speak_response, voice_id)
+
+
+@app.post("/voice/query/text", response_model=VoiceQueryResponse)
+def query_by_text(payload: VoiceTextQueryRequest) -> VoiceQueryResponse:
+    return _run_voice_query(payload.transcript, payload.limit, payload.speak_response, payload.voice_id)
+
+
+def _run_voice_query(
+    transcript: str,
+    limit: int,
+    speak_response: bool,
+    voice_id: str | None,
+) -> VoiceQueryResponse:
+    command = parse_voice_command(transcript)
+    parsed_query = None
+    results: list[SearchMatch] = []
+    if command.intent == VoiceIntent.founder_search:
+        parsed_query = parse_founder_query(command.query)
+        results = search_founders(
+            command.query,
+            list(store.companies.values()),
+            list(store.founders.values()),
+            store.founder_scores,
+            list(store.claims.values()),
+            list(store.sources.values()),
+            list(store.evidence.values()),
+            limit,
+            parsed_query=parsed_query,
+        )
+    response_text = _voice_response_text(command.intent, results)
+    audio_base64 = None
+    if speak_response and os.getenv("ELEVENLABS_API_KEY"):
+        audio_base64 = encode_audio(narrate_text(response_text, voice_id))
+    return VoiceQueryResponse(
+        transcript=transcript,
+        command=command,
+        parsed_query=parsed_query,
+        results=results,
+        response_text=response_text,
+        audio_available=audio_base64 is not None,
+        audio_base64=audio_base64,
+    )
+
+
+def _voice_response_text(intent: VoiceIntent, results: list[SearchMatch]) -> str:
+    if intent == VoiceIntent.founder_search:
+        if not results:
+            return "I could not find a matching founder in the current memory."
+        names = ", ".join(f"{item.founder.name} at {item.company.name}" for item in results[:3])
+        return f"I found {len(results)} founder match{'es' if len(results) != 1 else ''}. Top results: {names}."
+    labels = {
+        VoiceIntent.company_dossier: "company dossier",
+        VoiceIntent.memo_review: "investment memo",
+        VoiceIntent.decision_review: "investment decision",
+        VoiceIntent.activation: "founder outreach",
+        VoiceIntent.unknown: "VC Brain action",
+    }
+    return f"I routed this to the {labels[intent]} view for the workspace to handle."
 
 
 @app.post("/demo/seed", response_model=DemoSeedResult)

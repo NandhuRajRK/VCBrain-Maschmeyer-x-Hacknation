@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ["VCBRAIN_DB_PATH"] = "/tmp/vcbrain-api-smoke.sqlite3"
 
 from services.api.app import main
-from services.api.app.models import ConnectorKind, Signal
+from services.api.app.models import ConnectorKind, ParsedFounderQuery, Signal, VoiceCommand, VoiceIntent
 
 
 def test_create_pull_ingest_dossier(monkeypatch):
@@ -111,6 +111,39 @@ def test_create_pull_ingest_dossier(monkeypatch):
 
     voice = client.post("/voice/narrate", json={"text": "Demo narration."})
     assert voice.status_code == 503
+
+    monkeypatch.setattr(main, "transcribe_audio", lambda content, filename, content_type: "Find technical founders in Berlin")
+    monkeypatch.setattr(
+        main,
+        "parse_voice_command",
+        lambda transcript: VoiceCommand(intent=VoiceIntent.founder_search, query=transcript, confidence=0.99),
+    )
+    monkeypatch.setattr(
+        main,
+        "parse_founder_query",
+        lambda query: ParsedFounderQuery(geographies=["berlin"], founder_traits=["technical"], confidence=0.99),
+    )
+    voice_query = client.post(
+        "/voice/query",
+        files={"audio": ("command.webm", b"fake-audio", "audio/webm")},
+        data={"limit": "5"},
+    )
+    assert voice_query.status_code == 200
+    voice_payload = voice_query.json()
+    assert voice_payload["transcript"] == "Find technical founders in Berlin"
+    assert voice_payload["command"]["intent"] == "founder_search"
+    assert voice_payload["parsed_query"]["geographies"] == ["berlin"]
+    assert voice_payload["results"][0]["company"]["name"] == "DemoCo"
+
+    monkeypatch.setattr(
+        main,
+        "parse_voice_command",
+        lambda transcript: VoiceCommand(intent=VoiceIntent.memo_review, query=transcript, confidence=0.99),
+    )
+    handoff = client.post("/voice/query/text", json={"transcript": "Review the red-team memo"})
+    assert handoff.status_code == 200
+    assert handoff.json()["command"]["intent"] == "memo_review"
+    assert handoff.json()["results"] == []
 
     companies = client.get("/companies")
     founders = client.get("/founders")

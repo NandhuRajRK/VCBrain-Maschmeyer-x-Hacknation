@@ -16,8 +16,9 @@ def search_founders(
     sources: list[Source],
     evidence: list[Evidence],
     limit: int,
+    parsed_query: ParsedFounderQuery | None = None,
 ) -> list[SearchMatch]:
-    parsed = parse_founder_query(query)
+    parsed = parsed_query or parse_founder_query(query)
     matches: list[SearchMatch] = []
 
     for founder in founders:

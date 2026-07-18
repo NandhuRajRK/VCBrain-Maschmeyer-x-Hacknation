@@ -244,6 +244,38 @@ class VoiceNarrationRequest(BaseModel):
     voice_id: str | None = None
 
 
+class VoiceIntent(str, Enum):
+    founder_search = "founder_search"
+    company_dossier = "company_dossier"
+    memo_review = "memo_review"
+    decision_review = "decision_review"
+    activation = "activation"
+    unknown = "unknown"
+
+
+class VoiceCommand(BaseModel):
+    intent: VoiceIntent
+    query: str = Field(min_length=1)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class VoiceTextQueryRequest(BaseModel):
+    transcript: str = Field(min_length=1, max_length=2000)
+    speak_response: bool = False
+    voice_id: str | None = None
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class VoiceQueryResponse(BaseModel):
+    transcript: str
+    command: VoiceCommand
+    parsed_query: ParsedFounderQuery | None = None
+    results: list[SearchMatch] = Field(default_factory=list)
+    response_text: str
+    audio_available: bool = False
+    audio_base64: str | None = None
+
+
 class DemoSeedResult(BaseModel):
     companies: int
     founders: int

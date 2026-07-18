@@ -62,7 +62,7 @@
   "SearchMatch": {
     "company": "Company",
     "founder": "Founder",
-    "score": "FounderScore|null",
+    "founder_score": "FounderScore|null",
     "match_score": "number:0-100",
     "reasons": ["string"]
   },
@@ -120,6 +120,20 @@
     "subject": "string",
     "message": "string",
     "evidence_ids": ["string"]
+  },
+  "VoiceCommand": {
+    "intent": "founder_search|company_dossier|memo_review|decision_review|activation|unknown",
+    "query": "string",
+    "confidence": "number:0-1"
+  },
+  "VoiceQueryResponse": {
+    "transcript": "string",
+    "command": "VoiceCommand",
+    "parsed_query": "ParsedFounderQuery|null",
+    "results": ["SearchMatch"],
+    "response_text": "string",
+    "audio_available": "boolean",
+    "audio_base64": "string|null"
   },
   "DemoSeedResult": {
     "companies": "integer",

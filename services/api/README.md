@@ -30,6 +30,8 @@ uv run uvicorn services.api.app.main:app --reload
 - `POST /founders/search`
 - `POST /founders/activate`
 - `POST /voice/narrate`
+- `POST /voice/query`
+- `POST /voice/query/text`
 - `GET /companies`
 - `GET /founders`
 - `POST /demo/seed`
@@ -54,6 +56,7 @@ Optional API keys:
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` defaults to `gpt-5`
+- `OPENAI_TRANSCRIPTION_MODEL` defaults to `gpt-4o-mini-transcribe`
 - `ELEVENLABS_API_KEY`
 - `ELEVENLABS_VOICE_ID` defaults to `JBFqnCBsd6RMkjVDRZzb`
 - `ELEVENLABS_MODEL_ID` defaults to `eleven_multilingual_v2`
@@ -70,9 +73,11 @@ surface instead, so the dossier still shows evidence gaps explicitly.
 Without it, the endpoint uses a deterministic parser for demo stability.
 Prompt text is use-case-specific and lives in `services/api/app/prompts.py`.
 
-`ELEVENLABS_API_KEY` enables `POST /voice/narrate`, which returns an MP3 audio
-narration for any supplied text. This can later power a voice mode for outreach,
-memo readouts, or mobile/web playback.
+`OPENAI_API_KEY` also enables `POST /voice/query`, which accepts browser/mobile
+audio, transcribes it, routes the command, and returns a reusable typed response.
+`POST /voice/query/text` accepts the same flow after client-side transcription.
+`ELEVENLABS_API_KEY` optionally adds base64 MP3 narration to the same response;
+`POST /voice/narrate` remains available for arbitrary text.
 
 ## Person A Scope
 

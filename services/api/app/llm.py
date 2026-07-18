@@ -3,8 +3,8 @@ import os
 import urllib.request
 from typing import Any
 
-from .models import ClaimKind, ExtractedClaim, ParsedFounderQuery
-from .prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT, FOUNDER_SEARCH_SYSTEM_PROMPT
+from .models import ClaimKind, ExtractedClaim, ParsedFounderQuery, VoiceCommand, VoiceIntent
+from .prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT, FOUNDER_SEARCH_SYSTEM_PROMPT, VOICE_COMMAND_SYSTEM_PROMPT
 
 
 SEARCH_QUERY_SCHEMA = {
@@ -55,6 +55,17 @@ CLAIM_EXTRACTION_SCHEMA = {
     },
 }
 
+VOICE_COMMAND_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["intent", "query", "confidence"],
+    "properties": {
+        "intent": {"type": "string", "enum": [item.value for item in VoiceIntent]},
+        "query": {"type": "string"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    },
+}
+
 
 def parse_founder_query(query: str) -> ParsedFounderQuery:
     if os.getenv("OPENAI_API_KEY"):
@@ -70,6 +81,14 @@ def extract_claims_from_text(text: str, default_kind: ClaimKind) -> list[Extract
         if extracted:
             return extracted
     return _fallback_extract_claims(text, default_kind)
+
+
+def parse_voice_command(transcript: str) -> VoiceCommand:
+    if os.getenv("OPENAI_API_KEY"):
+        parsed = _parse_voice_with_openai(transcript)
+        if parsed:
+            return parsed
+    return _fallback_voice_command(transcript)
 
 
 def _parse_with_openai(query: str) -> ParsedFounderQuery | None:
@@ -109,6 +128,22 @@ def _extract_claims_with_openai(text: str) -> list[ExtractedClaim]:
         return [ExtractedClaim.model_validate(row) for row in rows]
     except Exception:
         return []
+
+
+def _parse_voice_with_openai(transcript: str) -> VoiceCommand | None:
+    body = _responses_body(
+        [
+            {"role": "system", "content": VOICE_COMMAND_SYSTEM_PROMPT},
+            {"role": "user", "content": transcript[:2000]},
+        ],
+        "voice_command",
+        VOICE_COMMAND_SCHEMA,
+    )
+    try:
+        response_text = _call_openai(body)
+        return VoiceCommand.model_validate_json(response_text) if response_text else None
+    except Exception:
+        return None
 
 
 def _responses_body(messages: list[dict[str, str]], name: str, schema: dict[str, Any]) -> dict[str, Any]:
@@ -160,6 +195,23 @@ def _fallback_parse(query: str) -> ParsedFounderQuery:
         exclude_prior_vc="no prior vc" in lowered or "no vc" in lowered or "bootstrapped" in lowered,
         confidence=0.55,
     )
+
+
+def _fallback_voice_command(transcript: str) -> VoiceCommand:
+    lowered = transcript.lower()
+    intent = VoiceIntent.unknown
+    if any(term in lowered for term in ["memo", "red team", "swot"]):
+        intent = VoiceIntent.memo_review
+    elif any(term in lowered for term in ["decision", "invest", "hold", "reject", "conditional"]):
+        intent = VoiceIntent.decision_review
+    elif any(term in lowered for term in ["outreach", "contact", "activate", "message founder"]):
+        intent = VoiceIntent.activation
+    elif any(term in lowered for term in ["dossier", "deep dive", "company details", "startup details"]):
+        intent = VoiceIntent.company_dossier
+    elif any(term in lowered for term in ["find", "search", "show", "list", "technical founder", "founders"]):
+        intent = VoiceIntent.founder_search
+    confidence = 0.55 if intent != VoiceIntent.unknown else 0.35
+    return VoiceCommand(intent=intent, query=transcript.strip(), confidence=confidence)
 
 
 def _find_phrases(text: str, phrases: list[str]) -> list[str]:

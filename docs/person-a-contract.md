@@ -77,6 +77,8 @@ Useful platform endpoints:
 - `GET /founders`
 - `POST /demo/seed`
 - `POST /voice/narrate`
+- `POST /voice/query`
+- `POST /voice/query/text`
 
 ## Environment
 
@@ -85,6 +87,7 @@ Put real keys in a local `.env` file copied from `.env.example`.
 Required for richer demo modes:
 
 - `OPENAI_API_KEY`
+- `OPENAI_TRANSCRIPTION_MODEL`
 - `TAVILY_API_KEY`
 - `ELEVENLABS_API_KEY`
 
@@ -116,6 +119,13 @@ investment judgment.
 
 Accepts a `founder_id` and returns a personalized outreach draft tied to the
 stored evidence IDs.
+
+`POST /voice/query` accepts browser or mobile audio, transcribes it with OpenAI,
+routes the request through a dedicated voice-command prompt, and returns the
+shared `VoiceQueryResponse` contract. Founder-search requests execute against
+memory; dossier, memo, decision, and activation requests return typed handoffs
+for Julia's corresponding views. `POST /voice/query/text` is the same contract
+for UI tests or clients that already have a transcript.
 
 ## Demo Data
 
