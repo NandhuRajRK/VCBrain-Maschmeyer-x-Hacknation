@@ -19,6 +19,22 @@ Output:
 - `created_sources`
 - `deduped_sources`
 
+## Document Upload
+
+`POST /companies/{company_id}/documents`
+
+Accepts pitch decks and founder documents. Supported formats:
+
+- `.txt`
+- `.md`
+- `.pdf`
+- `.pptx`
+- `.docx`
+
+The endpoint stores the upload as a source, parses it into segments with
+page/slide-like references where available, creates initial claims/evidence,
+and attaches `llm_tasks` metadata for later LLM extraction.
+
 ## Ingestion
 
 `POST /companies/{company_id}/ingest`

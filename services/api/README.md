@@ -17,6 +17,7 @@ uvicorn app.main:app --reload --app-dir services/api
 - `GET /health`
 - `POST /companies`
 - `POST /sources`
+- `POST /companies/{company_id}/documents`
 - `POST /sources/pull`
 - `POST /companies/{company_id}/ingest`
 - `GET /companies/{company_id}/dossier`
@@ -33,3 +34,5 @@ uvicorn app.main:app --reload --app-dir services/api
   `data/processed/founder_scores.json`.
 - Marks cold-start founders explicitly when evidence is sparse.
 - Emits trigger events for new applications and signal threshold crossings.
+- Parses uploaded `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` files into
+  evidence-ready segments with LLM follow-up tasks attached.

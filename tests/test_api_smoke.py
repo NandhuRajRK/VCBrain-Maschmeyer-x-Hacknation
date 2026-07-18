@@ -49,6 +49,20 @@ def test_create_pull_ingest_dossier(monkeypatch):
     assert company.status_code == 201
     company_id = company.json()["id"]
 
+    upload = client.post(
+        f"/companies/{company_id}/documents",
+        files={
+            "file": (
+                "demo-deck.txt",
+                b"Sector: AI. Stage: seed. DemoCo helps analysts research companies.",
+                "text/plain",
+            )
+        },
+    )
+    assert upload.status_code == 200
+    assert upload.json()["source"]["source_type"] == "document"
+    assert "extract_traction_metrics" in upload.json()["llm_tasks"]
+
     pull = client.post(
         "/sources/pull",
         json={
@@ -68,9 +82,9 @@ def test_create_pull_ingest_dossier(monkeypatch):
     dossier = client.get(f"/companies/{company_id}/dossier")
     assert dossier.status_code == 200
     payload = dossier.json()
-    assert len(payload["sources"]) == 3
-    assert len(payload["claims"]) == 3
-    assert len(payload["evidence"]) == 3
+    assert len(payload["sources"]) == 4
+    assert len(payload["claims"]) == 4
+    assert len(payload["evidence"]) == 4
     assert payload["founder_scores"][0]["cold_start"] is False
     assert any(event["kind"] == "new_application" for event in payload["trigger_events"])
     assert any(event["kind"] == "signal_threshold_crossed" for event in payload["trigger_events"])

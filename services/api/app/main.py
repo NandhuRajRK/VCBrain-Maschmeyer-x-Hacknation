@@ -1,15 +1,18 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
+from .document_parser import LLM_TASKS, parse_document
 from .models import (
     Claim,
     ConnectorKind,
     Company,
     CompanyCreate,
+    DocumentUploadResult,
     Dossier,
     Evidence,
     Founder,
     IngestionRun,
     IngestionStatus,
+    Segment,
     Source,
     SourceCreate,
     SourcePullRequest,
@@ -53,6 +56,57 @@ def create_source(payload: SourceCreate) -> Source:
     store.sources[source.id] = source
     store.save()
     return source
+
+
+@app.post("/companies/{company_id}/documents", response_model=DocumentUploadResult)
+async def upload_document(company_id: str, file: UploadFile = File(...)) -> DocumentUploadResult:
+    store.company(company_id)
+    content = await file.read()
+    parsed = parse_document(file.filename or "upload", content)
+    source = Source(
+        company_id=company_id,
+        source_type=parsed.source_type,
+        title=file.filename or "Uploaded document",
+        text=parsed.text,
+        metadata={
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "file_size": len(content),
+            "parser": parsed.parser,
+            "warnings": parsed.warnings,
+            "llm_ready": True,
+            "llm_tasks": LLM_TASKS,
+        },
+        status=IngestionStatus.parsed,
+    )
+    store.sources[source.id] = source
+
+    segments = [
+        Segment(source_id=source.id, heading=chunk.heading, page=chunk.page, text=chunk.text)
+        for chunk in parsed.chunks
+    ]
+    for segment in segments:
+        store.segments[segment.id] = segment
+
+    update = extract_company_update(segments)
+    company = store.company(company_id)
+    for field, value in update.model_dump(exclude_none=True).items():
+        if hasattr(company, field):
+            setattr(company, field, value)
+
+    claims, evidence = extract_claims(company_id, source, segments)
+    for item in evidence:
+        store.evidence[item.id] = item
+    for claim in claims:
+        store.claims[claim.id] = claim
+
+    store.save()
+    return DocumentUploadResult(
+        source=source,
+        segments=segments,
+        warnings=parsed.warnings,
+        llm_tasks=LLM_TASKS,
+    )
 
 
 @app.post("/sources/pull", response_model=SourcePullResult)

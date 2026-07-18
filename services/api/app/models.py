@@ -20,6 +20,7 @@ class SourceType(str, Enum):
     pitch_deck = "pitch_deck"
     financial_model = "financial_model"
     founder_questionnaire = "founder_questionnaire"
+    document = "document"
     website = "website"
     founder_linkedin = "founder_linkedin"
     github = "github"
@@ -122,6 +123,13 @@ class Segment(BaseModel):
     heading: str | None = None
     page: int | None = None
     text: str
+
+
+class DocumentUploadResult(BaseModel):
+    source: Source
+    segments: list[Segment]
+    warnings: list[str] = Field(default_factory=list)
+    llm_tasks: list[str] = Field(default_factory=list)
 
 
 class ClaimKind(str, Enum):
