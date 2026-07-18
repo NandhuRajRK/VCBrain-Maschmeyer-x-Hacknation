@@ -1119,7 +1119,7 @@ AuditEvent
 
 # Clean ownership split
 
-##  julia
+##  nandhu
 
 ```text
 Data sources
@@ -1135,7 +1135,7 @@ Data sources
 → company dossier UI
 ```
 
-## nandhu
+## julia
 
 ```text
 Fund thesis
