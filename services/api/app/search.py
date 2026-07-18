@@ -1,5 +1,5 @@
 from .llm import parse_founder_query
-from .models import Claim, Company, Founder, FounderScore, ParsedFounderQuery, SearchMatch, Source
+from .models import Claim, Company, Evidence, Founder, FounderScore, ParsedFounderQuery, SearchMatch, Source
 
 
 MATCH_WEIGHT = 70.0
@@ -14,6 +14,7 @@ def search_founders(
     scores: dict[str, FounderScore],
     claims: list[Claim],
     sources: list[Source],
+    evidence: list[Evidence],
     limit: int,
 ) -> list[SearchMatch]:
     parsed = parse_founder_query(query)
@@ -25,8 +26,9 @@ def search_founders(
             continue
         company_claims = [claim for claim in claims if claim.company_id == company.id]
         company_sources = [source for source in sources if source.company_id == company.id]
+        company_evidence = _company_evidence(company_claims, evidence)
         corpus = _corpus(company, founder, company_claims, company_sources)
-        match_score, reasons = _score(parsed, company, founder, corpus, scores.get(founder.id), company_sources)
+        match_score, reasons = _score(parsed, company, founder, corpus, scores.get(founder.id), company_evidence)
         if match_score:
             matches.append(
                 SearchMatch(
@@ -47,7 +49,7 @@ def _score(
     founder: Founder,
     corpus: str,
     score: FounderScore | None,
-    sources: list[Source],
+    evidence: list[Evidence],
 ) -> tuple[float, list[str]]:
     possible = 0
     matched = 0
@@ -89,7 +91,7 @@ def _score(
         return 0.0, []
 
     field_score = (matched / possible) * MATCH_WEIGHT
-    evidence_score = _evidence_score(sources)
+    evidence_score = _evidence_score(evidence)
     memory_score = min(MEMORY_WEIGHT, score.confidence * MEMORY_WEIGHT) if score else 0.0
     if score:
         reasons.append(f"Founder memory confidence {score.confidence:.2f}")
@@ -124,11 +126,16 @@ def _mentions_prior_backing(corpus: str) -> bool:
     return any(term in corpus for term in ["vc backed", "venture backed", "investor:", "lead investor"])
 
 
-def _evidence_score(sources: list[Source]) -> float:
-    if not sources:
+def _company_evidence(claims: list[Claim], evidence: list[Evidence]) -> list[Evidence]:
+    evidence_ids = {evidence_id for claim in claims for evidence_id in claim.evidence_ids}
+    return [item for item in evidence if item.id in evidence_ids]
+
+
+def _evidence_score(evidence: list[Evidence]) -> float:
+    if not evidence:
         return 0.0
-    independent_sources = {source.source_type for source in sources}
-    live_sources = sum(1 for source in sources if source.metadata.get("fetch_status") == "live")
-    coverage = min(1.0, len(independent_sources) / 4)
-    freshness = min(1.0, live_sources / max(1, len(sources)))
-    return (coverage * 0.7 + freshness * 0.3) * EVIDENCE_WEIGHT
+    independence = min(1.0, len({item.source_independence for item in evidence}) / 3)
+    confidence = sum(item.confidence for item in evidence) / len(evidence)
+    freshness = sum(1 for item in evidence if item.freshness_days is not None and item.freshness_days <= 30)
+    freshness_ratio = freshness / len(evidence)
+    return (confidence * 0.5 + independence * 0.35 + freshness_ratio * 0.15) * EVIDENCE_WEIGHT

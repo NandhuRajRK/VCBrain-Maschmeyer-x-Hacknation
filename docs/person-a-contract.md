@@ -45,6 +45,18 @@ The ingestion run parses queued sources, extracts basic claims, links evidence,
 resolves founder duplicates by company and name, creates cold-start founders
 when needed, updates founder scores, and persists score history.
 
+Evidence includes:
+
+- `source_reliability`
+- `source_independence`
+- `freshness_days`
+- `directness`
+- `confidence_reason`
+
+Founder Score is a memory signal derived from evidence confidence, evidence
+coverage, public signals, and contradiction penalties. It is not Julia's
+3-axis investment score.
+
 ## Dossier Fields For Person B
 
 `GET /companies/{company_id}/dossier`

@@ -9,7 +9,8 @@ the agreed source schema.
 ## Run
 
 ```bash
-uvicorn app.main:app --reload --app-dir services/api
+uv sync --group dev
+uv run uvicorn services.api.app.main:app --reload
 ```
 
 ## Current Endpoints
@@ -65,7 +66,7 @@ Without it, the endpoint uses a deterministic parser for demo stability.
 - Deduplicates pulled sources by company, connector, and title.
 - Timestamps signals with `observed_at` and sources with `submitted_at`.
 - Updates founder scores after ingestion and persists them to
-  `data/processed/founder_scores.json`.
+  SQLite at `data/processed/vcbrain.sqlite3`.
 - Marks cold-start founders explicitly when evidence is sparse.
 - Emits trigger events for new applications and signal threshold crossings.
 - Parses uploaded `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` files into
@@ -79,3 +80,5 @@ Without it, the endpoint uses a deterministic parser for demo stability.
 ```bash
 uv run --with fastapi --with pypdf --with python-docx --with python-pptx python scripts/seed_demo.py --reset
 ```
+
+Set `VCBRAIN_DB_PATH` to isolate local, test, or deployed SQLite files.

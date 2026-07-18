@@ -219,6 +219,7 @@ def ingest_company(company_id: str) -> IngestionRun:
             founder,
             store.company_claims(company_id),
             store.company_sources(company_id),
+            store.company_evidence(company_id),
         )
         founder.cold_start = score.cold_start
         store.founder_scores[founder.id] = score
@@ -276,6 +277,7 @@ def search_founder_memory(payload: FounderSearchRequest) -> list[SearchMatch]:
         store.founder_scores,
         list(store.claims.values()),
         list(store.sources.values()),
+        list(store.evidence.values()),
         payload.limit,
     )
 

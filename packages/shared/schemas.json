@@ -23,6 +23,8 @@
     "confidence": "number:0-1",
     "cold_start": "boolean",
     "evidence_count": "integer",
+    "evidence_coverage": "number:0-1",
+    "contradiction_count": "integer",
     "updated_at": "datetime",
     "notes": ["string"]
   },
@@ -40,7 +42,12 @@
     "source_id": "string",
     "segment_id": "string",
     "quote": "string",
-    "confidence": "number:0-1"
+    "confidence": "number:0-1",
+    "source_reliability": "number:0-1",
+    "source_independence": "founder_provided|company_owned|third_party|unknown",
+    "freshness_days": "integer|null",
+    "directness": "direct|inferred|indirect",
+    "confidence_reason": "string|null"
   },
   "Dossier": {
     "company": "Company",

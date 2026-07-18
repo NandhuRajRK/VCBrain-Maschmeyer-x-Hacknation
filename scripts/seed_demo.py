@@ -46,6 +46,7 @@ def main() -> None:
             founder,
             store.company_claims(company.id),
             store.company_sources(company.id),
+            store.company_evidence(company.id),
         )
         founder.cold_start = score.cold_start
         store.founder_scores[founder.id] = score
@@ -120,4 +121,3 @@ def _save_segments_and_claims(company_id: str, source: Source, segments: list[Se
 
 if __name__ == "__main__":
     main()
-

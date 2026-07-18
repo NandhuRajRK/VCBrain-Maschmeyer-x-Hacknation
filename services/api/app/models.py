@@ -168,6 +168,11 @@ class Evidence(BaseModel):
     segment_id: str
     quote: str
     confidence: float = Field(ge=0, le=1)
+    source_reliability: float = Field(default=0.5, ge=0, le=1)
+    source_independence: str = "unknown"
+    freshness_days: int | None = None
+    directness: str = "indirect"
+    confidence_reason: str | None = None
 
 
 class Claim(BaseModel):
@@ -186,6 +191,8 @@ class FounderScore(BaseModel):
     confidence: float = Field(ge=0, le=1)
     cold_start: bool
     evidence_count: int
+    evidence_coverage: float = Field(default=0, ge=0, le=1)
+    contradiction_count: int = 0
     updated_at: datetime = Field(default_factory=now)
     notes: list[str] = Field(default_factory=list)
 

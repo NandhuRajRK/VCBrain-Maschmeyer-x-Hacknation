@@ -1,9 +1,11 @@
+import os
 import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+os.environ["VCBRAIN_DB_PATH"] = "/tmp/vcbrain-api-smoke.sqlite3"
 
 from services.api.app import main
 from services.api.app.models import ConnectorKind, Signal
@@ -85,7 +87,10 @@ def test_create_pull_ingest_dossier(monkeypatch):
     assert len(payload["sources"]) == 4
     assert len(payload["claims"]) == 4
     assert len(payload["evidence"]) == 4
+    assert payload["evidence"][0]["source_independence"] in {"founder_provided", "company_owned", "third_party"}
+    assert payload["evidence"][0]["confidence_reason"]
     assert payload["founder_scores"][0]["cold_start"] is False
+    assert payload["founder_scores"][0]["evidence_coverage"] > 0
     assert any(event["kind"] == "new_application" for event in payload["trigger_events"])
     assert any(event["kind"] == "signal_threshold_crossed" for event in payload["trigger_events"])
 

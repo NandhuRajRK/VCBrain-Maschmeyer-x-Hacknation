@@ -10,6 +10,7 @@ from .models import (
     Source,
     SourceType,
 )
+from .evidence import build_evidence
 
 
 def parse_source(source: Source) -> list[Segment]:
@@ -46,16 +47,17 @@ def extract_claims(company_id: str, source: Source, segments: list[Segment]) -> 
 
     for segment in segments:
         quote = segment.text[:320]
-        item = Evidence(source_id=source.id, segment_id=segment.id, quote=quote, confidence=0.72)
+        item = build_evidence(source, segment.id, quote)
         evidence.append(item)
+        status = _claim_status(quote)
         claims.append(
             Claim(
                 company_id=company_id,
                 kind=kind,
                 text=quote,
                 evidence_ids=[item.id],
-                status=_claim_status(quote),
-                confidence=0.58 if _claim_status(quote) == ClaimStatus.disputed else item.confidence,
+                status=status,
+                confidence=round(item.confidence * 0.55, 3) if status == ClaimStatus.disputed else item.confidence,
             )
         )
 
