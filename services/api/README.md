@@ -10,6 +10,7 @@ the agreed source schema.
 
 ```bash
 uv sync --group dev
+cp .env.example .env
 uv run uvicorn services.api.app.main:app --reload
 ```
 
@@ -28,6 +29,7 @@ uv run uvicorn services.api.app.main:app --reload
 - `GET /companies/{company_id}/events`
 - `POST /founders/search`
 - `POST /founders/activate`
+- `POST /voice/narrate`
 - `GET /companies`
 - `GET /founders`
 - `POST /demo/seed`
@@ -52,6 +54,9 @@ Optional API keys:
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` defaults to `gpt-5`
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_VOICE_ID` defaults to `JBFqnCBsd6RMkjVDRZzb`
+- `ELEVENLABS_MODEL_ID` defaults to `eleven_multilingual_v2`
 - `PRODUCT_HUNT_TOKEN`
 - `PERPLEXITY_API_KEY`
 - `EXA_API_KEY`
@@ -64,6 +69,10 @@ surface instead, so the dossier still shows evidence gaps explicitly.
 `OPENAI_API_KEY` enables structured parsing for `POST /founders/search`.
 Without it, the endpoint uses a deterministic parser for demo stability.
 Prompt text is use-case-specific and lives in `services/api/app/prompts.py`.
+
+`ELEVENLABS_API_KEY` enables `POST /voice/narrate`, which returns an MP3 audio
+narration for any supplied text. This can later power a voice mode for outreach,
+memo readouts, or mobile/web playback.
 
 ## Person A Scope
 

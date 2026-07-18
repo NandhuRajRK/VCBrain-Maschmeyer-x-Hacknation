@@ -6,6 +6,7 @@ Goal: show an evidence-backed investment workflow in under five minutes.
 
 ```bash
 uv sync --group dev
+cp .env.example .env
 VCBRAIN_DB_PATH=/tmp/vcbrain-demo.sqlite3 uv run python scripts/seed_demo.py --reset
 uv run uvicorn services.api.app.main:app --reload
 ```
@@ -50,3 +51,13 @@ GET /companies/{company_id}/dossier
 
 Her layer should add thesis filtering, 3-axis scoring, memo generation, and
 decision-flip logic. The data layer remains the evidence source of truth.
+
+## Optional: Voice Moment
+
+If `ELEVENLABS_API_KEY` is set, send the outreach draft or memo text to:
+
+```text
+POST /voice/narrate
+```
+
+Play the returned MP3 as the investor-friendly "listen to the brief" moment.

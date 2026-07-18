@@ -9,6 +9,7 @@ dependencies = [
   "python-multipart",
   "pypdf",
   "python-docx",
+  "python-dotenv",
   "python-pptx",
 ]
 
@@ -21,4 +22,3 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-

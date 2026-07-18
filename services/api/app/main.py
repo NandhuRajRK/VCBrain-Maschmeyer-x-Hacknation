@@ -1,5 +1,6 @@
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 
+from . import config as config
 from .document_parser import LLM_TASKS, parse_document
 from .demo import seed_demo
 from .models import (
@@ -26,12 +27,14 @@ from .models import (
     TriggerKind,
     ActivateRequest,
     ActivationDraft,
+    VoiceNarrationRequest,
 )
 from .connectors import pull_signals
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
 from .scoring import update_founder_score
 from .search import search_founders
 from .store import store
+from .voice import narrate_text
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
 
@@ -317,6 +320,16 @@ def activate_founder(payload: ActivateRequest) -> ActivationDraft:
             "Best,\nNandhu"
         ),
         evidence_ids=evidence_ids,
+    )
+
+
+@app.post("/voice/narrate")
+def narrate(payload: VoiceNarrationRequest) -> Response:
+    audio = narrate_text(payload.text, payload.voice_id)
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": 'inline; filename="vcbrain-narration.mp3"'},
     )
 
 

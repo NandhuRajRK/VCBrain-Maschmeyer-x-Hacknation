@@ -76,6 +76,19 @@ Useful platform endpoints:
 - `GET /companies`
 - `GET /founders`
 - `POST /demo/seed`
+- `POST /voice/narrate`
+
+## Environment
+
+Put real keys in a local `.env` file copied from `.env.example`.
+
+Required for richer demo modes:
+
+- `OPENAI_API_KEY`
+- `TAVILY_API_KEY`
+- `ELEVENLABS_API_KEY`
+
+Do not commit `.env`; it is already ignored.
 
 Cold-start founders are never hidden. They are returned with `cold_start: true`
 and low confidence so the memo layer can flag evidence gaps explicitly.

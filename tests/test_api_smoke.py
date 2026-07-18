@@ -109,6 +109,9 @@ def test_create_pull_ingest_dossier(monkeypatch):
     assert activate.status_code == 200
     assert "DemoCo x Maschmeyer Group" == activate.json()["subject"]
 
+    voice = client.post("/voice/narrate", json={"text": "Demo narration."})
+    assert voice.status_code == 503
+
     companies = client.get("/companies")
     founders = client.get("/founders")
     assert companies.status_code == 200

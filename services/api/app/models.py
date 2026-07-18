@@ -239,6 +239,11 @@ class ActivationDraft(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class VoiceNarrationRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    voice_id: str | None = None
+
+
 class DemoSeedResult(BaseModel):
     companies: int
     founders: int
