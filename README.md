@@ -45,8 +45,8 @@ tests/            Cross-service smoke and integration tests
 ## Branching
 
 - `main`: stable demo-ready work.
-- `dev`: shared integration branch.
-- Feature branches: `feature/<short-name>`.
+- `nandhu`: Nandhu's working branch.
+- `julia`: Julia's working branch.
 
-Keep pull requests small enough to review quickly during the hackathon.
-
+Merge into `main` when a chunk is usable and demo-safe. Keep pull requests small
+enough to review quickly during the hackathon.
