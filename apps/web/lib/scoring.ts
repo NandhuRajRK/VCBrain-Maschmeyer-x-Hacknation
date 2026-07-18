@@ -260,7 +260,8 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
         founderClaims.length
       : 0.5;
 
-  const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
+  const evidenceQuality = (avgConfidence + avgIndependence + avgFreshness) / 3;
+  const adjustedScore = Math.round(rawScore * (0.55 + 0.45 * evidenceQuality));
 
   // Notes
   const notes: string[] = [];
@@ -327,7 +328,8 @@ function scoreMarketAxis(dossier: DossierInput): AxisScore {
         allRelevant.length
       : 0.5;
 
-  const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
+  const evidenceQuality = (avgConfidence + avgIndependence + avgFreshness) / 3;
+  const adjustedScore = Math.round(rawScore * (0.55 + 0.45 * evidenceQuality));
 
   const notes: string[] = [];
   if (marketClaims.length === 0) notes.push("No market-specific claims, relying on inferred signals");
@@ -401,7 +403,8 @@ function scoreIdeaVsMarketAxis(dossier: DossierInput): AxisScore {
         allRelevant.length
       : 0.5;
 
-  const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
+  const evidenceQuality = (avgConfidence + avgIndependence + avgFreshness) / 3;
+  const adjustedScore = Math.round(rawScore * (0.55 + 0.45 * evidenceQuality));
 
   const notes: string[] = [];
   if (productClaims.length === 0) notes.push("No product claims, idea not well articulated in sources");
