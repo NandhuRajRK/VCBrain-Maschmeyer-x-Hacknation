@@ -1,0 +1,156 @@
+{
+  "Company": {
+    "id": "string",
+    "name": "string",
+    "website": "url|null",
+    "sector": "string|null",
+    "stage": "string|null",
+    "geography": "string|null",
+    "description": "string|null"
+  },
+  "Founder": {
+    "id": "string",
+    "company_id": "string",
+    "name": "string",
+    "role": "string|null",
+    "linkedin": "url|null",
+    "github": "string|null",
+    "cold_start": "boolean"
+  },
+  "FounderScore": {
+    "founder_id": "string",
+    "score": "number:0-100",
+    "confidence": "number:0-1",
+    "cold_start": "boolean",
+    "evidence_count": "integer",
+    "evidence_coverage": "number:0-1",
+    "contradiction_count": "integer",
+    "updated_at": "datetime",
+    "notes": ["string"]
+  },
+  "Source": {
+    "id": "string",
+    "company_id": "string",
+    "source_type": "pitch_deck|financial_model|founder_questionnaire|document|website|founder_linkedin|github|press|hacker_news|product_hunt|arxiv|perplexity|exa|tavily|opencorporates|sec_edgar|patentsview|crm_note|other",
+    "source_category": "github|hacker_news|arxiv|product_hunt|press|pitch_deck|founder_doc",
+    "title": "string",
+    "url": "url|null",
+    "text": "string|null",
+    "status": "queued|processing|parsed|failed",
+    "submitted_at": "datetime"
+  },
+  "Claim": {
+    "id": "string",
+    "company_id": "string",
+    "founder_id": "string|null",
+    "kind": "company|founder|traction|market|product|financial",
+    "text": "string",
+    "status": "extracted|supported|disputed|missing_evidence",
+    "evidence_ids": ["string"],
+    "confidence": "number:0-1"
+  },
+  "Evidence": {
+    "id": "string",
+    "source_id": "string",
+    "segment_id": "string",
+    "quote": "string",
+    "confidence": "number:0-1",
+    "source_reliability": "number:0-1",
+    "source_independence": "founder_provided|company_owned|third_party|unknown",
+    "freshness_days": "integer|null",
+    "directness": "direct|inferred|indirect",
+    "confidence_reason": "string|null"
+  },
+  "Dossier": {
+    "company": "Company",
+    "founders": ["Founder"],
+    "sources": ["Source"],
+    "segments": ["Segment"],
+    "claims": ["Claim"],
+    "evidence": ["Evidence"],
+    "founder_scores": ["FounderScore"],
+    "trigger_events": ["TriggerEvent"]
+  },
+  "SearchMatch": {
+    "company": "Company",
+    "founder": "Founder",
+    "founder_score": "FounderScore|null",
+    "match_score": "number:0-100",
+    "reasons": ["string"]
+  },
+  "ParsedFounderQuery": {
+    "sectors": ["string"],
+    "geographies": ["string"],
+    "stages": ["string"],
+    "founder_traits": ["string"],
+    "keywords": ["string"],
+    "exclude_prior_vc": "boolean",
+    "confidence": "number:0-1"
+  },
+  "ThesisConfig": {
+    "sectors": ["string"],
+    "stages": ["string"],
+    "geographies": ["string"],
+    "check_size_usd": "integer|null",
+    "ownership_target": "number|null",
+    "risk_appetite": "low|medium|high"
+  },
+  "AxisScore": {
+    "axis": "founder|market|idea_vs_market",
+    "raw": "number:0-100",
+    "adjusted": "number:0-100",
+    "confidence": "number:0-1",
+    "trend": "improving|stable|declining",
+    "rationale": "string",
+    "claim_ids": ["string"]
+  },
+  "InvestmentMemo": {
+    "company_id": "string",
+    "snapshot": "string",
+    "investment_hypotheses": ["string"],
+    "swot": {
+      "strengths": ["string"],
+      "weaknesses": ["string"],
+      "opportunities": ["string"],
+      "threats": ["string"]
+    },
+    "problem_product": "string",
+    "traction_kpis": ["string"],
+    "data_gaps": ["string"],
+    "red_team": "string"
+  },
+  "Decision": {
+    "company_id": "string",
+    "recommendation": "invest|conditional_invest|hold|reject",
+    "conditions": ["string"],
+    "decision_flip_factors": ["string"],
+    "memo_id": "string|null"
+  },
+  "ActivationDraft": {
+    "founder_id": "string",
+    "company_id": "string",
+    "subject": "string",
+    "message": "string",
+    "evidence_ids": ["string"]
+  },
+  "VoiceCommand": {
+    "intent": "founder_search|company_dossier|memo_review|decision_review|activation|unknown",
+    "query": "string",
+    "confidence": "number:0-1"
+  },
+  "VoiceQueryResponse": {
+    "transcript": "string",
+    "command": "VoiceCommand",
+    "parsed_query": "ParsedFounderQuery|null",
+    "results": ["SearchMatch"],
+    "response_text": "string",
+    "audio_available": "boolean",
+    "audio_base64": "string|null"
+  },
+  "DemoSeedResult": {
+    "companies": "integer",
+    "founders": "integer",
+    "claims": "integer",
+    "evidence": "integer"
+  }
+}

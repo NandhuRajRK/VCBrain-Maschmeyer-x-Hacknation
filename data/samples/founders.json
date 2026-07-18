@@ -1,0 +1,125 @@
+[
+  {
+    "company": "AetherGrid",
+    "founder": "Mira Shah",
+    "level": "rich",
+    "sector": "AI infrastructure",
+    "stage": "seed",
+    "geography": "Berlin",
+    "website": "https://aethergrid.example",
+    "github": "mirashah",
+    "deck": "aethergrid_pitch.md",
+    "traction": "Deck says 20 enterprise customers and 42% month-over-month inference volume growth.",
+    "contradiction": "HN launch comment says AetherGrid has 5 pilots, not 20 customers."
+  },
+  {
+    "company": "MedRelay",
+    "founder": "Jonas Weber",
+    "level": "rich",
+    "sector": "healthcare workflow",
+    "stage": "pre-seed",
+    "geography": "Munich",
+    "website": "https://medrelay.example",
+    "github": "jonasweber",
+    "deck": "medrelay_pitch.md",
+    "traction": "Claims 12 clinics in paid pilot and two signed LOIs.",
+    "contradiction": "Founder questionnaire says only 4 active clinics are live."
+  },
+  {
+    "company": "QuietLedger",
+    "founder": "Priya Menon",
+    "level": "rich",
+    "sector": "fintech compliance",
+    "stage": "seed",
+    "geography": "London",
+    "website": "https://quietledger.example",
+    "github": "priyamenon",
+    "deck": "quietledger_pitch.md",
+    "traction": "Claims $38k MRR and 9 regulated fintech customers."
+  },
+  {
+    "company": "VectorNest",
+    "founder": "Elena Rossi",
+    "level": "medium",
+    "sector": "developer tools",
+    "stage": "pre-seed",
+    "geography": "Milan",
+    "website": "https://vectornest.example",
+    "github": null,
+    "deck": "aethergrid_pitch.md",
+    "traction": "Deck says 1,800 waitlist signups."
+  },
+  {
+    "company": "CarbonLoop",
+    "founder": "Tobias Klein",
+    "level": "medium",
+    "sector": "climate software",
+    "stage": "seed",
+    "geography": "Berlin",
+    "website": "https://carbonloop.example",
+    "github": null,
+    "deck": "medrelay_pitch.md",
+    "traction": "Claims three paid design partners."
+  },
+  {
+    "company": "NomiCare",
+    "founder": "Sara Haddad",
+    "level": "medium",
+    "sector": "eldercare SaaS",
+    "stage": "pre-seed",
+    "geography": "Paris",
+    "website": "https://nomicare.example",
+    "github": null,
+    "deck": "quietledger_pitch.md",
+    "traction": "Deck says two municipal pilots are in procurement."
+  },
+  {
+    "company": "AtlasFlow",
+    "founder": "Max Nguyen",
+    "level": "medium",
+    "sector": "logistics AI",
+    "stage": "seed",
+    "geography": "Hamburg",
+    "website": "https://atlasflow.example",
+    "github": "maxnguyen",
+    "deck": "aethergrid_pitch.md",
+    "traction": "Claims 14% route cost reduction in warehouse tests."
+  },
+  {
+    "company": "KiteBio",
+    "founder": "Lina Park",
+    "level": "cold",
+    "sector": "bioinformatics",
+    "stage": "idea",
+    "geography": "Zurich",
+    "website": null,
+    "github": null,
+    "deck": "medrelay_pitch.md",
+    "traction": "Only a technical concept note is available."
+  },
+  {
+    "company": "Brickwise",
+    "founder": "Oscar Lind",
+    "level": "cold",
+    "sector": "construction software",
+    "stage": "idea",
+    "geography": "Stockholm",
+    "website": null,
+    "github": null,
+    "deck": "quietledger_pitch.md",
+    "traction": "Only founder name and deck are available."
+  },
+  {
+    "company": "SableOps",
+    "founder": "Amara Okafor",
+    "level": "cold",
+    "sector": "security operations",
+    "stage": "pre-seed",
+    "geography": "Dublin",
+    "website": "https://sableops.example",
+    "github": null,
+    "deck": "aethergrid_pitch.md",
+    "traction": "Early design partner conversations, no verified customers."
+  }
+]
+

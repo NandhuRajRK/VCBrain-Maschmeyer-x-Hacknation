@@ -1,0 +1,12 @@
+# Shared Schemas
+
+Contract layer shared by the data API and the intelligence/UI work.
+
+The source of truth is `schemas.json`. Keep these names aligned with API
+responses so Julia's scoring and memo layer can depend on stable fields.
+
+Nandhu owns the data-side implementations. Julia owns behavior for
+`ThesisConfig`, `AxisScore`, `InvestmentMemo`, and `Decision`; those schemas are
+included here so both sides can wire against the same contract. The reusable
+voice input contract is `VoiceQueryResponse`: Julia can route its typed command
+to the appropriate view without depending on OpenAI or ElevenLabs details.

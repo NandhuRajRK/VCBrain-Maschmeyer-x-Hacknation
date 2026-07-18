@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 def new_id(prefix: str) -> str:
@@ -28,8 +28,24 @@ class SourceType(str, Enum):
     hacker_news = "hacker_news"
     product_hunt = "product_hunt"
     arxiv = "arxiv"
+    perplexity = "perplexity"
+    exa = "exa"
+    tavily = "tavily"
+    opencorporates = "opencorporates"
+    sec_edgar = "sec_edgar"
+    patentsview = "patentsview"
     crm_note = "crm_note"
     other = "other"
+
+
+class SourceCategory(str, Enum):
+    github = "github"
+    hacker_news = "hacker_news"
+    arxiv = "arxiv"
+    product_hunt = "product_hunt"
+    press = "press"
+    pitch_deck = "pitch_deck"
+    founder_doc = "founder_doc"
 
 
 class IngestionStatus(str, Enum):
@@ -76,6 +92,13 @@ class ConnectorKind(str, Enum):
     hacker_news = "hacker_news"
     product_hunt = "product_hunt"
     arxiv = "arxiv"
+    website = "website"
+    perplexity = "perplexity"
+    exa = "exa"
+    tavily = "tavily"
+    opencorporates = "opencorporates"
+    sec_edgar = "sec_edgar"
+    patentsview = "patentsview"
 
 
 class Signal(BaseModel):
@@ -93,6 +116,7 @@ class SourcePullRequest(BaseModel):
     query: str | None = None
     github_user: str | None = None
     arxiv_query: str | None = None
+    website_url: HttpUrl | None = None
 
 
 class SourcePullResult(BaseModel):
@@ -115,6 +139,28 @@ class Source(SourceCreate):
     id: str = Field(default_factory=lambda: new_id("src"))
     status: IngestionStatus = IngestionStatus.queued
     submitted_at: datetime = Field(default_factory=now)
+    source_category: SourceCategory = SourceCategory.founder_doc
+
+    @model_validator(mode="after")
+    def set_source_category(self) -> "Source":
+        self.source_category = _source_category(self.source_type)
+        return self
+
+
+def _source_category(source_type: SourceType) -> SourceCategory:
+    if source_type == SourceType.github:
+        return SourceCategory.github
+    if source_type == SourceType.hacker_news:
+        return SourceCategory.hacker_news
+    if source_type == SourceType.arxiv:
+        return SourceCategory.arxiv
+    if source_type == SourceType.product_hunt:
+        return SourceCategory.product_hunt
+    if source_type == SourceType.pitch_deck:
+        return SourceCategory.pitch_deck
+    if source_type in {SourceType.press, SourceType.website}:
+        return SourceCategory.press
+    return SourceCategory.founder_doc
 
 
 class Segment(BaseModel):
@@ -154,16 +200,28 @@ class Evidence(BaseModel):
     segment_id: str
     quote: str
     confidence: float = Field(ge=0, le=1)
+    source_reliability: float = Field(default=0.5, ge=0, le=1)
+    source_independence: str = "unknown"
+    freshness_days: int | None = None
+    directness: str = "indirect"
+    confidence_reason: str | None = None
 
 
 class Claim(BaseModel):
     id: str = Field(default_factory=lambda: new_id("claim"))
     company_id: str
+    founder_id: str | None = None
     kind: ClaimKind
     text: str
-    status: ClaimStatus = ClaimStatus.supported
+    status: ClaimStatus = ClaimStatus.extracted
     evidence_ids: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
+
+
+class ExtractedClaim(BaseModel):
+    kind: ClaimKind
+    text: str = Field(min_length=1)
+    confidence: float = Field(default=0.5, ge=0, le=1)
 
 
 class FounderScore(BaseModel):
@@ -172,8 +230,90 @@ class FounderScore(BaseModel):
     confidence: float = Field(ge=0, le=1)
     cold_start: bool
     evidence_count: int
+    evidence_coverage: float = Field(default=0, ge=0, le=1)
+    contradiction_count: int = 0
     updated_at: datetime = Field(default_factory=now)
     notes: list[str] = Field(default_factory=list)
+
+
+class FounderSearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class ParsedFounderQuery(BaseModel):
+    sectors: list[str] = Field(default_factory=list)
+    geographies: list[str] = Field(default_factory=list)
+    stages: list[str] = Field(default_factory=list)
+    founder_traits: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    exclude_prior_vc: bool = False
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class SearchMatch(BaseModel):
+    company: Company
+    founder: Founder
+    founder_score: FounderScore | None = None
+    match_score: float = Field(ge=0, le=100)
+    reasons: list[str] = Field(default_factory=list)
+
+
+class ActivateRequest(BaseModel):
+    founder_id: str
+    context: str | None = None
+
+
+class ActivationDraft(BaseModel):
+    founder_id: str
+    company_id: str
+    subject: str
+    message: str
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class VoiceNarrationRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    voice_id: str | None = None
+
+
+class VoiceIntent(str, Enum):
+    founder_search = "founder_search"
+    company_dossier = "company_dossier"
+    memo_review = "memo_review"
+    decision_review = "decision_review"
+    activation = "activation"
+    unknown = "unknown"
+
+
+class VoiceCommand(BaseModel):
+    intent: VoiceIntent
+    query: str = Field(min_length=1)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class VoiceTextQueryRequest(BaseModel):
+    transcript: str = Field(min_length=1, max_length=2000)
+    speak_response: bool = False
+    voice_id: str | None = None
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class VoiceQueryResponse(BaseModel):
+    transcript: str
+    command: VoiceCommand
+    parsed_query: ParsedFounderQuery | None = None
+    results: list[SearchMatch] = Field(default_factory=list)
+    response_text: str
+    audio_available: bool = False
+    audio_base64: str | None = None
+
+
+class DemoSeedResult(BaseModel):
+    companies: int
+    founders: int
+    claims: int
+    evidence: int
 
 
 class TriggerKind(str, Enum):
