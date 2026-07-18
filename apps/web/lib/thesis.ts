@@ -4,7 +4,7 @@
  * The fund's investment preferences as a configurable filter.
  * Every company that enters the pipeline is checked against this
  * before any scoring happens. If it fails a hard filter, it's
- * an instant pass — no resources wasted on analysis.
+ * an instant pass -- no resources wasted on analysis.
  */
 
 // ── Types ──────────────────────────────────────────────────────
@@ -25,13 +25,13 @@ export interface ThesisConfig {
   /** Target ownership percentage post-investment */
   ownershipTarget: number;
 
-  /** How much risk the fund tolerates — affects soft scoring */
+  /** How much risk the fund tolerates -- affects soft scoring */
   riskAppetite: "conservative" | "moderate" | "aggressive";
 
   /** Business models the fund prefers (e.g. "b2b_saas", "marketplace") */
   preferredModels: string[];
 
-  /** Hard exclusions — any match is an instant reject */
+  /** Hard exclusions -- any match is an instant reject */
   exclusions: string[];
 }
 
@@ -39,13 +39,13 @@ export interface ThesisResult {
   /** Did the company pass all hard filters? */
   pass: boolean;
 
-  /** Hard filter failures — any of these means instant reject */
+  /** Hard filter failures -- any of these means instant reject */
   hardFailures: string[];
 
-  /** Soft matches — things the fund likes that this company has */
+  /** Soft matches -- things the fund likes that this company has */
   softMatches: string[];
 
-  /** Soft mismatches — preferences the company doesn't meet */
+  /** Soft mismatches -- preferences the company doesn't meet */
   softMismatches: string[];
 
   /** 0-1 score representing overall thesis alignment */
@@ -104,7 +104,7 @@ export function evaluateThesis(
   const softMatches: string[] = [];
   const softMismatches: string[] = [];
 
-  // Hard filters — any failure = instant reject
+  // Hard filters -- any failure = instant reject
 
   if (!matchesAny(company.sector, thesis.sectors)) {
     hardFailures.push(`Sector "${company.sector ?? "unknown"}" outside fund thesis`);
@@ -125,7 +125,7 @@ export function evaluateThesis(
     hardFailures.push(`Matches exclusion: "${excluded}"`);
   }
 
-  // Soft preferences — influence fit score but don't reject
+  // Soft preferences -- influence fit score but don't reject
 
   if (company.description) {
     const desc = normalize(company.description);

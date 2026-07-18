@@ -2,9 +2,9 @@
  * 3-Axis Scoring Engine
  *
  * Scores every opportunity on three independent axes:
- *   1. Founder — who they are, track record, technical depth
- *   2. Market — size, growth, competition, timing
- *   3. Idea-vs-Market — does the idea survive scrutiny, or is the
+ *   1. Founder -- who they are, track record, technical depth
+ *   2. Market -- size, growth, competition, timing
+ *   3. Idea-vs-Market -- does the idea survive scrutiny, or is the
  *      team strong enough to pivot?
  *
  * The axes are NEVER averaged into a single number. Each one
@@ -261,12 +261,12 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
 
   // Notes
   const notes: string[] = [];
-  if (isColdStart) notes.push("Cold-start founder — limited track record, score capped at 50");
-  if (founders.length === 1) notes.push("Single founder — higher execution risk");
+  if (isColdStart) notes.push("Cold-start founder -- limited track record, score capped at 50");
+  if (founders.length === 1) notes.push("Single founder -- higher execution risk");
   if (founders.length >= 2) notes.push(`Team of ${founders.length} founders`);
   if (hasGithub) notes.push("GitHub presence detected");
   if (disputed.length > 0) notes.push(`${disputed.length} disputed claim(s) on founder`);
-  if (founderClaims.length === 0) notes.push("No founder-specific claims — scoring from minimal data");
+  if (founderClaims.length === 0) notes.push("No founder-specific claims -- scoring from minimal data");
 
   return {
     axis: "founder",
@@ -289,7 +289,7 @@ function scoreMarketAxis(dossier: DossierInput): AxisScore {
   const supporting = allRelevant.filter((c) => c.status === "supported");
   const disputed = allRelevant.filter((c) => c.status === "disputed");
 
-  let rawScore = 40; // baseline — markets are hard to assess from limited data
+  let rawScore = 40; // baseline -- markets are hard to assess from limited data
 
   // More market claims = more evidence of market understanding
   rawScore = Math.min(100, rawScore + marketClaims.length * 6);
@@ -327,11 +327,11 @@ function scoreMarketAxis(dossier: DossierInput): AxisScore {
   const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
 
   const notes: string[] = [];
-  if (marketClaims.length === 0) notes.push("No market-specific claims — relying on inferred signals");
+  if (marketClaims.length === 0) notes.push("No market-specific claims -- relying on inferred signals");
   if (tractionClaims.length > 0) notes.push(`${tractionClaims.length} traction signal(s) detected`);
   if (externalSignals.length > 0) notes.push("External community traction (HN/ProductHunt)");
   if (disputed.length > 0) notes.push(`${disputed.length} disputed market/traction claim(s)`);
-  if (!company.sector) notes.push("No sector identified — market sizing not possible");
+  if (!company.sector) notes.push("No sector identified -- market sizing not possible");
 
   return {
     axis: "market",
@@ -401,9 +401,9 @@ function scoreIdeaVsMarketAxis(dossier: DossierInput): AxisScore {
   const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
 
   const notes: string[] = [];
-  if (productClaims.length === 0) notes.push("No product claims — idea not well articulated in sources");
+  if (productClaims.length === 0) notes.push("No product claims -- idea not well articulated in sources");
   if (tractionClaims.length > 0) notes.push("Traction validates idea-market alignment");
-  if (avgFounderScore >= 60) notes.push("Strong founder score — team can pivot if needed");
+  if (avgFounderScore >= 60) notes.push("Strong founder score -- team can pivot if needed");
   if (disputed.length > 0) notes.push(`${disputed.length} disputed claim(s) on product/market fit`);
 
   return {
@@ -439,7 +439,7 @@ export function scoreDossier(dossier: DossierInput): ScoringResult {
 
   // Surface key risks
   const risks: string[] = [];
-  if (isColdStart) risks.push("Cold-start founder — minimal verifiable track record");
+  if (isColdStart) risks.push("Cold-start founder -- minimal verifiable track record");
   if (founder.adjustedScore < 30) risks.push("Founder score critically low");
   if (market.adjustedScore < 25) risks.push("Market evidence insufficient for conviction");
   if (ideaVsMarket.adjustedScore < 20) risks.push("Idea-market fit unvalidated");
