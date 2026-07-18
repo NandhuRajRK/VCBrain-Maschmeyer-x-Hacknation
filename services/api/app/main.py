@@ -18,6 +18,8 @@ from .models import (
     Dossier,
     Evidence,
     Founder,
+    FounderEnrichmentRequest,
+    FounderEnrichmentResult,
     FounderPassport,
     FounderSearchRequest,
     IngestionRun,
@@ -307,6 +309,67 @@ def get_founder_passports(company_id: str) -> list[FounderPassport]:
     return [build_founder_passport(founder) for founder in store.company_founders(company_id)]
 
 
+@app.post("/companies/{company_id}/founder-passports/enrich", response_model=FounderEnrichmentResult)
+def enrich_company_founders(
+    company_id: str,
+    payload: FounderEnrichmentRequest,
+) -> FounderEnrichmentResult:
+    store.company(company_id)
+    founders = store.company_founders(company_id)
+    if not founders:
+        raise HTTPException(status_code=400, detail="Ingest a founder source before enrichment")
+
+    connectors = payload.connectors or [ConnectorKind.tavily]
+    unsupported = [connector.value for connector in connectors if connector not in {ConnectorKind.tavily, ConnectorKind.exa}]
+    if unsupported:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Founder enrichment supports tavily and exa only: {', '.join(unsupported)}",
+        )
+
+    created: list[Source] = []
+    deduped = 0
+    company = store.company(company_id)
+    for founder in founders:
+        query = _founder_enrichment_query(founder.name, company.name)
+        for connector in connectors:
+            signals = pull_signals([connector], query)
+            for signal in signals[: payload.max_sources_per_founder]:
+                source = Source(
+                    company_id=company_id,
+                    source_type=SourceType(signal.source.value),
+                    title=signal.title,
+                    url=signal.url,
+                    text=signal.text,
+                    metadata={
+                        **signal.metadata,
+                        "founder_enrichment": True,
+                        "founder_name": founder.name,
+                        "founders": [{"name": founder.name, "github": founder.github}],
+                        "observed_at": signal.observed_at.isoformat(),
+                        "search_query": query,
+                    },
+                    submitted_at=signal.observed_at,
+                )
+                duplicate = find_duplicate_source(store.company_sources(company_id), source)
+                if duplicate:
+                    deduped += 1
+                    continue
+                store.sources[source.id] = source
+                created.append(source)
+
+    store.save()
+    ingestion = ingest_company(company_id)
+    return FounderEnrichmentResult(
+        company_id=company_id,
+        founder_ids=[founder.id for founder in founders],
+        connectors=connectors,
+        created_sources=created,
+        deduped_sources=deduped,
+        ingestion=ingestion,
+    )
+
+
 @app.get("/founders/{founder_id}/passport", response_model=FounderPassport)
 def get_founder_passport(founder_id: str) -> FounderPassport:
     return build_founder_passport(store.founder(founder_id))
@@ -315,6 +378,13 @@ def get_founder_passport(founder_id: str) -> FounderPassport:
 @app.get("/founders", response_model=list[Founder])
 def list_founders() -> list[Founder]:
     return list(store.founders.values())
+
+
+def _founder_enrichment_query(founder_name: str, company_name: str) -> str:
+    return (
+        f'"{founder_name}" founder {company_name} '
+        "career education previous startup work history"
+    )
 
 
 @app.get("/companies/{company_id}/events", response_model=list[TriggerEvent])

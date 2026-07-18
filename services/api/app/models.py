@@ -189,6 +189,11 @@ class SourcePullResult(BaseModel):
     deduped_sources: int
 
 
+class FounderEnrichmentRequest(BaseModel):
+    connectors: list[ConnectorKind] = Field(default_factory=list)
+    max_sources_per_founder: int = Field(default=1, ge=1, le=3)
+
+
 class SourceCreate(BaseModel):
     company_id: str
     source_type: SourceType
@@ -505,3 +510,12 @@ class IngestionRun(BaseModel):
     parsed_segments: int
     extracted_claims: int
     status: IngestionStatus
+
+
+class FounderEnrichmentResult(BaseModel):
+    company_id: str
+    founder_ids: list[str]
+    connectors: list[ConnectorKind]
+    created_sources: list[Source]
+    deduped_sources: int
+    ingestion: IngestionRun

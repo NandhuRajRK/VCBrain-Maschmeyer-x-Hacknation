@@ -22,7 +22,11 @@ def enrich_founder_passports(founders: list[Founder], source: Source) -> None:
         if (extraction is None or not _has_background(extraction)) and not source.metadata.get(
             "demo_seed"
         ):
-            extraction = extract_founder_background(source.text or "", founder.name)
+            text = source.text or ""
+            searched_name = str(source.metadata.get("founder_name") or founder.name)
+            if searched_name.lower() not in text.lower():
+                text = f"Founder being researched: {searched_name}.\n{text}"
+            extraction = extract_founder_background(text, founder.name)
         if extraction is None or not _has_background(extraction):
             continue
         _merge_background(founder, extraction, source)

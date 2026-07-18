@@ -646,3 +646,64 @@ def test_openai_founder_passport_extraction_is_dedicated(monkeypatch):
     assert extracted.work_history[0].organization == "Compute Labs"
     assert captured["text"]["format"]["name"] == "founder_passport_extraction"
     assert "founder-background extraction engine" in captured["input"][0]["content"]
+
+
+def test_founder_enrichment_targets_external_search_without_live_calls(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for collection in (
+        main.store.companies,
+        main.store.founders,
+        main.store.sources,
+        main.store.segments,
+        main.store.claims,
+        main.store.evidence,
+        main.store.founder_scores,
+        main.store.founder_score_history,
+        main.store.claim_status_changes,
+        main.store.trigger_events,
+    ):
+        collection.clear()
+
+    captured = {}
+
+    def fake_pull(connectors, query, github_user=None, arxiv_query=None, website_url=None):
+        captured["connectors"] = connectors
+        captured["query"] = query
+        return [
+            Signal(
+                source=ConnectorKind.tavily,
+                title="Mira Shah founder profile",
+                url="https://example.com/mira-shah",
+                text="Public founder profile for Mira Shah.",
+                metadata={"fetch_status": "live"},
+            )
+        ]
+
+    monkeypatch.setattr(main, "pull_signals", fake_pull)
+    client = TestClient(main.app)
+    company_id = client.post("/companies", json={"name": "EnrichCo"}).json()["id"]
+    source = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "document",
+            "title": "Founder note",
+            "text": "Founder: Mira Shah.",
+            "metadata": {"founders": [{"name": "Mira Shah", "role": "Founder"}]},
+        },
+    )
+    assert source.status_code == 201
+    assert client.post(f"/companies/{company_id}/ingest").status_code == 200
+
+    response = client.post(
+        f"/companies/{company_id}/founder-passports/enrich",
+        json={"connectors": ["tavily"], "max_sources_per_founder": 1},
+    )
+    assert response.status_code == 200
+    assert captured["connectors"] == [ConnectorKind.tavily]
+    assert '"Mira Shah"' in captured["query"]
+    assert "career education previous startup" in captured["query"]
+    payload = response.json()
+    assert payload["created_sources"][0]["source_type"] == "tavily"
+    assert payload["created_sources"][0]["metadata"]["founder_enrichment"] is True
+    assert payload["ingestion"]["accepted_sources"] == 2
