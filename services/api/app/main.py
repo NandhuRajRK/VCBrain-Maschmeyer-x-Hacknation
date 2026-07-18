@@ -1,11 +1,13 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from .document_parser import LLM_TASKS, parse_document
+from .demo import seed_demo
 from .models import (
     Claim,
     ConnectorKind,
     Company,
     CompanyCreate,
+    DemoSeedResult,
     DocumentUploadResult,
     Dossier,
     Evidence,
@@ -51,6 +53,11 @@ def create_company(payload: CompanyCreate) -> Company:
     store.trigger_events[event.id] = event
     store.save()
     return company
+
+
+@app.get("/companies", response_model=list[Company])
+def list_companies() -> list[Company]:
+    return list(store.companies.values())
 
 
 @app.post("/sources", response_model=Source, status_code=201)
@@ -263,6 +270,11 @@ def get_founders(company_id: str) -> list[Founder]:
     return store.company_founders(company_id)
 
 
+@app.get("/founders", response_model=list[Founder])
+def list_founders() -> list[Founder]:
+    return list(store.founders.values())
+
+
 @app.get("/companies/{company_id}/events", response_model=list[TriggerEvent])
 def get_events(company_id: str) -> list[TriggerEvent]:
     return store.company_trigger_events(company_id)
@@ -306,3 +318,8 @@ def activate_founder(payload: ActivateRequest) -> ActivationDraft:
         ),
         evidence_ids=evidence_ids,
     )
+
+
+@app.post("/demo/seed", response_model=DemoSeedResult)
+def seed_demo_data(reset: bool = True) -> DemoSeedResult:
+    return seed_demo(reset=reset)

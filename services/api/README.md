@@ -28,6 +28,9 @@ uv run uvicorn services.api.app.main:app --reload
 - `GET /companies/{company_id}/events`
 - `POST /founders/search`
 - `POST /founders/activate`
+- `GET /companies`
+- `GET /founders`
+- `POST /demo/seed`
 
 ## Source Connectors
 
@@ -82,3 +85,5 @@ uv run --with fastapi --with pypdf --with python-docx --with python-pptx python 
 ```
 
 Set `VCBRAIN_DB_PATH` to isolate local, test, or deployed SQLite files.
+
+The same seed flow is available through `POST /demo/seed`.

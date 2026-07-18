@@ -85,8 +85,8 @@ def test_create_pull_ingest_dossier(monkeypatch):
     assert dossier.status_code == 200
     payload = dossier.json()
     assert len(payload["sources"]) == 4
-    assert len(payload["claims"]) == 4
-    assert len(payload["evidence"]) == 4
+    assert len(payload["claims"]) >= 4
+    assert len(payload["evidence"]) >= 4
     assert payload["evidence"][0]["source_independence"] in {"founder_provided", "company_owned", "third_party"}
     assert payload["evidence"][0]["confidence_reason"]
     assert payload["founder_scores"][0]["cold_start"] is False
@@ -108,3 +108,16 @@ def test_create_pull_ingest_dossier(monkeypatch):
     )
     assert activate.status_code == 200
     assert "DemoCo x Maschmeyer Group" == activate.json()["subject"]
+
+    companies = client.get("/companies")
+    founders = client.get("/founders")
+    assert companies.status_code == 200
+    assert founders.status_code == 200
+    assert len(companies.json()) == 1
+    assert len(founders.json()) == 1
+
+    seeded = client.post("/demo/seed")
+    assert seeded.status_code == 200
+    assert seeded.json()["companies"] == 10
+    assert seeded.json()["founders"] == 10
+    assert seeded.json()["claims"] >= 20

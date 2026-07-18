@@ -185,6 +185,12 @@ class Claim(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
 
+class ExtractedClaim(BaseModel):
+    kind: ClaimKind
+    text: str = Field(min_length=1)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
 class FounderScore(BaseModel):
     founder_id: str
     score: float = Field(ge=0, le=100)
@@ -231,6 +237,13 @@ class ActivationDraft(BaseModel):
     subject: str
     message: str
     evidence_ids: list[str] = Field(default_factory=list)
+
+
+class DemoSeedResult(BaseModel):
+    companies: int
+    founders: int
+    claims: int
+    evidence: int
 
 
 class TriggerKind(str, Enum):

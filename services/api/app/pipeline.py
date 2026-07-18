@@ -4,6 +4,7 @@ from .models import (
     ClaimStatus,
     CompanyUpdate,
     Evidence,
+    ExtractedClaim,
     Founder,
     IngestionStatus,
     Segment,
@@ -11,6 +12,7 @@ from .models import (
     SourceType,
 )
 from .evidence import build_evidence
+from .llm import extract_claims_from_text
 
 
 def parse_source(source: Source) -> list[Segment]:
@@ -43,25 +45,33 @@ def extract_founders(company_id: str, source: Source) -> list[Founder]:
 def extract_claims(company_id: str, source: Source, segments: list[Segment]) -> tuple[list[Claim], list[Evidence]]:
     claims: list[Claim] = []
     evidence: list[Evidence] = []
-    kind = _claim_kind(source.source_type)
+    default_kind = _claim_kind(source.source_type)
 
     for segment in segments:
-        quote = segment.text[:320]
-        item = build_evidence(source, segment.id, quote)
-        evidence.append(item)
-        status = _claim_status(quote)
-        claims.append(
-            Claim(
-                company_id=company_id,
-                kind=kind,
-                text=quote,
-                evidence_ids=[item.id],
-                status=status,
-                confidence=round(item.confidence * 0.55, 3) if status == ClaimStatus.disputed else item.confidence,
+        extracted = extract_claims_from_text(segment.text, default_kind)
+        for claim in extracted:
+            item = build_evidence(source, segment.id, _quote_for_claim(segment.text, claim))
+            evidence.append(item)
+            status = _claim_status(claim.text)
+            confidence = round(min(item.confidence, claim.confidence), 3)
+            claims.append(
+                Claim(
+                    company_id=company_id,
+                    kind=claim.kind,
+                    text=claim.text,
+                    evidence_ids=[item.id],
+                    status=status,
+                    confidence=round(confidence * 0.55, 3) if status == ClaimStatus.disputed else confidence,
+                )
             )
-        )
 
     return claims, evidence
+
+
+def _quote_for_claim(text: str, claim: ExtractedClaim) -> str:
+    if claim.text in text:
+        return claim.text[:320]
+    return text[:320]
 
 
 def _claim_status(text: str) -> ClaimStatus:

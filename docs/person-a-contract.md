@@ -71,6 +71,12 @@ Person B can consume:
 - `founder_scores`
 - `trigger_events`
 
+Useful platform endpoints:
+
+- `GET /companies`
+- `GET /founders`
+- `POST /demo/seed`
+
 Cold-start founders are never hidden. They are returned with `cold_start: true`
 and low confidence so the memo layer can flag evidence gaps explicitly.
 

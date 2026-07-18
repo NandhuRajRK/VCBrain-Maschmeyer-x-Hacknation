@@ -75,11 +75,56 @@
     "exclude_prior_vc": "boolean",
     "confidence": "number:0-1"
   },
+  "ThesisConfig": {
+    "sectors": ["string"],
+    "stages": ["string"],
+    "geographies": ["string"],
+    "check_size_usd": "integer|null",
+    "ownership_target": "number|null",
+    "risk_appetite": "low|medium|high"
+  },
+  "AxisScore": {
+    "axis": "founder|market|idea_vs_market",
+    "raw": "number:0-100",
+    "adjusted": "number:0-100",
+    "confidence": "number:0-1",
+    "trend": "improving|stable|declining",
+    "rationale": "string",
+    "claim_ids": ["string"]
+  },
+  "InvestmentMemo": {
+    "company_id": "string",
+    "snapshot": "string",
+    "investment_hypotheses": ["string"],
+    "swot": {
+      "strengths": ["string"],
+      "weaknesses": ["string"],
+      "opportunities": ["string"],
+      "threats": ["string"]
+    },
+    "problem_product": "string",
+    "traction_kpis": ["string"],
+    "data_gaps": ["string"],
+    "red_team": "string"
+  },
+  "Decision": {
+    "company_id": "string",
+    "recommendation": "invest|conditional_invest|hold|reject",
+    "conditions": ["string"],
+    "decision_flip_factors": ["string"],
+    "memo_id": "string|null"
+  },
   "ActivationDraft": {
     "founder_id": "string",
     "company_id": "string",
     "subject": "string",
     "message": "string",
     "evidence_ids": ["string"]
+  },
+  "DemoSeedResult": {
+    "companies": "integer",
+    "founders": "integer",
+    "claims": "integer",
+    "evidence": "integer"
   }
 }
