@@ -49,6 +49,12 @@ class Store:
             raise HTTPException(status_code=404, detail="Company not found")
         return self.companies[company_id]
 
+    def founder(self, founder_id: str) -> Founder:
+        founder = next((item for item in self.founders.values() if item.id == founder_id), None)
+        if founder is None:
+            raise HTTPException(status_code=404, detail="Founder not found")
+        return founder
+
     def company_sources(self, company_id: str) -> list[Source]:
         self.company(company_id)
         return [source for source in self.sources.values() if source.company_id == company_id]

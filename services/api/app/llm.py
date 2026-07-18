@@ -9,6 +9,7 @@ from .models import (
     CompanyUpdate,
     ContradictionAssessment,
     ExtractedClaim,
+    FounderBackgroundExtraction,
     ParsedFounderQuery,
     VoiceCommand,
     VoiceIntent,
@@ -17,12 +18,14 @@ from .prompts import (
     CLAIM_EXTRACTION_SYSTEM_PROMPT,
     COMPANY_PROFILE_SYSTEM_PROMPT,
     CONTRADICTION_SYSTEM_PROMPT,
+    FOUNDER_PASSPORT_SYSTEM_PROMPT,
     FOUNDER_SEARCH_SYSTEM_PROMPT,
     VOICE_COMMAND_SYSTEM_PROMPT,
 )
 
 
 _CONTRADICTION_CALLS = 0
+_FOUNDER_PASSPORT_CALLS = 0
 
 
 SEARCH_QUERY_SCHEMA = {
@@ -97,6 +100,65 @@ CONTRADICTION_SCHEMA = {
     },
 }
 
+FOUNDER_PASSPORT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["headline", "work_history", "education_history", "previous_ventures", "skills"],
+    "properties": {
+        "headline": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "work_history": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["organization", "role", "start_year", "end_year", "confidence"],
+                "properties": {
+                    "organization": {"type": "string"},
+                    "role": {"type": "string"},
+                    "start_year": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "end_year": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+            },
+        },
+        "education_history": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["institution", "degree", "field_of_study", "graduation_year", "confidence"],
+                "properties": {
+                    "institution": {"type": "string"},
+                    "degree": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "field_of_study": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "graduation_year": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+            },
+        },
+        "previous_ventures": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["company_name", "role", "founded_year", "ended_year", "outcome", "confidence"],
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "role": {"type": "string"},
+                    "founded_year": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "ended_year": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "outcome": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+            },
+        },
+        "skills": {"type": "array", "maxItems": 12, "items": {"type": "string"}},
+    },
+}
+
 VOICE_COMMAND_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -150,6 +212,32 @@ def assess_contradiction(left: str, right: str) -> ContradictionAssessment | Non
     try:
         response_text = _call_openai(body)
         return ContradictionAssessment.model_validate_json(response_text) if response_text else None
+    except Exception:
+        return None
+
+
+def extract_founder_background(text: str, founder_name: str) -> FounderBackgroundExtraction | None:
+    global _FOUNDER_PASSPORT_CALLS
+    if not os.getenv("OPENAI_API_KEY") or founder_name.lower() not in text.lower():
+        return None
+    limit = int(os.getenv("OPENAI_FOUNDER_PASSPORT_MAX_CALLS", "10"))
+    if _FOUNDER_PASSPORT_CALLS >= limit:
+        return None
+    _FOUNDER_PASSPORT_CALLS += 1
+    body = _responses_body(
+        [
+            {"role": "system", "content": FOUNDER_PASSPORT_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"Named founder: {founder_name}\nSource:\n{text[:6000]}",
+            },
+        ],
+        "founder_passport_extraction",
+        FOUNDER_PASSPORT_SCHEMA,
+    )
+    try:
+        response_text = _call_openai(body)
+        return FounderBackgroundExtraction.model_validate_json(response_text) if response_text else None
     except Exception:
         return None
 

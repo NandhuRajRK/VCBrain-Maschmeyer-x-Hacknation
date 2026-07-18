@@ -16,17 +16,28 @@ def update_founder_score(
     evidence_quality = mean(item.confidence for item in linked_evidence) if linked_evidence else 0.0
     evidence_coverage = _evidence_coverage(linked_evidence)
     signal_strength = _signal_strength(sources)
+    passport_quality = founder.passport_confidence
     contradiction_penalty = max(0.55, 1 - contradiction_count * 0.16)
     founder_data_points = _founder_data_points(founder, claims, sources)
     cold_start = founder_data_points < 2
-    confidence = round((evidence_quality * 0.7 + evidence_coverage * 0.3) * contradiction_penalty, 3)
-    base_score = (signal_strength * 0.45 + evidence_quality * 0.35 + evidence_coverage * 0.2) * 100
+    confidence = round(
+        (evidence_quality * 0.55 + evidence_coverage * 0.25 + passport_quality * 0.2)
+        * contradiction_penalty,
+        3,
+    )
+    base_score = (
+        signal_strength * 0.4
+        + evidence_quality * 0.3
+        + evidence_coverage * 0.2
+        + passport_quality * 0.1
+    ) * 100
     score = round(base_score * contradiction_penalty, 1)
     notes = _score_notes(
         cold_start,
         evidence_quality,
         evidence_coverage,
         signal_strength,
+        passport_quality,
         contradiction_count,
         founder_data_points,
     )
@@ -79,6 +90,9 @@ def _founder_data_points(founder: Founder, claims: list[Claim], sources: list[So
         + int(bool(founder.linkedin)) * 2
         + min(2, len(founder_claims))
         + min(2, len(public_profile_sources))
+        + min(3, len(founder.work_history))
+        + min(1, len(founder.education_history))
+        + min(2, len(founder.previous_ventures))
     )
 
 
@@ -128,6 +142,7 @@ def _score_notes(
     evidence_quality: float,
     evidence_coverage: float,
     signal_strength: float,
+    passport_quality: float,
     contradiction_count: int,
     founder_data_points: int,
 ) -> list[str]:
@@ -135,6 +150,7 @@ def _score_notes(
     notes.append(f"average evidence confidence {evidence_quality:.2f}")
     notes.append(f"source coverage {evidence_coverage:.2f}")
     notes.append(f"public signal strength {signal_strength:.2f}")
+    notes.append(f"founder passport confidence {passport_quality:.2f}")
     notes.append(f"founder data points {founder_data_points}")
     if contradiction_count:
         notes.append(f"{contradiction_count} disputed claim(s) reduce confidence")

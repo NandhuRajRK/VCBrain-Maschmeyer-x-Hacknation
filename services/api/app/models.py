@@ -79,6 +79,42 @@ class CompanyUpdate(BaseModel):
     description: str | None = None
 
 
+class WorkHistoryEntry(BaseModel):
+    organization: str = Field(min_length=1)
+    role: str = Field(min_length=1)
+    start_year: int | None = Field(default=None, ge=1900, le=2100)
+    end_year: int | None = Field(default=None, ge=1900, le=2100)
+    source_ids: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class EducationHistoryEntry(BaseModel):
+    institution: str = Field(min_length=1)
+    degree: str | None = None
+    field_of_study: str | None = None
+    graduation_year: int | None = Field(default=None, ge=1900, le=2100)
+    source_ids: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class PriorVentureEntry(BaseModel):
+    company_name: str = Field(min_length=1)
+    role: str = "Founder"
+    founded_year: int | None = Field(default=None, ge=1900, le=2100)
+    ended_year: int | None = Field(default=None, ge=1900, le=2100)
+    outcome: str | None = None
+    source_ids: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class FounderBackgroundExtraction(BaseModel):
+    headline: str | None = None
+    work_history: list[WorkHistoryEntry] = Field(default_factory=list)
+    education_history: list[EducationHistoryEntry] = Field(default_factory=list)
+    previous_ventures: list[PriorVentureEntry] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+
+
 class Founder(BaseModel):
     id: str = Field(default_factory=lambda: new_id("founder"))
     company_id: str
@@ -86,8 +122,33 @@ class Founder(BaseModel):
     role: str | None = None
     linkedin: HttpUrl | None = None
     github: str | None = None
+    headline: str | None = None
+    work_history: list[WorkHistoryEntry] = Field(default_factory=list)
+    education_history: list[EducationHistoryEntry] = Field(default_factory=list)
+    previous_ventures: list[PriorVentureEntry] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    passport_source_ids: list[str] = Field(default_factory=list)
+    passport_confidence: float = Field(default=0, ge=0, le=1)
     cold_start: bool = True
     updated_at: datetime = Field(default_factory=now)
+
+
+class FounderPassport(BaseModel):
+    founder_id: str
+    company_id: str
+    name: str
+    current_role: str | None = None
+    headline: str | None = None
+    work_history: list[WorkHistoryEntry]
+    education_history: list[EducationHistoryEntry]
+    previous_ventures: list[PriorVentureEntry]
+    skills: list[str]
+    source_ids: list[str]
+    confidence: float = Field(ge=0, le=1)
+    coverage: float = Field(ge=0, le=1)
+    cold_start: bool
+    gaps: list[str]
+    updated_at: datetime
 
 
 class ConnectorKind(str, Enum):

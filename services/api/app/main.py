@@ -18,6 +18,7 @@ from .models import (
     Dossier,
     Evidence,
     Founder,
+    FounderPassport,
     FounderSearchRequest,
     IngestionRun,
     IngestionStatus,
@@ -38,6 +39,7 @@ from .models import (
     VoiceTextQueryRequest,
 )
 from .connectors import pull_signals
+from .founder_passport import build_founder_passport, enrich_founder_passports
 from .llm import parse_founder_query, parse_voice_command
 from .memory import build_timeline, calculate_readiness, refresh_company_memory
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
@@ -133,6 +135,7 @@ async def upload_document(company_id: str, file: UploadFile = File(...)) -> Docu
 
     for founder in extract_founders(company_id, source):
         _upsert_founder(founder)
+    enrich_founder_passports(store.company_founders(company_id), source)
     _ensure_founder(company_id)
     claims, evidence = extract_claims(company_id, source, segments, store.company_founders(company_id))
     for item in evidence:
@@ -231,6 +234,7 @@ def ingest_company(company_id: str) -> IngestionRun:
 
             for founder in extract_founders(company_id, source):
                 _upsert_founder(founder)
+            enrich_founder_passports(store.company_founders(company_id), source)
 
             claims, evidence = extract_claims(company_id, source, segments, store.company_founders(company_id))
             for item in evidence:
@@ -296,6 +300,16 @@ def get_evidence(company_id: str) -> list[Evidence]:
 @app.get("/companies/{company_id}/founders", response_model=list[Founder])
 def get_founders(company_id: str) -> list[Founder]:
     return store.company_founders(company_id)
+
+
+@app.get("/companies/{company_id}/founder-passports", response_model=list[FounderPassport])
+def get_founder_passports(company_id: str) -> list[FounderPassport]:
+    return [build_founder_passport(founder) for founder in store.company_founders(company_id)]
+
+
+@app.get("/founders/{founder_id}/passport", response_model=FounderPassport)
+def get_founder_passport(founder_id: str) -> FounderPassport:
+    return build_founder_passport(store.founder(founder_id))
 
 
 @app.get("/founders", response_model=list[Founder])
@@ -449,9 +463,17 @@ def _upsert_founder(founder: Founder) -> Founder:
     key = f"{founder.company_id}:{founder.name.lower()}"
     existing = store.founders.get(key)
     if not existing:
-        store.founders[key] = founder
-        return founder
-    if founder.role and not existing.role:
+        company = store.company(founder.company_id)
+        placeholder_key = f"{founder.company_id}:{company.name.lower()} founder"
+        placeholder = store.founders.pop(placeholder_key, None)
+        if placeholder:
+            placeholder.name = founder.name
+            existing = placeholder
+            store.founders[key] = existing
+        else:
+            store.founders[key] = founder
+            return founder
+    if founder.role and (not existing.role or existing.role == "Founder"):
         existing.role = founder.role
     if founder.linkedin and not existing.linkedin:
         existing.linkedin = founder.linkedin

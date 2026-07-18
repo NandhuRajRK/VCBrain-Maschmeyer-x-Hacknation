@@ -7,6 +7,7 @@ FOUNDER_PROVIDED = {
     SourceType.pitch_deck,
     SourceType.financial_model,
     SourceType.founder_questionnaire,
+    SourceType.founder_linkedin,
     SourceType.document,
     SourceType.crm_note,
 }
@@ -32,8 +33,10 @@ RELIABILITY = {
     SourceType.arxiv: 0.86,
     SourceType.patentsview: 0.82,
     SourceType.github: 0.78,
+    SourceType.press: 0.74,
     SourceType.product_hunt: 0.72,
     SourceType.website: 0.68,
+    SourceType.founder_linkedin: 0.7,
     SourceType.hacker_news: 0.64,
     SourceType.exa: 0.62,
     SourceType.tavily: 0.62,
