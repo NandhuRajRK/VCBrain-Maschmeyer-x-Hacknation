@@ -158,6 +158,31 @@ unverified; it does not prove the missing history does not exist.
 
 Returns one Founder Passport. Unknown founders return `404`.
 
+### `POST /companies/{company_id}/founder-passports/enrich`
+
+Runs explicit founder-specific web enrichment through Tavily or Exa. This is
+the controlled path that may spend a search-provider credit; normal ingestion
+does not silently call these providers.
+
+```json
+{
+  "connectors": ["tavily"],
+  "max_sources_per_founder": 1
+}
+```
+
+The endpoint builds one query per founder, for example:
+
+```text
+"Mira Shah" founder AetherGrid career education previous startup work history
+```
+
+It stores each result as a third-party source tagged with `founder_enrichment`,
+ingests the queued sources, and returns the created sources plus the
+`IngestionRun`. Supported connectors are `tavily` and `exa`; the default is one
+Tavily result per founder. Set `max_sources_per_founder` from 1 to 3 to control
+cost and result volume.
+
 ### `GET /companies/{company_id}/readiness`
 
 Returns `DecisionReadiness` with:

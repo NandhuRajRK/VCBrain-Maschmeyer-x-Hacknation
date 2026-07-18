@@ -79,7 +79,9 @@ placeholder founder is upgraded in place when a real founder appears later.
 The Founder Passport stores sourced work history, education, previous ventures,
 skills, public profiles, fact confidence, and explicit gaps. Structured founder
 metadata is used first. Unstructured biographies can use the dedicated OpenAI
-passport prompt.
+passport prompt. `POST /companies/{company_id}/founder-passports/enrich` can
+explicitly fetch founder-targeted Tavily or Exa sources before running the same
+ingestion path. Ordinary ingestion does not silently spend search credits.
 
 ### 4. Truth layer
 

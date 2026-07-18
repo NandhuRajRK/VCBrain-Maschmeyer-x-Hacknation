@@ -33,6 +33,7 @@ uv run uvicorn services.api.app.main:app --reload
 - `GET /companies/{company_id}/evidence`
 - `GET /companies/{company_id}/founders`
 - `GET /companies/{company_id}/founder-passports`
+- `POST /companies/{company_id}/founder-passports/enrich`
 - `GET /founders/{founder_id}/passport`
 - `GET /companies/{company_id}/events`
 - `POST /founders/search`
@@ -76,6 +77,10 @@ Optional API keys:
 
 Missing keys do not break the demo. The connector records a fallback/search
 surface instead, so the dossier still shows evidence gaps explicitly.
+
+Use the founder enrichment endpoint when a founder-specific Tavily or Exa search
+is desired. It is explicit and credit-controlled; ordinary ingestion does not
+invoke those search providers automatically.
 
 `OPENAI_API_KEY` enables structured company-profile extraction during ingestion
 and structured parsing for `POST /founders/search`.

@@ -92,6 +92,18 @@
     "content_fingerprint": "string",
     "duplicate_of_source_id": "string|null"
   },
+  "FounderEnrichmentRequest": {
+    "connectors": ["tavily|exa"],
+    "max_sources_per_founder": "integer:1-3"
+  },
+  "FounderEnrichmentResult": {
+    "company_id": "string",
+    "founder_ids": ["string"],
+    "connectors": ["tavily|exa"],
+    "created_sources": ["Source"],
+    "deduped_sources": "integer",
+    "ingestion": "IngestionRun"
+  },
   "Claim": {
     "id": "string",
     "company_id": "string",

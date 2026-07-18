@@ -96,6 +96,7 @@ Useful platform endpoints:
 - `GET /companies/{company_id}/readiness`
 - `GET /companies/{company_id}/timeline`
 - `GET /companies/{company_id}/founder-passports`
+- `POST /companies/{company_id}/founder-passports/enrich`
 - `GET /founders/{founder_id}/passport`
 - `GET /companies`
 - `GET /founders`
@@ -125,6 +126,19 @@ is cold-start; frontend aggregation should use `some`, not `every`.
 Founder Passport facts include their supporting `source_ids` and extraction
 confidence. `gaps` means the history is unverified, not that the founder has no
 education, employment, or prior ventures.
+
+Founder-specific Tavily/Exa enrichment is explicit and credit-controlled:
+
+```json
+{
+  "connectors": ["tavily"],
+  "max_sources_per_founder": 1
+}
+```
+
+The endpoint creates third-party sources with `founder_enrichment: true` and
+then runs normal ingestion. Ordinary ingestion does not call search providers
+automatically.
 
 ## Search And Activation
 

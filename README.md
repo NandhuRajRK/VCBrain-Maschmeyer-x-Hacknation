@@ -48,6 +48,7 @@ are the integration boundary.
 - Founder resolution, cold-start handling, and persistent Founder Scores.
 - Founder Passport with sourced employment, education, prior ventures, skills,
   confidence, and evidence gaps.
+- Explicit founder-targeted Tavily/Exa enrichment with per-founder result caps.
 - Deterministic contradiction detection with optional capped OpenAI adjudication.
 - Persistent score snapshots, claim transitions, trigger events, readiness, and
   next-best diligence actions.
