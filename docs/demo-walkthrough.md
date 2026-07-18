@@ -16,10 +16,13 @@ uv run uvicorn services.api.app.main:app --reload
 Use `AetherGrid`.
 
 1. Open the company dossier.
-2. Show pitch-deck claims, source evidence, and Founder Score.
-3. Point out the contradiction: deck says 20 enterprise customers, another
-   seeded note says 5 pilots.
-4. Julia's layer should turn this into a Trust Score flag and memo gap.
+2. Open `GET /companies/{company_id}/timeline` and show the initial score and
+   readiness.
+3. Run `POST /companies/{company_id}/ingest` to process the staged HN signal.
+4. Refresh the timeline. The deck says 20 enterprise customers while the new
+   signal says 5 pilots, so confidence and readiness fall.
+5. Show `Resolve the highest-impact contradiction` as the next diligence
+   action. Julia's layer should reflect the same change in its decision.
 
 ## Scenario 2: Cold Start
 

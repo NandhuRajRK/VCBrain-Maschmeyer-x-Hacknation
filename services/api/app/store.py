@@ -1,6 +1,17 @@
 from fastapi import HTTPException
 
-from .models import Claim, Company, Evidence, Founder, FounderScore, Segment, Source, TriggerEvent
+from .models import (
+    Claim,
+    ClaimStatusChange,
+    Company,
+    Evidence,
+    Founder,
+    FounderScore,
+    FounderScoreSnapshot,
+    Segment,
+    Source,
+    TriggerEvent,
+)
 from .persistence import JsonSqliteStore, MODEL_COLLECTIONS
 
 
@@ -14,6 +25,8 @@ class Store:
         self.claims: dict[str, Claim] = self._load("claims")
         self.evidence: dict[str, Evidence] = self._load("evidence")
         self.founder_scores: dict[str, FounderScore] = self._load("founder_scores")
+        self.founder_score_history: dict[str, FounderScoreSnapshot] = self._load("founder_score_history")
+        self.claim_status_changes: dict[str, ClaimStatusChange] = self._load("claim_status_changes")
         self.trigger_events: dict[str, TriggerEvent] = self._load("trigger_events")
 
     def _load(self, collection: str):
@@ -27,6 +40,8 @@ class Store:
         self.db.save_collection("claims", self.claims)
         self.db.save_collection("evidence", self.evidence)
         self.db.save_collection("founder_scores", self.founder_scores)
+        self.db.save_collection("founder_score_history", self.founder_score_history)
+        self.db.save_collection("claim_status_changes", self.claim_status_changes)
         self.db.save_collection("trigger_events", self.trigger_events)
 
     def company(self, company_id: str) -> Company:
@@ -65,6 +80,14 @@ class Store:
     def company_trigger_events(self, company_id: str) -> list[TriggerEvent]:
         self.company(company_id)
         return [event for event in self.trigger_events.values() if event.company_id == company_id]
+
+    def company_score_history(self, company_id: str) -> list[FounderScoreSnapshot]:
+        self.company(company_id)
+        return [item for item in self.founder_score_history.values() if item.company_id == company_id]
+
+    def company_claim_changes(self, company_id: str) -> list[ClaimStatusChange]:
+        self.company(company_id)
+        return [item for item in self.claim_status_changes.values() if item.company_id == company_id]
 
 
 store = Store()

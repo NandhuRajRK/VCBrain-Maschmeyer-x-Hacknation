@@ -88,6 +88,8 @@ Person B can consume:
 
 Useful platform endpoints:
 
+- `GET /companies/{company_id}/readiness`
+- `GET /companies/{company_id}/timeline`
 - `GET /companies`
 - `GET /founders`
 - `POST /demo/seed`
@@ -152,6 +154,11 @@ for UI tests or clients that already have a transcript.
 
 The sample deck files live in `data/samples/decks/`, with seeded contradictions
 for testing the claim/evidence ledger.
+
+Contradiction sources are staged as queued signals. Ingesting the queued source
+creates the second score snapshot and makes the confidence/readiness change
+visible in the timeline. Generated decks are company-specific, so synthetic
+profiles never inherit another startup's claims.
 
 ## Live API Keys
 

@@ -14,7 +14,10 @@ from services.api.app.models import (
     Claim,
     ClaimKind,
     ClaimStatus,
+    ClaimVerification,
     ConnectorKind,
+    Source,
+    SourceType,
     ParsedFounderQuery,
     Signal,
     VoiceCommand,
@@ -32,6 +35,8 @@ def test_create_pull_ingest_dossier(monkeypatch):
     main.store.claims.clear()
     main.store.evidence.clear()
     main.store.founder_scores.clear()
+    main.store.founder_score_history.clear()
+    main.store.claim_status_changes.clear()
     main.store.trigger_events.clear()
 
     def fake_pull(connectors, query, github_user=None, arxiv_query=None, website_url=None):
@@ -182,6 +187,8 @@ def test_claim_and_founder_contract(monkeypatch):
         main.store.claims,
         main.store.evidence,
         main.store.founder_scores,
+        main.store.founder_score_history,
+        main.store.claim_status_changes,
         main.store.trigger_events,
     ):
         collection.clear()
@@ -295,3 +302,190 @@ def test_openai_company_profile_extraction_is_structured(monkeypatch):
         "geography",
         "description",
     ]
+
+
+def test_decision_flight_recorder_and_source_dedup(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for collection in (
+        main.store.companies,
+        main.store.founders,
+        main.store.sources,
+        main.store.segments,
+        main.store.claims,
+        main.store.evidence,
+        main.store.founder_scores,
+        main.store.founder_score_history,
+        main.store.claim_status_changes,
+        main.store.trigger_events,
+    ):
+        collection.clear()
+
+    client = TestClient(main.app)
+    company = client.post(
+        "/companies",
+        json={
+            "name": "FlightRecorderCo",
+            "sector": "AI infrastructure",
+            "stage": "seed",
+            "geography": "Berlin",
+            "description": "Routes enterprise GPU workloads.",
+        },
+    ).json()
+    company_id = company["id"]
+    deck_text = (
+        "Founder: Mira Shah. Product: routes GPU workloads. "
+        "Market: enterprise AI infrastructure. Traction: 20 enterprise customers. "
+        "Funding: Raising $1M."
+    )
+    created = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "pitch_deck",
+            "title": "Founder deck",
+            "text": deck_text,
+            "metadata": {"founders": [{"name": "Mira Shah", "role": "CEO", "github": "mirashah"}]},
+        },
+    )
+    assert created.status_code == 201
+    duplicate = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "document",
+            "title": "Renamed copy",
+            "text": deck_text,
+        },
+    )
+    assert duplicate.status_code == 409
+
+    assert client.post(f"/companies/{company_id}/ingest").status_code == 200
+    initial_timeline = client.get(f"/companies/{company_id}/timeline").json()
+    assert len(initial_timeline["score_snapshots"]) == 1
+    assert initial_timeline["claim_changes"]
+    assert initial_timeline["readiness"]["next_actions"]
+
+    contradiction = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "hacker_news",
+            "title": "Public traction correction",
+            "text": "A public report says the company has 5 pilots, not 20 customers.",
+        },
+    )
+    assert contradiction.status_code == 201
+    assert client.post(f"/companies/{company_id}/ingest").status_code == 200
+
+    dossier = client.get(f"/companies/{company_id}/dossier").json()
+    disputed = [claim for claim in dossier["claims"] if claim["status"] == "disputed"]
+    assert disputed
+    assert all(claim["verification"] == ClaimVerification.disputed.value for claim in disputed)
+    disputed_evidence = {
+        evidence_id
+        for claim in disputed
+        for evidence_id in claim["evidence_ids"]
+    }
+    activation = client.post(
+        "/founders/activate",
+        json={"founder_id": dossier["founders"][0]["id"]},
+    )
+    assert activation.status_code == 200
+    assert disputed_evidence.isdisjoint(activation.json()["evidence_ids"])
+
+    timeline = client.get(f"/companies/{company_id}/timeline").json()
+    assert len(timeline["score_snapshots"]) == 2
+    assert {event["kind"] for event in timeline["trigger_events"]} >= {
+        "contradiction_detected",
+        "score_changed",
+    }
+    assert any(action["category"] == "contradiction" for action in timeline["readiness"]["next_actions"])
+
+
+def test_temporal_growth_is_not_a_contradiction(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    claims = [
+        Claim(
+            company_id="company_temporal",
+            kind=ClaimKind.traction,
+            text="The company had 20 customers in 2024.",
+            evidence_ids=["ev_2024"],
+            confidence=0.8,
+        ),
+        Claim(
+            company_id="company_temporal",
+            kind=ClaimKind.traction,
+            text="The company had 30 customers in 2025.",
+            evidence_ids=["ev_2025"],
+            confidence=0.8,
+        ),
+    ]
+    from services.api.app.models import Evidence
+
+    evidence = [
+        Evidence(source_id="src_2024", segment_id="seg_2024", quote=claims[0].text, confidence=0.8),
+        Evidence(source_id="src_2025", segment_id="seg_2025", quote=claims[1].text, confidence=0.8),
+    ]
+    evidence[0].id = "ev_2024"
+    evidence[1].id = "ev_2025"
+    resolve_claim_statuses(claims, evidence)
+    assert all(claim.status == ClaimStatus.supported for claim in claims)
+
+
+def test_external_sources_use_press_category():
+    for source_type in (
+        SourceType.exa,
+        SourceType.tavily,
+        SourceType.perplexity,
+        SourceType.opencorporates,
+        SourceType.sec_edgar,
+        SourceType.patentsview,
+    ):
+        source = Source(company_id="company_category", source_type=source_type, title=source_type.value)
+        assert source.source_category.value == "press"
+
+
+def test_application_profile_resists_lower_quality_source_overwrite(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for collection in (
+        main.store.companies,
+        main.store.founders,
+        main.store.sources,
+        main.store.segments,
+        main.store.claims,
+        main.store.evidence,
+        main.store.founder_scores,
+        main.store.founder_score_history,
+        main.store.claim_status_changes,
+        main.store.trigger_events,
+    ):
+        collection.clear()
+
+    client = TestClient(main.app)
+    company = client.post(
+        "/companies",
+        json={
+            "name": "ProvenanceCo",
+            "sector": "Health AI",
+            "stage": "seed",
+            "geography": "Berlin",
+        },
+    ).json()
+    company_id = company["id"]
+    source = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "hacker_news",
+            "title": "Unverified discussion",
+            "text": "Sector: crypto. Stage: Series C. Geography: Miami.",
+        },
+    )
+    assert source.status_code == 201
+    assert client.post(f"/companies/{company_id}/ingest").status_code == 200
+
+    persisted = client.get(f"/companies/{company_id}/dossier").json()["company"]
+    assert persisted["sector"] == "Health AI"
+    assert persisted["stage"] == "seed"
+    assert persisted["geography"] == "Berlin"
+    assert persisted["field_provenance"]["sector"] == "application"

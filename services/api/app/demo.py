@@ -2,9 +2,10 @@ import json
 from pathlib import Path
 
 from .document_parser import parse_document
+from .memory import refresh_company_memory
 from .models import Company, DemoSeedResult, Founder, IngestionStatus, Segment, Source, SourceType
-from .pipeline import extract_claims, resolve_claim_statuses
-from .scoring import update_founder_score
+from .pipeline import extract_claims
+from .provenance import initialize_company_provenance
 from .store import Store, store
 
 
@@ -33,23 +34,26 @@ def seed_demo(reset: bool = True, target: Store = store) -> DemoSeedResult:
             github=profile.get("github"),
             cold_start=profile["level"] == "cold",
         )
+        initialize_company_provenance(company, "demo_seed")
         target.companies[company.id] = company
         target.founders[f"{company.id}:{founder.name.lower()}"] = founder
 
-        _add_deck(target, company.id, profile["deck"])
+        _add_deck(target, company, founder, profile)
         _add_note(target, company.id, "Traction note", profile["traction"])
+        refresh_company_memory(target, company.id)
         if profile.get("contradiction"):
-            _add_note(target, company.id, "Contradiction note", profile["contradiction"])
-
-        resolve_claim_statuses(target.company_claims(company.id), list(target.evidence.values()))
-        score = update_founder_score(
-            founder,
-            target.company_claims(company.id),
-            target.company_sources(company.id),
-            target.company_evidence(company.id),
-        )
-        founder.cold_start = score.cold_start
-        target.founder_scores[founder.id] = score
+            contradiction_type = (
+                SourceType.hacker_news
+                if "hn " in profile["contradiction"].lower()
+                else SourceType.founder_questionnaire
+            )
+            _queue_note(
+                target,
+                company.id,
+                "Incoming contradiction signal",
+                profile["contradiction"],
+                contradiction_type,
+            )
 
     target.save()
     return DemoSeedResult(
@@ -68,18 +72,43 @@ def clear_store(target: Store = store) -> None:
     target.claims.clear()
     target.evidence.clear()
     target.founder_scores.clear()
+    target.founder_score_history.clear()
+    target.claim_status_changes.clear()
     target.trigger_events.clear()
 
 
-def _add_deck(target: Store, company_id: str, filename: str) -> None:
-    path = SAMPLES / "decks" / filename
-    parsed = parse_document(filename, path.read_bytes())
+def _add_deck(target: Store, company: Company, founder: Founder, profile: dict) -> None:
+    filename = profile["deck"]
+    normalized_company = company.name.lower().replace(" ", "")
+    normalized_filename = filename.lower().replace("_", "").replace("-", "")
+    uses_own_deck = normalized_company in normalized_filename
+    if uses_own_deck:
+        content = (SAMPLES / "decks" / filename).read_bytes()
+        title = filename
+    else:
+        title = f"{company.name.lower()}_pitch.md"
+        content = (
+            f"Company: {company.name}.\n"
+            f"Founder: {founder.name}.\n"
+            f"Sector: {company.sector}.\n"
+            f"Stage: {company.stage}.\n"
+            f"Geography: {company.geography}.\n"
+            f"Product: {company.name} builds a {company.sector} platform.\n"
+            f"Market: Organizations adopting {company.sector} products.\n"
+            f"Traction: {profile['traction']}\n"
+        ).encode("utf-8")
+    parsed = parse_document(title, content)
     source = Source(
-        company_id=company_id,
+        company_id=company.id,
         source_type=SourceType.pitch_deck,
-        title=filename,
+        title=title,
         text=parsed.text,
-        metadata={"filename": filename, "parser": parsed.parser, "demo_seed": True},
+        metadata={
+            "filename": title,
+            "parser": parsed.parser,
+            "demo_seed": True,
+            "generated_for_profile": not uses_own_deck,
+        },
         status=IngestionStatus.parsed,
     )
     target.sources[source.id] = source
@@ -87,7 +116,7 @@ def _add_deck(target: Store, company_id: str, filename: str) -> None:
         Segment(source_id=source.id, heading=chunk.heading, page=chunk.page, text=chunk.text)
         for chunk in parsed.chunks
     ]
-    _save_segments_and_claims(target, company_id, source, segments)
+    _save_segments_and_claims(target, company.id, source, segments)
 
 
 def _add_note(target: Store, company_id: str, title: str, text: str) -> None:
@@ -101,6 +130,23 @@ def _add_note(target: Store, company_id: str, title: str, text: str) -> None:
     )
     target.sources[source.id] = source
     _save_segments_and_claims(target, company_id, source, [Segment(source_id=source.id, heading=title, text=text)])
+
+
+def _queue_note(
+    target: Store,
+    company_id: str,
+    title: str,
+    text: str,
+    source_type: SourceType,
+) -> None:
+    source = Source(
+        company_id=company_id,
+        source_type=source_type,
+        title=title,
+        text=text,
+        metadata={"demo_seed": True, "staged_signal": True},
+    )
+    target.sources[source.id] = source
 
 
 def _save_segments_and_claims(target: Store, company_id: str, source: Source, segments: list[Segment]) -> None:

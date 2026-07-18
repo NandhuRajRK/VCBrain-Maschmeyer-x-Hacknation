@@ -4,7 +4,18 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .models import Claim, Company, Evidence, Founder, FounderScore, Segment, Source, TriggerEvent
+from .models import (
+    Claim,
+    ClaimStatusChange,
+    Company,
+    Evidence,
+    Founder,
+    FounderScore,
+    FounderScoreSnapshot,
+    Segment,
+    Source,
+    TriggerEvent,
+)
 
 
 DB_PATH = Path(os.getenv("VCBRAIN_DB_PATH", "data/processed/vcbrain.sqlite3"))
@@ -60,5 +71,7 @@ MODEL_COLLECTIONS = {
     "claims": Claim,
     "evidence": Evidence,
     "founder_scores": FounderScore,
+    "founder_score_history": FounderScoreSnapshot,
+    "claim_status_changes": ClaimStatusChange,
     "trigger_events": TriggerEvent,
 }

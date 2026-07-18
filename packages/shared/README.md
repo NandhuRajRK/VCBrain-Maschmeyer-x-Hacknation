@@ -10,3 +10,7 @@ Nandhu owns the data-side implementations. Julia owns behavior for
 included here so both sides can wire against the same contract. The reusable
 voice input contract is `VoiceQueryResponse`: Julia can route its typed command
 to the appropriate view without depending on OpenAI or ElevenLabs details.
+
+`DecisionReadiness` and `CompanyTimeline` power the decision flight recorder.
+Readiness measures whether the dossier is complete enough to decide; it must
+not be presented as a fourth investment score.

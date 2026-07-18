@@ -23,6 +23,8 @@ uv run uvicorn services.api.app.main:app --reload
 - `POST /sources/pull`
 - `POST /companies/{company_id}/ingest`
 - `GET /companies/{company_id}/dossier`
+- `GET /companies/{company_id}/readiness`
+- `GET /companies/{company_id}/timeline`
 - `GET /companies/{company_id}/claims`
 - `GET /companies/{company_id}/evidence`
 - `GET /companies/{company_id}/founders`
@@ -84,7 +86,8 @@ audio, transcribes it, routes the command, and returns a reusable typed response
 
 ## Person A Scope
 
-- Deduplicates pulled sources by company, connector, and title.
+- Deduplicates sources per company by normalized URL and content fingerprint,
+  with connector/title matching retained for pulled-signal compatibility.
 - Timestamps signals with `observed_at` and sources with `submitted_at`.
 - Updates founder scores after ingestion and persists them to
   SQLite at `data/processed/vcbrain.sqlite3`.
@@ -106,11 +109,16 @@ cross-source comparisons are available.
 
 Founder metadata is resolved from document metadata and text, including name,
 role, LinkedIn, and GitHub. A founder is marked `cold_start` when the pipeline
-has fewer than two independent founder data points, and that state is returned
+has fewer than two founder data points, and that state is returned
 with the persisted Founder Score. Every source has a connector-specific
 `source_type`, one of the seven-value canonical `source_category` values, and a
 `submitted_at` timestamp. The detailed type preserves the independence and
 reliability signals used by scoring.
+
+Readiness is a diligence-completeness score, not an investment score. It
+returns blockers and next-best evidence actions. The timeline preserves claim
+verification changes, Founder Score snapshots, and causal trigger events so a
+new source can explain exactly why confidence changed.
 
 ## Demo Seed
 

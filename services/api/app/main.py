@@ -7,10 +7,13 @@ from .document_parser import LLM_TASKS, parse_document
 from .demo import seed_demo
 from .models import (
     Claim,
+    ClaimStatus,
+    CompanyTimeline,
     ConnectorKind,
     Company,
     CompanyCreate,
     DemoSeedResult,
+    DecisionReadiness,
     DocumentUploadResult,
     Dossier,
     Evidence,
@@ -36,8 +39,9 @@ from .models import (
 )
 from .connectors import pull_signals
 from .llm import parse_founder_query, parse_voice_command
-from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source, resolve_claim_statuses
-from .scoring import update_founder_score
+from .memory import build_timeline, calculate_readiness, refresh_company_memory
+from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
+from .provenance import apply_company_update, find_duplicate_source, initialize_company_provenance
 from .search import search_founders
 from .store import store
 from .voice import encode_audio, narrate_text, transcribe_audio
@@ -54,6 +58,7 @@ def health() -> dict[str, str]:
 @app.post("/companies", response_model=Company, status_code=201)
 def create_company(payload: CompanyCreate) -> Company:
     company = Company(**payload.model_dump())
+    initialize_company_provenance(company)
     store.companies[company.id] = company
     event = TriggerEvent(
         company_id=company.id,
@@ -75,6 +80,12 @@ def create_source(payload: SourceCreate) -> Source:
     if payload.company_id not in store.companies:
         raise HTTPException(status_code=404, detail="Company not found")
     source = Source(**payload.model_dump())
+    duplicate = find_duplicate_source(store.company_sources(payload.company_id), source)
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "Duplicate source", "existing_source_id": duplicate.id},
+        )
     store.sources[source.id] = source
     store.save()
     return source
@@ -101,6 +112,12 @@ async def upload_document(company_id: str, file: UploadFile = File(...)) -> Docu
         },
         status=IngestionStatus.parsed,
     )
+    duplicate = find_duplicate_source(store.company_sources(company_id), source)
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "Duplicate document", "existing_source_id": duplicate.id},
+        )
     store.sources[source.id] = source
 
     segments = [
@@ -112,9 +129,7 @@ async def upload_document(company_id: str, file: UploadFile = File(...)) -> Docu
 
     update = extract_company_update(segments, source)
     company = store.company(company_id)
-    for field, value in update.model_dump(exclude_none=True).items():
-        if hasattr(company, field):
-            setattr(company, field, value)
+    apply_company_update(company, update, source)
 
     for founder in extract_founders(company_id, source):
         _upsert_founder(founder)
@@ -125,8 +140,7 @@ async def upload_document(company_id: str, file: UploadFile = File(...)) -> Docu
     for claim in claims:
         store.claims[claim.id] = claim
 
-    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
-    _refresh_founder_scores(company_id)
+    refresh_company_memory(store, company_id)
     store.save()
     return DocumentUploadResult(
         source=source,
@@ -165,10 +179,6 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
     )
     for signal in signals:
         source_type = SourceType(signal.source.value)
-        key = f"{payload.company_id}:{source_type}:{signal.title.lower()}"
-        if key in store.sources:
-            deduped += 1
-            continue
         source = Source(
             company_id=payload.company_id,
             source_type=source_type,
@@ -178,6 +188,11 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
             metadata={**signal.metadata, "observed_at": signal.observed_at.isoformat()},
             submitted_at=signal.observed_at,
         )
+        duplicate = find_duplicate_source(store.company_sources(payload.company_id), source)
+        key = f"{payload.company_id}:{source_type}:{signal.title.lower()}"
+        if key in store.sources or duplicate:
+            deduped += 1
+            continue
         store.sources[key] = source
         created.append(source)
 
@@ -212,9 +227,7 @@ def ingest_company(company_id: str) -> IngestionRun:
 
             update = extract_company_update(segments, source)
             company = store.company(company_id)
-            for field, value in update.model_dump(exclude_none=True).items():
-                if hasattr(company, field):
-                    setattr(company, field, value)
+            apply_company_update(company, update, source)
 
             for founder in extract_founders(company_id, source):
                 _upsert_founder(founder)
@@ -230,9 +243,7 @@ def ingest_company(company_id: str) -> IngestionRun:
             extracted_claims += len(claims)
 
     _ensure_founder(company_id)
-    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
-
-    _refresh_founder_scores(company_id)
+    refresh_company_memory(store, company_id)
     store.save()
 
     return IngestionRun(
@@ -247,9 +258,9 @@ def ingest_company(company_id: str) -> IngestionRun:
 @app.get("/companies/{company_id}/dossier", response_model=Dossier)
 def get_dossier(company_id: str) -> Dossier:
     _ensure_founder(company_id)
-    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
-    _refresh_founder_scores(company_id)
-    store.save()
+    if not store.company_founder_scores(company_id):
+        refresh_company_memory(store, company_id)
+        store.save()
     return Dossier(
         company=store.company(company_id),
         founders=store.company_founders(company_id),
@@ -260,6 +271,16 @@ def get_dossier(company_id: str) -> Dossier:
         founder_scores=store.company_founder_scores(company_id),
         trigger_events=store.company_trigger_events(company_id),
     )
+
+
+@app.get("/companies/{company_id}/readiness", response_model=DecisionReadiness)
+def get_readiness(company_id: str) -> DecisionReadiness:
+    return calculate_readiness(store, company_id)
+
+
+@app.get("/companies/{company_id}/timeline", response_model=CompanyTimeline)
+def get_timeline(company_id: str) -> CompanyTimeline:
+    return build_timeline(store, company_id)
 
 
 @app.get("/companies/{company_id}/claims", response_model=list[Claim])
@@ -309,8 +330,16 @@ def activate_founder(payload: ActivateRequest) -> ActivationDraft:
 
     company = store.company(founder.company_id)
     claims = store.company_claims(company.id)
-    evidence_ids = [evidence_id for claim in claims[:3] for evidence_id in claim.evidence_ids]
-    context = payload.context or "your recent founder signals"
+    usable_claims = sorted(
+        (claim for claim in claims if claim.status == ClaimStatus.supported),
+        key=lambda claim: (
+            claim.verification.value != "independently_supported",
+            -claim.confidence,
+        ),
+    )[:3]
+    evidence_ids = [evidence_id for claim in usable_claims for evidence_id in claim.evidence_ids]
+    evidence_context = "; ".join(claim.text for claim in usable_claims[:2])
+    context = payload.context or evidence_context or "your recent founder signals"
     return ActivationDraft(
         founder_id=founder.id,
         company_id=company.id,
@@ -437,15 +466,3 @@ def _ensure_founder(company_id: str) -> Founder:
         return founders[0]
     company = store.company(company_id)
     return _upsert_founder(Founder(company_id=company_id, name=f"{company.name} founder", role="Founder"))
-
-
-def _refresh_founder_scores(company_id: str) -> None:
-    for founder in store.company_founders(company_id):
-        score = update_founder_score(
-            founder,
-            store.company_claims(company_id),
-            store.company_sources(company_id),
-            store.company_evidence(company_id),
-        )
-        founder.cold_start = score.cold_start
-        store.founder_scores[founder.id] = score

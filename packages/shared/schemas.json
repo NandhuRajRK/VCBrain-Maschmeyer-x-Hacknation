@@ -6,7 +6,9 @@
     "sector": "string|null",
     "stage": "string|null",
     "geography": "string|null",
-    "description": "string|null"
+    "description": "string|null",
+    "field_provenance": "record<string,source_id|application|demo_seed>",
+    "field_confidence": "record<string,number:0-1>"
   },
   "Founder": {
     "id": "string",
@@ -37,7 +39,9 @@
     "url": "url|null",
     "text": "string|null",
     "status": "queued|processing|parsed|failed",
-    "submitted_at": "datetime"
+    "submitted_at": "datetime",
+    "content_fingerprint": "string",
+    "duplicate_of_source_id": "string|null"
   },
   "Claim": {
     "id": "string",
@@ -46,6 +50,8 @@
     "kind": "company|founder|traction|market|product|financial",
     "text": "string",
     "status": "extracted|supported|disputed|missing_evidence",
+    "verification": "unverified|source_backed|independently_supported|disputed|missing_evidence",
+    "status_reason": "string|null",
     "evidence_ids": ["string"],
     "confidence": "number:0-1"
   },
@@ -70,6 +76,59 @@
     "evidence": ["Evidence"],
     "founder_scores": ["FounderScore"],
     "trigger_events": ["TriggerEvent"]
+  },
+  "FounderScoreSnapshot": {
+    "id": "string",
+    "company_id": "string",
+    "founder_id": "string",
+    "score": "number:0-100",
+    "confidence": "number:0-1",
+    "cold_start": "boolean",
+    "evidence_count": "integer",
+    "contradiction_count": "integer",
+    "score_delta": "number",
+    "confidence_delta": "number",
+    "reason": "string",
+    "created_at": "datetime"
+  },
+  "ClaimStatusChange": {
+    "id": "string",
+    "company_id": "string",
+    "claim_id": "string",
+    "previous_status": "extracted|supported|disputed|missing_evidence",
+    "current_status": "extracted|supported|disputed|missing_evidence",
+    "previous_verification": "unverified|source_backed|independently_supported|disputed|missing_evidence",
+    "current_verification": "unverified|source_backed|independently_supported|disputed|missing_evidence",
+    "confidence": "number:0-1",
+    "reason": "string",
+    "created_at": "datetime"
+  },
+  "DiligenceAction": {
+    "priority": "high|medium|low",
+    "category": "string",
+    "title": "string",
+    "reason": "string",
+    "suggested_source_type": "github|hacker_news|arxiv|product_hunt|press|pitch_deck|founder_doc|null",
+    "claim_ids": ["string"],
+    "expected_readiness_gain": "integer:0-100"
+  },
+  "DecisionReadiness": {
+    "company_id": "string",
+    "score": "integer:0-100",
+    "status": "insufficient_evidence|diligence_in_progress|decision_ready",
+    "components": "record<string,number:0-1>",
+    "blockers": ["string"],
+    "next_actions": ["DiligenceAction"],
+    "contradiction_count": "integer",
+    "cold_start": "boolean",
+    "updated_at": "datetime"
+  },
+  "CompanyTimeline": {
+    "company_id": "string",
+    "score_snapshots": ["FounderScoreSnapshot"],
+    "claim_changes": ["ClaimStatusChange"],
+    "trigger_events": ["TriggerEvent"],
+    "readiness": "DecisionReadiness"
   },
   "SearchMatch": {
     "company": "Company",
