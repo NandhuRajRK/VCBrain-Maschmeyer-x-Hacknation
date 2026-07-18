@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 def new_id(prefix: str) -> str:
@@ -36,6 +36,16 @@ class SourceType(str, Enum):
     patentsview = "patentsview"
     crm_note = "crm_note"
     other = "other"
+
+
+class SourceCategory(str, Enum):
+    github = "github"
+    hacker_news = "hacker_news"
+    arxiv = "arxiv"
+    product_hunt = "product_hunt"
+    press = "press"
+    pitch_deck = "pitch_deck"
+    founder_doc = "founder_doc"
 
 
 class IngestionStatus(str, Enum):
@@ -129,6 +139,28 @@ class Source(SourceCreate):
     id: str = Field(default_factory=lambda: new_id("src"))
     status: IngestionStatus = IngestionStatus.queued
     submitted_at: datetime = Field(default_factory=now)
+    source_category: SourceCategory = SourceCategory.founder_doc
+
+    @model_validator(mode="after")
+    def set_source_category(self) -> "Source":
+        self.source_category = _source_category(self.source_type)
+        return self
+
+
+def _source_category(source_type: SourceType) -> SourceCategory:
+    if source_type == SourceType.github:
+        return SourceCategory.github
+    if source_type == SourceType.hacker_news:
+        return SourceCategory.hacker_news
+    if source_type == SourceType.arxiv:
+        return SourceCategory.arxiv
+    if source_type == SourceType.product_hunt:
+        return SourceCategory.product_hunt
+    if source_type == SourceType.pitch_deck:
+        return SourceCategory.pitch_deck
+    if source_type in {SourceType.press, SourceType.website}:
+        return SourceCategory.press
+    return SourceCategory.founder_doc
 
 
 class Segment(BaseModel):
@@ -178,9 +210,10 @@ class Evidence(BaseModel):
 class Claim(BaseModel):
     id: str = Field(default_factory=lambda: new_id("claim"))
     company_id: str
+    founder_id: str | None = None
     kind: ClaimKind
     text: str
-    status: ClaimStatus = ClaimStatus.supported
+    status: ClaimStatus = ClaimStatus.extracted
     evidence_ids: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
 

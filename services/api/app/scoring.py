@@ -18,14 +18,22 @@ def update_founder_score(
     evidence_coverage = _evidence_coverage(linked_evidence)
     signal_strength = _signal_strength(sources)
     contradiction_penalty = max(0.55, 1 - contradiction_count * 0.16)
-    cold_start = evidence_count < 3 or evidence_coverage < 0.34
+    founder_data_points = _founder_data_points(founder, claims, sources)
+    cold_start = founder_data_points < 2
     confidence = round((evidence_quality * 0.7 + evidence_coverage * 0.3) * contradiction_penalty, 3)
     score = round((signal_strength * 0.45 + evidence_quality * 0.35 + evidence_coverage * 0.2) * 100, 1)
-    notes = _score_notes(cold_start, evidence_quality, evidence_coverage, signal_strength, contradiction_count)
+    notes = _score_notes(
+        cold_start,
+        evidence_quality,
+        evidence_coverage,
+        signal_strength,
+        contradiction_count,
+        founder_data_points,
+    )
 
     return FounderScore(
         founder_id=founder.id,
-        score=score if not cold_start else min(score, 48.0),
+        score=score if not cold_start else min(score, 50.0),
         confidence=min(0.95, confidence),
         cold_start=cold_start,
         evidence_count=evidence_count,
@@ -53,6 +61,25 @@ def _signal_strength(sources: list[Source]) -> float:
     ]
     active = [value for value in categories if value > 0]
     return round(mean(active), 3) if active else 0.0
+
+
+def _founder_data_points(founder: Founder, claims: list[Claim], sources: list[Source]) -> int:
+    founder_claims = [
+        claim
+        for claim in claims
+        if claim.kind == ClaimKind.founder and (claim.founder_id in {None, founder.id})
+    ]
+    public_profile_sources = {
+        source.id
+        for source in sources
+        if source.source_type in {SourceType.github, SourceType.founder_linkedin}
+    }
+    return (
+        int(bool(founder.github)) * 2
+        + int(bool(founder.linkedin)) * 2
+        + min(2, len(founder_claims))
+        + min(2, len(public_profile_sources))
+    )
 
 
 def _github_quality(sources: list[Source]) -> float:
@@ -102,11 +129,13 @@ def _score_notes(
     evidence_coverage: float,
     signal_strength: float,
     contradiction_count: int,
+    founder_data_points: int,
 ) -> list[str]:
     notes = ["cold_start: limited founder evidence"] if cold_start else ["enough evidence for initial ranking"]
     notes.append(f"average evidence confidence {evidence_quality:.2f}")
     notes.append(f"source coverage {evidence_coverage:.2f}")
     notes.append(f"public signal strength {signal_strength:.2f}")
+    notes.append(f"founder data points {founder_data_points}")
     if contradiction_count:
         notes.append(f"{contradiction_count} disputed claim(s) reduce confidence")
     return notes

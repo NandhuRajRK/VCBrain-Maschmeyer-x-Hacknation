@@ -8,7 +8,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ["VCBRAIN_DB_PATH"] = "/tmp/vcbrain-api-smoke.sqlite3"
 
 from services.api.app import main
-from services.api.app.models import ConnectorKind, ParsedFounderQuery, Signal, VoiceCommand, VoiceIntent
+from services.api.app.models import (
+    Claim,
+    ClaimKind,
+    ClaimStatus,
+    ConnectorKind,
+    ParsedFounderQuery,
+    Signal,
+    VoiceCommand,
+    VoiceIntent,
+)
+from services.api.app.pipeline import resolve_claim_statuses
 
 
 def test_create_pull_ingest_dossier(monkeypatch):
@@ -157,3 +167,98 @@ def test_create_pull_ingest_dossier(monkeypatch):
     assert seeded.json()["companies"] == 10
     assert seeded.json()["founders"] == 10
     assert seeded.json()["claims"] >= 20
+
+
+def test_claim_and_founder_contract(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for collection in (
+        main.store.companies,
+        main.store.founders,
+        main.store.sources,
+        main.store.segments,
+        main.store.claims,
+        main.store.evidence,
+        main.store.founder_scores,
+        main.store.trigger_events,
+    ):
+        collection.clear()
+
+    client = TestClient(main.app)
+    company = client.post("/companies", json={"name": "ContractCo"}).json()
+    company_id = company["id"]
+    source_text = (
+        "Founder: Mira Shah. Sector: AI infrastructure. Stage: seed. Geography: Berlin. "
+        "Product: routes GPU workloads. Traction: 20 enterprise customers. "
+        "Market: enterprise AI infrastructure market. Funding: Raising $1M."
+    )
+    for title, text in [
+        ("Founder deck", source_text),
+        ("Public contradiction", "A public note says the company has 5 pilots, not 20 customers."),
+    ]:
+        response = client.post(
+            "/sources",
+            json={
+                "company_id": company_id,
+                "source_type": "pitch_deck",
+                "title": title,
+                "text": text,
+                "metadata": {
+                    "founders": [{"name": "Mira Shah", "role": "CEO", "github": "mirashah"}]
+                }
+                if title == "Founder deck"
+                else {},
+            },
+        )
+        assert response.status_code == 201
+
+    ingest = client.post(f"/companies/{company_id}/ingest")
+    assert ingest.status_code == 200
+    dossier = client.get(f"/companies/{company_id}/dossier")
+    assert dossier.status_code == 200
+    payload = dossier.json()
+
+    assert payload["company"]["sector"] == "AI infrastructure"
+    assert payload["company"]["stage"] == "seed"
+    assert payload["company"]["geography"] == "Berlin"
+    assert payload["company"]["description"]
+    assert payload["founders"][0]["name"] == "Mira Shah"
+    assert payload["founders"][0]["role"] == "CEO"
+    assert payload["founder_scores"][0]["cold_start"] is False
+    assert payload["founder_scores"][0]["evidence_count"] >= 1
+    assert payload["founder_scores"][0]["notes"]
+    assert all(source["source_type"] for source in payload["sources"])
+    assert all(
+        source["source_category"]
+        in {"github", "hacker_news", "arxiv", "product_hunt", "press", "pitch_deck", "founder_doc"}
+        for source in payload["sources"]
+    )
+    assert all(source["submitted_at"] for source in payload["sources"])
+    assert len(payload["claims"]) >= 6
+    assert {claim["kind"] for claim in payload["claims"]} >= {
+        "founder",
+        "company",
+        "product",
+        "traction",
+        "market",
+        "financial",
+    }
+    assert len({claim["confidence"] for claim in payload["claims"]}) > 1
+    assert all(
+        evidence_id in {item["id"] for item in payload["evidence"]}
+        for claim in payload["claims"]
+        for evidence_id in claim["evidence_ids"]
+    )
+    statuses = {claim["status"] for claim in payload["claims"]}
+    assert ClaimStatus.supported.value in statuses
+    assert ClaimStatus.disputed.value in statuses
+
+    broken = Claim(
+        company_id=company_id,
+        kind=ClaimKind.company,
+        text="This claim has no linked evidence.",
+        evidence_ids=["missing_evidence"],
+        confidence=0.9,
+    )
+    resolve_claim_statuses([broken], [])
+    assert broken.status == ClaimStatus.missing_evidence
+    assert broken.confidence == 0.25

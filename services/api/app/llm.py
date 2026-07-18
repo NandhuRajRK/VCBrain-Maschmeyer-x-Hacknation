@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import urllib.request
 from typing import Any
 
@@ -224,9 +225,22 @@ def _fallback_extract_claims(text: str, default_kind: ClaimKind) -> list[Extract
     for chunk in chunks:
         kind = _claim_kind_for_text(chunk, default_kind)
         if _looks_like_claim(chunk):
-            claims.append(ExtractedClaim(kind=kind, text=chunk[:320], confidence=0.62))
+            claims.append(
+                ExtractedClaim(
+                    kind=kind,
+                    text=chunk[:320],
+                    confidence=_fallback_extraction_confidence(chunk, kind),
+                )
+            )
     if not claims and text.strip():
-        claims.append(ExtractedClaim(kind=default_kind, text=text.strip()[:320], confidence=0.45))
+        value = text.strip()[:320]
+        claims.append(
+            ExtractedClaim(
+                kind=_claim_kind_for_text(value, default_kind),
+                text=value,
+                confidence=_fallback_extraction_confidence(value, default_kind),
+            )
+        )
     return claims[:8]
 
 
@@ -238,6 +252,9 @@ def _looks_like_claim(text: str) -> bool:
         "geography:",
         "traction:",
         "funding:",
+        "founder:",
+        "market:",
+        "product:",
         "customer",
         "pilot",
         "mrr",
@@ -252,14 +269,46 @@ def _looks_like_claim(text: str) -> bool:
 
 def _claim_kind_for_text(text: str, default_kind: ClaimKind) -> ClaimKind:
     lowered = text.lower()
-    if any(term in lowered for term in ["mrr", "arr", "revenue", "funding", "raising", "$"]):
+    if _contains_any(lowered, ["mrr", "arr", "revenue", "funding", "raising", "runway", "valuation"]) or "$" in lowered or "%" in lowered:
         return ClaimKind.financial
-    if any(term in lowered for term in ["customer", "pilot", "growth", "traction", "waitlist"]):
+    if _contains_any(lowered, ["customer", "pilot", "growth", "traction", "waitlist", "users", "usage", "retention", "loi"]):
         return ClaimKind.traction
-    if any(term in lowered for term in ["founder", "github", "operator"]):
+    if _contains_any(lowered, ["founder", "co-founder", "ceo", "cto", "operator", "github", "linkedin"]):
         return ClaimKind.founder
-    if any(term in lowered for term in ["market", "sector", "geography"]):
+    if _contains_any(lowered, ["market", "tam", "sam", "som", "market size", "competitor", "buyer", "category", "segment"]):
         return ClaimKind.market
-    if any(term in lowered for term in ["product", "platform", "workflow", "routes"]):
+    if _contains_any(lowered, ["product", "platform", "workflow", "routes", "solution", "technology"]):
         return ClaimKind.product
+    if _contains_any(lowered, ["company", "sector", "stage", "geography", "headquartered", "business model"]):
+        return ClaimKind.company
     return default_kind
+
+
+def _contains_any(text: str, terms: list[str]) -> bool:
+    patterns = []
+    for term in terms:
+        suffix = "" if term.endswith("s") else "s?"
+        patterns.append(rf"(?<![a-z0-9]){re.escape(term)}{suffix}(?![a-z0-9])")
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _fallback_extraction_confidence(text: str, kind: ClaimKind) -> float:
+    lowered = text.lower()
+    words = [word for word in lowered.split() if word.strip(".,:;()[]")]
+    quality = 0.25
+    quality += min(0.2, len(words) / 80)
+    quality += 0.15 if any(char.isdigit() for char in text) else 0
+    quality += 0.15 if any(marker in lowered for marker in ["sector:", "stage:", "traction:", "product:", "funding:", "founder:", "market:"]) else 0
+    quality += 0.1 if _contains_any(lowered, _KIND_TERMS[kind]) else 0
+    quality += 0.1 if _contains_any(lowered, ["is", "has", "builds", "serves", "raises", "grew"]) else 0
+    return round(min(0.95, quality), 3)
+
+
+_KIND_TERMS = {
+    ClaimKind.company: ["company", "sector", "stage", "geography"],
+    ClaimKind.founder: ["founder", "ceo", "cto", "operator", "github", "linkedin"],
+    ClaimKind.traction: ["customer", "pilot", "growth", "waitlist", "users", "usage"],
+    ClaimKind.market: ["market", "tam", "sam", "som", "competitor", "buyer", "segment"],
+    ClaimKind.product: ["product", "platform", "workflow", "solution", "technology"],
+    ClaimKind.financial: ["mrr", "arr", "revenue", "funding", "raising", "runway", "valuation", "$"],
+}

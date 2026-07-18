@@ -1,3 +1,7 @@
+import re
+
+from .evidence import build_evidence
+from .llm import extract_claims_from_text
 from .models import (
     Claim,
     ClaimKind,
@@ -6,13 +10,10 @@ from .models import (
     Evidence,
     ExtractedClaim,
     Founder,
-    IngestionStatus,
     Segment,
     Source,
     SourceType,
 )
-from .evidence import build_evidence
-from .llm import extract_claims_from_text
 
 
 def parse_source(source: Source) -> list[Segment]:
@@ -21,28 +22,39 @@ def parse_source(source: Source) -> list[Segment]:
     return [Segment(source_id=source.id, heading=heading, text=text)]
 
 
-def extract_company_update(segments: list[Segment]) -> CompanyUpdate:
-    text = " ".join(segment.text for segment in segments).lower()
+def extract_company_update(segments: list[Segment], source: Source | None = None) -> CompanyUpdate:
+    text = "\n".join(segment.text for segment in segments)
+    metadata = source.metadata if source else {}
     return CompanyUpdate(
-        sector=_find_after(text, "sector:"),
-        stage=_find_after(text, "stage:"),
-        geography=_find_after(text, "geography:"),
-        description=segments[0].text[:240] if segments else None,
+        sector=metadata.get("sector") or _find_label(text, "sector"),
+        stage=metadata.get("stage") or _find_label(text, "stage"),
+        geography=metadata.get("geography") or _find_label(text, "geography"),
+        description=metadata.get("description") or (segments[0].text[:240] if segments else None),
     )
 
 
 def extract_founders(company_id: str, source: Source) -> list[Founder]:
-    raw_founders = source.metadata.get("founders", [])
     founders: list[Founder] = []
-    for item in raw_founders:
-        if isinstance(item, str):
-            founders.append(Founder(company_id=company_id, name=item))
-        elif isinstance(item, dict) and item.get("name"):
-            founders.append(Founder(company_id=company_id, **item))
-    return founders
+    for item in source.metadata.get("founders", []):
+        founder = _founder_from_metadata(company_id, item)
+        if founder:
+            founders.append(founder)
+
+    handle = source.metadata.get("handle")
+    if not founders and handle and source.source_type == SourceType.github:
+        founders.append(Founder(company_id=company_id, name=str(handle), role="Founder", github=str(handle)))
+
+    if not founders:
+        founders.extend(_founders_from_text(company_id, source.text or ""))
+    return _unique_founders(founders)
 
 
-def extract_claims(company_id: str, source: Source, segments: list[Segment]) -> tuple[list[Claim], list[Evidence]]:
+def extract_claims(
+    company_id: str,
+    source: Source,
+    segments: list[Segment],
+    founders: list[Founder] | None = None,
+) -> tuple[list[Claim], list[Evidence]]:
     claims: list[Claim] = []
     evidence: list[Evidence] = []
     default_kind = _claim_kind(source.source_type)
@@ -52,20 +64,70 @@ def extract_claims(company_id: str, source: Source, segments: list[Segment]) -> 
         for claim in extracted:
             item = build_evidence(source, segment.id, _quote_for_claim(segment.text, claim))
             evidence.append(item)
-            status = _claim_status(claim.text)
-            confidence = round(min(item.confidence, claim.confidence), 3)
             claims.append(
                 Claim(
                     company_id=company_id,
+                    founder_id=_match_founder_id(claim, founders or []),
                     kind=claim.kind,
                     text=claim.text,
+                    status=ClaimStatus.extracted,
                     evidence_ids=[item.id],
-                    status=status,
-                    confidence=round(confidence * 0.55, 3) if status == ClaimStatus.disputed else confidence,
+                    confidence=_claim_confidence(claim, item),
                 )
             )
 
     return claims, evidence
+
+
+def resolve_claim_statuses(claims: list[Claim], evidence: list[Evidence]) -> None:
+    evidence_by_id = {item.id: item for item in evidence}
+    for claim in claims:
+        linked = [evidence_by_id[item] for item in claim.evidence_ids if item in evidence_by_id]
+        if not linked or len(linked) != len(claim.evidence_ids):
+            claim.status = ClaimStatus.missing_evidence
+            claim.confidence = round(min(claim.confidence, 0.25), 3)
+        else:
+            claim.status = ClaimStatus.supported
+
+    for index, left in enumerate(claims):
+        for right in claims[index + 1 :]:
+            if left.status == ClaimStatus.missing_evidence or right.status == ClaimStatus.missing_evidence:
+                continue
+            if _contradicts(left, right):
+                left.status = ClaimStatus.disputed
+                right.status = ClaimStatus.disputed
+
+
+def _claim_confidence(claim: ExtractedClaim, evidence: Evidence) -> float:
+    text = claim.text.strip()
+    text_quality = min(1.0, 0.35 + min(0.25, len(text) / 240) + (0.2 if any(char.isdigit() for char in text) else 0))
+    quote_coverage = min(1.0, len(text) / max(len(evidence.quote), 1))
+    value = claim.confidence * 0.55 + evidence.confidence * 0.3 + text_quality * 0.1 + quote_coverage * 0.05
+    return round(min(1.0, value), 3)
+
+
+def _contradicts(left: Claim, right: Claim) -> bool:
+    related_kinds = {left.kind, right.kind}
+    if left.kind != right.kind and related_kinds != {ClaimKind.financial, ClaimKind.traction}:
+        return False
+    overlap = _topic_tokens(left.text) & _topic_tokens(right.text)
+    if not overlap:
+        return False
+    left_numbers = set(re.findall(r"\b\d+(?:\.\d+)?\b", left.text))
+    right_numbers = set(re.findall(r"\b\d+(?:\.\d+)?\b", right.text))
+    numeric_conflict = bool(left_numbers and right_numbers and left_numbers != right_numbers)
+    negation = any(term in f" {left.text.lower()} {right.text.lower()} " for term in [" not ", " only ", " no ", " without "])
+    return (numeric_conflict and len(overlap) >= 1) or (negation and len(overlap) >= 2)
+
+
+def _topic_tokens(text: str) -> set[str]:
+    stopwords = {"the", "and", "for", "with", "from", "has", "have", "says", "this", "that", "are", "was", "not"}
+    tokens = set()
+    for token in re.findall(r"[a-zA-Z][a-zA-Z0-9-]+", text.lower()):
+        if len(token) < 4 or token in stopwords:
+            continue
+        tokens.add(token[:-1] if token.endswith("s") else token)
+    return tokens
 
 
 def _quote_for_claim(text: str, claim: ExtractedClaim) -> str:
@@ -74,25 +136,57 @@ def _quote_for_claim(text: str, claim: ExtractedClaim) -> str:
     return text[:320]
 
 
-def _claim_status(text: str) -> ClaimStatus:
-    lowered = text.lower()
-    if "contradiction" in lowered or " not " in lowered or "only " in lowered:
-        return ClaimStatus.disputed
-    return ClaimStatus.supported
+def _match_founder_id(claim: ExtractedClaim, founders: list[Founder]) -> str | None:
+    lowered = claim.text.lower()
+    for founder in founders:
+        if founder.name.lower() in lowered:
+            return founder.id
+    if claim.kind == ClaimKind.founder and len(founders) == 1:
+        return founders[0].id
+    return None
+
+
+def _founder_from_metadata(company_id: str, item: object) -> Founder | None:
+    if isinstance(item, str):
+        return Founder(company_id=company_id, name=item, role="Founder")
+    if not isinstance(item, dict) or not item.get("name"):
+        return None
+    return Founder(
+        company_id=company_id,
+        name=str(item["name"]),
+        role=item.get("role") or "Founder",
+        linkedin=item.get("linkedin"),
+        github=item.get("github"),
+    )
+
+
+def _founders_from_text(company_id: str, text: str) -> list[Founder]:
+    patterns = [
+        re.compile(r"\b(?P<role>(?i:founder|co-founder|ceo|cto|cfo|cpo))\s*[:\-]\s*(?P<name>[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})"),
+        re.compile(r"\b(?P<name>[A-Z][A-Za-z'-]+(?:\s+[A-Za-z'-]+){1,3})\s*[,\-]\s*(?P<role>CEO|CTO|CFO|CPO|Founder|Co-founder)\b"),
+    ]
+    return [
+        Founder(company_id=company_id, name=match.group("name").strip(), role=match.group("role").title())
+        for pattern in patterns
+        for match in pattern.finditer(text)
+    ]
+
+
+def _unique_founders(founders: list[Founder]) -> list[Founder]:
+    unique: dict[str, Founder] = {}
+    for founder in founders:
+        unique.setdefault(founder.name.lower(), founder)
+    return list(unique.values())
 
 
 def _claim_kind(source_type: SourceType) -> ClaimKind:
-    if source_type in {SourceType.financial_model}:
+    if source_type == SourceType.financial_model:
         return ClaimKind.financial
     if source_type in {SourceType.founder_linkedin, SourceType.github}:
         return ClaimKind.founder
-    if source_type in {SourceType.website, SourceType.pitch_deck}:
-        return ClaimKind.product
     return ClaimKind.company
 
 
-def _find_after(text: str, marker: str) -> str | None:
-    if marker not in text:
-        return None
-    value = text.split(marker, 1)[1].split(".", 1)[0].split("\n", 1)[0].strip()
-    return value[:80] or None
+def _find_label(text: str, label: str) -> str | None:
+    match = re.search(rf"\b{re.escape(label)}\s*:\s*([^\.\n]+)", text, flags=re.IGNORECASE)
+    return match.group(1).strip()[:80] if match else None

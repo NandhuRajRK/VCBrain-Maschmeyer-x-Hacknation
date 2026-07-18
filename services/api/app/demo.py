@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .document_parser import parse_document
 from .models import Company, DemoSeedResult, Founder, IngestionStatus, Segment, Source, SourceType
-from .pipeline import extract_claims
+from .pipeline import extract_claims, resolve_claim_statuses
 from .scoring import update_founder_score
 from .store import Store, store
 
@@ -41,6 +41,7 @@ def seed_demo(reset: bool = True, target: Store = store) -> DemoSeedResult:
         if profile.get("contradiction"):
             _add_note(target, company.id, "Contradiction note", profile["contradiction"])
 
+        resolve_claim_statuses(target.company_claims(company.id), list(target.evidence.values()))
         score = update_founder_score(
             founder,
             target.company_claims(company.id),
@@ -105,7 +106,7 @@ def _add_note(target: Store, company_id: str, title: str, text: str) -> None:
 def _save_segments_and_claims(target: Store, company_id: str, source: Source, segments: list[Segment]) -> None:
     for segment in segments:
         target.segments[segment.id] = segment
-    claims, evidence = extract_claims(company_id, source, segments)
+    claims, evidence = extract_claims(company_id, source, segments, target.company_founders(company_id))
     for item in evidence:
         target.evidence[item.id] = item
     for claim in claims:

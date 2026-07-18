@@ -36,7 +36,7 @@ from .models import (
 )
 from .connectors import pull_signals
 from .llm import parse_founder_query, parse_voice_command
-from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
+from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source, resolve_claim_statuses
 from .scoring import update_founder_score
 from .search import search_founders
 from .store import store
@@ -110,18 +110,23 @@ async def upload_document(company_id: str, file: UploadFile = File(...)) -> Docu
     for segment in segments:
         store.segments[segment.id] = segment
 
-    update = extract_company_update(segments)
+    update = extract_company_update(segments, source)
     company = store.company(company_id)
     for field, value in update.model_dump(exclude_none=True).items():
         if hasattr(company, field):
             setattr(company, field, value)
 
-    claims, evidence = extract_claims(company_id, source, segments)
+    for founder in extract_founders(company_id, source):
+        _upsert_founder(founder)
+    _ensure_founder(company_id)
+    claims, evidence = extract_claims(company_id, source, segments, store.company_founders(company_id))
     for item in evidence:
         store.evidence[item.id] = item
     for claim in claims:
         store.claims[claim.id] = claim
 
+    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
+    _refresh_founder_scores(company_id)
     store.save()
     return DocumentUploadResult(
         source=source,
@@ -171,6 +176,7 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
             url=signal.url,
             text=signal.text,
             metadata={**signal.metadata, "observed_at": signal.observed_at.isoformat()},
+            submitted_at=signal.observed_at,
         )
         store.sources[key] = source
         created.append(source)
@@ -204,17 +210,16 @@ def ingest_company(company_id: str) -> IngestionRun:
             for segment in segments:
                 store.segments[segment.id] = segment
 
-            update = extract_company_update(segments)
+            update = extract_company_update(segments, source)
             company = store.company(company_id)
             for field, value in update.model_dump(exclude_none=True).items():
                 if hasattr(company, field):
                     setattr(company, field, value)
 
             for founder in extract_founders(company_id, source):
-                key = f"{company_id}:{founder.name.lower()}"
-                store.founders.setdefault(key, founder)
+                _upsert_founder(founder)
 
-            claims, evidence = extract_claims(company_id, source, segments)
+            claims, evidence = extract_claims(company_id, source, segments, store.company_founders(company_id))
             for item in evidence:
                 store.evidence[item.id] = item
             for claim in claims:
@@ -224,22 +229,10 @@ def ingest_company(company_id: str) -> IngestionRun:
             parsed_segments += len(segments)
             extracted_claims += len(claims)
 
-    if not store.company_founders(company_id):
-        founder = Founder(
-            company_id=company_id,
-            name=f"{store.company(company_id).name} founder",
-        )
-        store.founders[f"{company_id}:unknown"] = founder
+    _ensure_founder(company_id)
+    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
 
-    for founder in store.company_founders(company_id):
-        score = update_founder_score(
-            founder,
-            store.company_claims(company_id),
-            store.company_sources(company_id),
-            store.company_evidence(company_id),
-        )
-        founder.cold_start = score.cold_start
-        store.founder_scores[founder.id] = score
+    _refresh_founder_scores(company_id)
     store.save()
 
     return IngestionRun(
@@ -253,6 +246,10 @@ def ingest_company(company_id: str) -> IngestionRun:
 
 @app.get("/companies/{company_id}/dossier", response_model=Dossier)
 def get_dossier(company_id: str) -> Dossier:
+    _ensure_founder(company_id)
+    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
+    _refresh_founder_scores(company_id)
+    store.save()
     return Dossier(
         company=store.company(company_id),
         founders=store.company_founders(company_id),
@@ -417,3 +414,38 @@ def _voice_response_text(intent: VoiceIntent, results: list[SearchMatch]) -> str
 @app.post("/demo/seed", response_model=DemoSeedResult)
 def seed_demo_data(reset: bool = True) -> DemoSeedResult:
     return seed_demo(reset=reset)
+
+
+def _upsert_founder(founder: Founder) -> Founder:
+    key = f"{founder.company_id}:{founder.name.lower()}"
+    existing = store.founders.get(key)
+    if not existing:
+        store.founders[key] = founder
+        return founder
+    if founder.role and not existing.role:
+        existing.role = founder.role
+    if founder.linkedin and not existing.linkedin:
+        existing.linkedin = founder.linkedin
+    if founder.github and not existing.github:
+        existing.github = founder.github
+    return existing
+
+
+def _ensure_founder(company_id: str) -> Founder:
+    founders = store.company_founders(company_id)
+    if founders:
+        return founders[0]
+    company = store.company(company_id)
+    return _upsert_founder(Founder(company_id=company_id, name=f"{company.name} founder", role="Founder"))
+
+
+def _refresh_founder_scores(company_id: str) -> None:
+    for founder in store.company_founders(company_id):
+        score = update_founder_score(
+            founder,
+            store.company_claims(company_id),
+            store.company_sources(company_id),
+            store.company_evidence(company_id),
+        )
+        founder.cold_start = score.cold_start
+        store.founder_scores[founder.id] = score

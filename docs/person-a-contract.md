@@ -21,6 +21,11 @@ Output:
 - `created_sources`
 - `deduped_sources`
 
+Each source includes a connector-specific `source_type` plus the stable
+`source_category` enum: `github`, `hacker_news`, `arxiv`, `product_hunt`,
+`press`, `pitch_deck`, or `founder_doc`. `submitted_at` is always populated;
+live signals use their observed timestamp.
+
 ## Document Upload
 
 `POST /companies/{company_id}/documents`
@@ -52,6 +57,10 @@ Evidence includes:
 - `freshness_days`
 - `directness`
 - `confidence_reason`
+
+Each claim includes its classified kind, extraction confidence, status, and
+`evidence_ids`. Ingestion resolves statuses to `supported`, `disputed`, or
+`missing_evidence` after comparing linked evidence and related claims.
 
 Founder Score is a memory signal derived from evidence confidence, evidence
 coverage, public signals, and contradiction penalties. It is not Julia's

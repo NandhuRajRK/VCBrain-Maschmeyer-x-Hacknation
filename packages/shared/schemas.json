@@ -28,9 +28,21 @@
     "updated_at": "datetime",
     "notes": ["string"]
   },
+  "Source": {
+    "id": "string",
+    "company_id": "string",
+    "source_type": "pitch_deck|financial_model|founder_questionnaire|document|website|founder_linkedin|github|press|hacker_news|product_hunt|arxiv|perplexity|exa|tavily|opencorporates|sec_edgar|patentsview|crm_note|other",
+    "source_category": "github|hacker_news|arxiv|product_hunt|press|pitch_deck|founder_doc",
+    "title": "string",
+    "url": "url|null",
+    "text": "string|null",
+    "status": "queued|processing|parsed|failed",
+    "submitted_at": "datetime"
+  },
   "Claim": {
     "id": "string",
     "company_id": "string",
+    "founder_id": "string|null",
     "kind": "company|founder|traction|market|product|financial",
     "text": "string",
     "status": "extracted|supported|disputed|missing_evidence",

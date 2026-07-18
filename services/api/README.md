@@ -93,6 +93,22 @@ audio, transcribes it, routes the command, and returns a reusable typed response
   `data/samples/`.
 - Supports NL-style founder search and an outbound activation draft.
 
+## Data Contract
+
+Ingestion emits one evidence object per extracted claim and links it through
+`Claim.evidence_ids`. Claim confidence combines extraction quality, source
+reliability, quote coverage, and directness. Claims are then resolved to
+`supported`, `disputed`, or `missing_evidence` when evidence links and
+cross-source comparisons are available.
+
+Founder metadata is resolved from document metadata and text, including name,
+role, LinkedIn, and GitHub. A founder is marked `cold_start` when the pipeline
+has fewer than two independent founder data points, and that state is returned
+with the persisted Founder Score. Every source has a connector-specific
+`source_type`, one of the seven-value canonical `source_category` values, and a
+`submitted_at` timestamp. The detailed type preserves the independence and
+reliability signals used by scoring.
+
 ## Demo Seed
 
 ```bash
