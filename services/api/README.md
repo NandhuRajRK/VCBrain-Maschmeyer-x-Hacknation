@@ -25,6 +25,8 @@ uvicorn app.main:app --reload --app-dir services/api
 - `GET /companies/{company_id}/evidence`
 - `GET /companies/{company_id}/founders`
 - `GET /companies/{company_id}/events`
+- `POST /founders/search`
+- `POST /founders/activate`
 
 ## Source Connectors
 
@@ -63,3 +65,12 @@ surface instead, so the dossier still shows evidence gaps explicitly.
 - Emits trigger events for new applications and signal threshold crossings.
 - Parses uploaded `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` files into
   evidence-ready segments with LLM follow-up tasks attached.
+- Seeds 10 demo founder profiles, 3 decks, and contradictions from
+  `data/samples/`.
+- Supports NL-style founder search and an outbound activation draft.
+
+## Demo Seed
+
+```bash
+uv run --with fastapi --with pypdf --with python-docx --with python-pptx python scripts/seed_demo.py --reset
+```

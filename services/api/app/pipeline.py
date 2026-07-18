@@ -1,6 +1,7 @@
 from .models import (
     Claim,
     ClaimKind,
+    ClaimStatus,
     CompanyUpdate,
     Evidence,
     Founder,
@@ -53,11 +54,19 @@ def extract_claims(company_id: str, source: Source, segments: list[Segment]) -> 
                 kind=kind,
                 text=quote,
                 evidence_ids=[item.id],
-                confidence=item.confidence,
+                status=_claim_status(quote),
+                confidence=0.58 if _claim_status(quote) == ClaimStatus.disputed else item.confidence,
             )
         )
 
     return claims, evidence
+
+
+def _claim_status(text: str) -> ClaimStatus:
+    lowered = text.lower()
+    if "contradiction" in lowered or " not " in lowered or "only " in lowered:
+        return ClaimStatus.disputed
+    return ClaimStatus.supported
 
 
 def _claim_kind(source_type: SourceType) -> ClaimKind:
@@ -75,4 +84,3 @@ def _find_after(text: str, marker: str) -> str | None:
         return None
     value = text.split(marker, 1)[1].split(".", 1)[0].split("\n", 1)[0].strip()
     return value[:80] or None
-

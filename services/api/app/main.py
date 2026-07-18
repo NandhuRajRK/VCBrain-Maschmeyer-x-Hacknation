@@ -10,9 +10,11 @@ from .models import (
     Dossier,
     Evidence,
     Founder,
+    FounderSearchRequest,
     IngestionRun,
     IngestionStatus,
     Segment,
+    SearchMatch,
     Source,
     SourceCreate,
     SourcePullRequest,
@@ -20,10 +22,13 @@ from .models import (
     SourceType,
     TriggerEvent,
     TriggerKind,
+    ActivateRequest,
+    ActivationDraft,
 )
 from .connectors import pull_signals
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
 from .scoring import update_founder_score
+from .search import search_founders
 from .store import store
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
@@ -215,6 +220,7 @@ def ingest_company(company_id: str) -> IngestionRun:
             store.company_claims(company_id),
             store.company_sources(company_id),
         )
+        founder.cold_start = score.cold_start
         store.founder_scores[founder.id] = score
     store.save()
 
@@ -259,3 +265,42 @@ def get_founders(company_id: str) -> list[Founder]:
 @app.get("/companies/{company_id}/events", response_model=list[TriggerEvent])
 def get_events(company_id: str) -> list[TriggerEvent]:
     return store.company_trigger_events(company_id)
+
+
+@app.post("/founders/search", response_model=list[SearchMatch])
+def search_founder_memory(payload: FounderSearchRequest) -> list[SearchMatch]:
+    return search_founders(
+        payload.query,
+        list(store.companies.values()),
+        list(store.founders.values()),
+        store.founder_scores,
+        list(store.claims.values()),
+        list(store.sources.values()),
+        payload.limit,
+    )
+
+
+@app.post("/founders/activate", response_model=ActivationDraft)
+def activate_founder(payload: ActivateRequest) -> ActivationDraft:
+    founder = next((item for item in store.founders.values() if item.id == payload.founder_id), None)
+    if not founder:
+        raise HTTPException(status_code=404, detail="Founder not found")
+
+    company = store.company(founder.company_id)
+    claims = store.company_claims(company.id)
+    evidence_ids = [evidence_id for claim in claims[:3] for evidence_id in claim.evidence_ids]
+    context = payload.context or "your recent founder signals"
+    return ActivationDraft(
+        founder_id=founder.id,
+        company_id=company.id,
+        subject=f"{company.name} x Maschmeyer Group",
+        message=(
+            f"Hi {founder.name},\n\n"
+            f"We are mapping exceptional founders for the Maschmeyer Group VC Brain. "
+            f"{company.name} stood out because of {context}. "
+            "If you are open to it, I would love to compare notes and understand "
+            "what you are building next.\n\n"
+            "Best,\nNandhu"
+        ),
+        evidence_ids=evidence_ids,
+    )

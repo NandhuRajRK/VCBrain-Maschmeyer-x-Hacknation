@@ -190,6 +190,32 @@ class FounderScore(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class FounderSearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class SearchMatch(BaseModel):
+    company: Company
+    founder: Founder
+    founder_score: FounderScore | None = None
+    match_score: float = Field(ge=0, le=100)
+    reasons: list[str] = Field(default_factory=list)
+
+
+class ActivateRequest(BaseModel):
+    founder_id: str
+    context: str | None = None
+
+
+class ActivationDraft(BaseModel):
+    founder_id: str
+    company_id: str
+    subject: str
+    message: str
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
 class TriggerKind(str, Enum):
     new_application = "new_application"
     signal_threshold_crossed = "signal_threshold_crossed"

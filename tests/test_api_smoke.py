@@ -88,3 +88,18 @@ def test_create_pull_ingest_dossier(monkeypatch):
     assert payload["founder_scores"][0]["cold_start"] is False
     assert any(event["kind"] == "new_application" for event in payload["trigger_events"])
     assert any(event["kind"] == "signal_threshold_crossed" for event in payload["trigger_events"])
+
+    search = client.post(
+        "/founders/search",
+        json={"query": "technical founder AI seed", "limit": 5},
+    )
+    assert search.status_code == 200
+    assert search.json()[0]["company"]["name"] == "DemoCo"
+
+    founder_id = payload["founders"][0]["id"]
+    activate = client.post(
+        "/founders/activate",
+        json={"founder_id": founder_id, "context": "strong technical and launch signals"},
+    )
+    assert activate.status_code == 200
+    assert "DemoCo x Maschmeyer Group" == activate.json()["subject"]

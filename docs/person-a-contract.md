@@ -62,6 +62,35 @@ Person B can consume:
 Cold-start founders are never hidden. They are returned with `cold_start: true`
 and low confidence so the memo layer can flag evidence gaps explicitly.
 
+## Search And Activation
+
+`POST /founders/search`
+
+Accepts a natural-language query such as:
+
+```text
+technical founder, Berlin, AI infra, no prior VC backing
+```
+
+Returns ranked `SearchMatch` objects with company, founder, score, match score,
+and reasons.
+
+`POST /founders/activate`
+
+Accepts a `founder_id` and returns a personalized outreach draft tied to the
+stored evidence IDs.
+
+## Demo Data
+
+`data/samples/founders.json` contains 10 founders:
+
+- rich signal profiles
+- medium signal profiles
+- cold-start profiles
+
+The sample deck files live in `data/samples/decks/`, with seeded contradictions
+for testing the claim/evidence ledger.
+
 ## Live API Keys
 
 The system can run without keys, but these unlock richer evidence:
