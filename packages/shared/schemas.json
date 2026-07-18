@@ -10,6 +10,31 @@
     "field_provenance": "record<string,source_id|application|demo_seed>",
     "field_confidence": "record<string,number:0-1>"
   },
+  "WorkHistoryEntry": {
+    "organization": "string",
+    "role": "string",
+    "start_year": "integer|null",
+    "end_year": "integer|null",
+    "source_ids": ["string"],
+    "confidence": "number:0-1"
+  },
+  "EducationHistoryEntry": {
+    "institution": "string",
+    "degree": "string|null",
+    "field_of_study": "string|null",
+    "graduation_year": "integer|null",
+    "source_ids": ["string"],
+    "confidence": "number:0-1"
+  },
+  "PriorVentureEntry": {
+    "company_name": "string",
+    "role": "string",
+    "founded_year": "integer|null",
+    "ended_year": "integer|null",
+    "outcome": "string|null",
+    "source_ids": ["string"],
+    "confidence": "number:0-1"
+  },
   "Founder": {
     "id": "string",
     "company_id": "string",
@@ -17,7 +42,31 @@
     "role": "string|null",
     "linkedin": "url|null",
     "github": "string|null",
+    "headline": "string|null",
+    "work_history": ["WorkHistoryEntry"],
+    "education_history": ["EducationHistoryEntry"],
+    "previous_ventures": ["PriorVentureEntry"],
+    "skills": ["string"],
+    "passport_source_ids": ["string"],
+    "passport_confidence": "number:0-1",
     "cold_start": "boolean"
+  },
+  "FounderPassport": {
+    "founder_id": "string",
+    "company_id": "string",
+    "name": "string",
+    "current_role": "string|null",
+    "headline": "string|null",
+    "work_history": ["WorkHistoryEntry"],
+    "education_history": ["EducationHistoryEntry"],
+    "previous_ventures": ["PriorVentureEntry"],
+    "skills": ["string"],
+    "source_ids": ["string"],
+    "confidence": "number:0-1",
+    "coverage": "number:0-1",
+    "cold_start": "boolean",
+    "gaps": ["string"],
+    "updated_at": "datetime"
   },
   "FounderScore": {
     "founder_id": "string",

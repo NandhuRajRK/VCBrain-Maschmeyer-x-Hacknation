@@ -28,6 +28,8 @@ uv run uvicorn services.api.app.main:app --reload
 - `GET /companies/{company_id}/claims`
 - `GET /companies/{company_id}/evidence`
 - `GET /companies/{company_id}/founders`
+- `GET /companies/{company_id}/founder-passports`
+- `GET /founders/{founder_id}/passport`
 - `GET /companies/{company_id}/events`
 - `POST /founders/search`
 - `POST /founders/activate`
@@ -78,6 +80,12 @@ Company fields prefer explicit source metadata and labels, then use the
 dedicated profile prompt for unstructured text. Prompt text is use-case-specific
 and lives in `services/api/app/prompts.py`.
 
+Founder Passport enrichment first consumes structured founder metadata, then
+uses the dedicated `founder_passport_extraction` prompt for unstructured
+biographies. Employment, education, and prior-venture facts retain source IDs,
+fact confidence, and explicit gaps. Calls are capped by
+`OPENAI_FOUNDER_PASSPORT_MAX_CALLS`, which defaults to 10 per API process.
+
 `OPENAI_API_KEY` also enables `POST /voice/query`, which accepts browser/mobile
 audio, transcribes it, routes the command, and returns a reusable typed response.
 `POST /voice/query/text` accepts the same flow after client-side transcription.
@@ -92,6 +100,8 @@ audio, transcribes it, routes the command, and returns a reusable typed response
 - Updates founder scores after ingestion and persists them to
   SQLite at `data/processed/vcbrain.sqlite3`.
 - Marks cold-start founders explicitly when evidence is sparse.
+- Builds sourced Founder Passports covering career, education, prior ventures,
+  skills, confidence, and missing-history gaps.
 - Emits trigger events for new applications and signal threshold crossings.
 - Parses uploaded `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` files into
   evidence-ready segments with LLM follow-up tasks attached.

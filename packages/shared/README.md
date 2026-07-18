@@ -14,3 +14,7 @@ to the appropriate view without depending on OpenAI or ElevenLabs details.
 `DecisionReadiness` and `CompanyTimeline` power the decision flight recorder.
 Readiness measures whether the dossier is complete enough to decide; it must
 not be presented as a fourth investment score.
+
+`FounderPassport` is the evidence-backed founder-history contract. The API wire
+format is snake_case. TypeScript may use camelCase internally, but its API
+adapter must map to the names in `schemas.json`.

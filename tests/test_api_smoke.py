@@ -489,3 +489,160 @@ def test_application_profile_resists_lower_quality_source_overwrite(monkeypatch)
     assert persisted["stage"] == "seed"
     assert persisted["geography"] == "Berlin"
     assert persisted["field_provenance"]["sector"] == "application"
+
+
+def test_founder_passport_tracks_sourced_history(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for collection in (
+        main.store.companies,
+        main.store.founders,
+        main.store.sources,
+        main.store.segments,
+        main.store.claims,
+        main.store.evidence,
+        main.store.founder_scores,
+        main.store.founder_score_history,
+        main.store.claim_status_changes,
+        main.store.trigger_events,
+    ):
+        collection.clear()
+
+    client = TestClient(main.app)
+    company_id = client.post("/companies", json={"name": "PassportCo"}).json()["id"]
+    source = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "founder_linkedin",
+            "title": "Mira Shah profile",
+            "text": "Mira Shah is the founder and CEO of PassportCo.",
+            "metadata": {
+                "founders": [
+                    {
+                        "name": "Mira Shah",
+                        "role": "CEO",
+                        "linkedin": "https://linkedin.com/in/mirashah",
+                        "work_history": [
+                            {
+                                "organization": "Compute Labs",
+                                "role": "Staff Engineer",
+                                "start_year": 2020,
+                                "end_year": 2024,
+                                "confidence": 0.9,
+                            }
+                        ],
+                        "education_history": [
+                            {
+                                "institution": "TU Berlin",
+                                "degree": "MSc",
+                                "field_of_study": "Computer Science",
+                                "graduation_year": 2020,
+                                "confidence": 0.88,
+                            }
+                        ],
+                        "previous_ventures": [
+                            {
+                                "company_name": "BatchPilot",
+                                "role": "Co-founder",
+                                "founded_year": 2018,
+                                "ended_year": 2020,
+                                "outcome": "Acqui-hired",
+                                "confidence": 0.84,
+                            }
+                        ],
+                        "skills": ["distributed systems", "machine learning"],
+                    }
+                ]
+            },
+        },
+    )
+    assert source.status_code == 201
+    source_id = source.json()["id"]
+    assert client.post(f"/companies/{company_id}/ingest").status_code == 200
+
+    passports = client.get(f"/companies/{company_id}/founder-passports")
+    assert passports.status_code == 200
+    passport = passports.json()[0]
+    assert passport["current_role"] == "CEO"
+    assert passport["work_history"][0]["organization"] == "Compute Labs"
+    assert passport["education_history"][0]["institution"] == "TU Berlin"
+    assert passport["previous_ventures"][0]["company_name"] == "BatchPilot"
+    assert passport["work_history"][0]["source_ids"] == [source_id]
+    assert passport["coverage"] == 1.0
+    assert passport["confidence"] > 0.5
+    assert passport["cold_start"] is False
+
+    initial_confidence = passport["work_history"][0]["confidence"]
+    corroboration = client.post(
+        "/sources",
+        json={
+            "company_id": company_id,
+            "source_type": "press",
+            "title": "Independent founder profile",
+            "text": "An independent profile confirms Mira Shah's role at Compute Labs.",
+            "metadata": {
+                "founders": [
+                    {
+                        "name": "Mira Shah",
+                        "work_history": [
+                            {
+                                "organization": "Compute Labs",
+                                "role": "Staff Engineer",
+                                "start_year": 2020,
+                                "end_year": 2024,
+                                "confidence": 0.86,
+                            }
+                        ],
+                    }
+                ]
+            },
+        },
+    )
+    assert corroboration.status_code == 201
+    corroboration_id = corroboration.json()["id"]
+    assert client.post(f"/companies/{company_id}/ingest").status_code == 200
+    passport = client.get(f"/companies/{company_id}/founder-passports").json()[0]
+    assert set(passport["work_history"][0]["source_ids"]) == {source_id, corroboration_id}
+    assert passport["work_history"][0]["confidence"] > initial_confidence
+
+    founder_id = passport["founder_id"]
+    individual = client.get(f"/founders/{founder_id}/passport")
+    assert individual.status_code == 200
+    assert individual.json() == passport
+
+
+def test_openai_founder_passport_extraction_is_dedicated(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    llm._FOUNDER_PASSPORT_CALLS = 0
+    captured = {}
+
+    def fake_call(body):
+        captured.update(body)
+        return json.dumps(
+            {
+                "headline": "Distributed systems engineer and repeat founder.",
+                "work_history": [
+                    {
+                        "organization": "Compute Labs",
+                        "role": "Staff Engineer",
+                        "start_year": 2020,
+                        "end_year": 2024,
+                        "confidence": 0.9,
+                    }
+                ],
+                "education_history": [],
+                "previous_ventures": [],
+                "skills": ["distributed systems"],
+            }
+        )
+
+    monkeypatch.setattr(llm, "_call_openai", fake_call)
+    extracted = llm.extract_founder_background(
+        "Mira Shah worked as a Staff Engineer at Compute Labs from 2020 to 2024.",
+        "Mira Shah",
+    )
+
+    assert extracted is not None
+    assert extracted.work_history[0].organization == "Compute Labs"
+    assert captured["text"]["format"]["name"] == "founder_passport_extraction"
+    assert "founder-background extraction engine" in captured["input"][0]["content"]

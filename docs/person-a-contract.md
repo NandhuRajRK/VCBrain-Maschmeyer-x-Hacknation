@@ -48,6 +48,11 @@ description. Explicit metadata and labeled source text remain authoritative;
 the deterministic parser is the fallback for missing fields or unavailable
 OpenAI calls.
 
+Founder metadata under `metadata.founders` can include `work_history`,
+`education_history`, `previous_ventures`, and `skills`. Structured metadata is
+used first. Unstructured biographies use the separate
+`founder_passport_extraction` prompt when OpenAI is configured.
+
 ## Ingestion
 
 `POST /companies/{company_id}/ingest`
@@ -90,6 +95,8 @@ Useful platform endpoints:
 
 - `GET /companies/{company_id}/readiness`
 - `GET /companies/{company_id}/timeline`
+- `GET /companies/{company_id}/founder-passports`
+- `GET /founders/{founder_id}/passport`
 - `GET /companies`
 - `GET /founders`
 - `POST /demo/seed`
@@ -112,6 +119,12 @@ Do not commit `.env`; it is already ignored.
 
 Cold-start founders are never hidden. They are returned with `cold_start: true`
 and low confidence so the memo layer can flag evidence gaps explicitly.
+For a multi-founder company, the company remains cold-start when **any** founder
+is cold-start; frontend aggregation should use `some`, not `every`.
+
+Founder Passport facts include their supporting `source_ids` and extraction
+confidence. `gaps` means the history is unverified, not that the founder has no
+education, employment, or prior ventures.
 
 ## Search And Activation
 

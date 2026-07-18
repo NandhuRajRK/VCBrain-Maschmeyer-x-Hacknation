@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from .document_parser import parse_document
+from .founder_passport import enrich_founder_passports
 from .memory import refresh_company_memory
 from .models import Company, DemoSeedResult, Founder, IngestionStatus, Segment, Source, SourceType
 from .pipeline import extract_claims
@@ -108,10 +109,23 @@ def _add_deck(target: Store, company: Company, founder: Founder, profile: dict) 
             "parser": parsed.parser,
             "demo_seed": True,
             "generated_for_profile": not uses_own_deck,
+            "founders": [
+                {
+                    "name": founder.name,
+                    "role": founder.role,
+                    "github": founder.github,
+                    "headline": profile.get("headline"),
+                    "work_history": profile.get("work_history", []),
+                    "education_history": profile.get("education_history", []),
+                    "previous_ventures": profile.get("previous_ventures", []),
+                    "skills": profile.get("skills", []),
+                }
+            ],
         },
         status=IngestionStatus.parsed,
     )
     target.sources[source.id] = source
+    enrich_founder_passports([founder], source)
     segments = [
         Segment(source_id=source.id, heading=chunk.heading, page=chunk.page, text=chunk.text)
         for chunk in parsed.chunks

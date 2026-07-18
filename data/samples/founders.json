@@ -8,6 +8,17 @@
     "geography": "Berlin",
     "website": "https://aethergrid.example",
     "github": "mirashah",
+    "headline": "Distributed systems engineer and repeat founder building AI infrastructure.",
+    "work_history": [
+      {"organization": "Nebula Compute", "role": "Staff ML Infrastructure Engineer", "start_year": 2019, "end_year": 2023, "confidence": 0.9}
+    ],
+    "education_history": [
+      {"institution": "TU Berlin", "degree": "MSc", "field_of_study": "Computer Science", "graduation_year": 2019, "confidence": 0.88}
+    ],
+    "previous_ventures": [
+      {"company_name": "BatchPilot", "role": "Co-founder", "founded_year": 2017, "ended_year": 2019, "outcome": "Acqui-hired", "confidence": 0.86}
+    ],
+    "skills": ["distributed systems", "GPU infrastructure", "machine learning"],
     "deck": "aethergrid_pitch.md",
     "traction": "Deck says 20 enterprise customers and 42% month-over-month inference volume growth.",
     "contradiction": "HN launch comment says AetherGrid has 5 pilots, not 20 customers."
@@ -21,6 +32,17 @@
     "geography": "Munich",
     "website": "https://medrelay.example",
     "github": "jonasweber",
+    "headline": "Digital-health product operator with clinical workflow experience.",
+    "work_history": [
+      {"organization": "Munich Digital Health Lab", "role": "Product Lead", "start_year": 2020, "end_year": 2024, "confidence": 0.88}
+    ],
+    "education_history": [
+      {"institution": "Technical University of Munich", "degree": "MSc", "field_of_study": "Medical Informatics", "graduation_year": 2020, "confidence": 0.9}
+    ],
+    "previous_ventures": [
+      {"company_name": "ClinicQueue", "role": "Founder", "founded_year": 2018, "ended_year": 2020, "outcome": "Completed two hospital pilots", "confidence": 0.8}
+    ],
+    "skills": ["healthcare workflows", "product management", "interoperability"],
     "deck": "medrelay_pitch.md",
     "traction": "Claims 12 clinics in paid pilot and two signed LOIs.",
     "contradiction": "Founder questionnaire says only 4 active clinics are live."
@@ -34,6 +56,17 @@
     "geography": "London",
     "website": "https://quietledger.example",
     "github": "priyamenon",
+    "headline": "Fintech compliance engineer and repeat founder.",
+    "work_history": [
+      {"organization": "Northstar Payments", "role": "Head of Compliance Engineering", "start_year": 2019, "end_year": 2024, "confidence": 0.9}
+    ],
+    "education_history": [
+      {"institution": "Imperial College London", "degree": "MEng", "field_of_study": "Computing", "graduation_year": 2019, "confidence": 0.88}
+    ],
+    "previous_ventures": [
+      {"company_name": "RegMap", "role": "Co-founder", "founded_year": 2017, "ended_year": 2019, "outcome": "Assets acquired", "confidence": 0.84}
+    ],
+    "skills": ["fintech compliance", "risk systems", "backend engineering"],
     "deck": "quietledger_pitch.md",
     "traction": "Claims $38k MRR and 9 regulated fintech customers."
   },
@@ -46,6 +79,14 @@
     "geography": "Milan",
     "website": "https://vectornest.example",
     "github": null,
+    "headline": "Developer-tools engineer focused on vector infrastructure.",
+    "work_history": [
+      {"organization": "Milano Systems Lab", "role": "Research Engineer", "start_year": 2021, "end_year": 2025, "confidence": 0.78}
+    ],
+    "education_history": [
+      {"institution": "Politecnico di Milano", "degree": "MSc", "field_of_study": "Computer Engineering", "graduation_year": 2021, "confidence": 0.8}
+    ],
+    "skills": ["vector databases", "developer experience"],
     "deck": "aethergrid_pitch.md",
     "traction": "Deck says 1,800 waitlist signups."
   },
@@ -58,6 +99,14 @@
     "geography": "Berlin",
     "website": "https://carbonloop.example",
     "github": null,
+    "headline": "Climate-software operator with carbon accounting experience.",
+    "work_history": [
+      {"organization": "Circular Metrics", "role": "Climate Data Lead", "start_year": 2020, "end_year": 2024, "confidence": 0.78}
+    ],
+    "education_history": [
+      {"institution": "RWTH Aachen", "degree": "MSc", "field_of_study": "Environmental Engineering", "graduation_year": 2020, "confidence": 0.76}
+    ],
+    "skills": ["carbon accounting", "climate data"],
     "deck": "medrelay_pitch.md",
     "traction": "Claims three paid design partners."
   },
@@ -70,6 +119,14 @@
     "geography": "Paris",
     "website": "https://nomicare.example",
     "github": null,
+    "headline": "Eldercare operations specialist building municipal care software.",
+    "work_history": [
+      {"organization": "Paris Care Network", "role": "Operations Director", "start_year": 2019, "end_year": 2024, "confidence": 0.78}
+    ],
+    "education_history": [
+      {"institution": "Sciences Po", "degree": "Master", "field_of_study": "Public Policy", "graduation_year": 2019, "confidence": 0.74}
+    ],
+    "skills": ["care operations", "public procurement"],
     "deck": "quietledger_pitch.md",
     "traction": "Deck says two municipal pilots are in procurement."
   },
@@ -82,6 +139,14 @@
     "geography": "Hamburg",
     "website": "https://atlasflow.example",
     "github": "maxnguyen",
+    "headline": "Logistics ML engineer and repeat founder.",
+    "work_history": [
+      {"organization": "Harbor Logistics", "role": "Machine Learning Lead", "start_year": 2020, "end_year": 2024, "confidence": 0.82}
+    ],
+    "previous_ventures": [
+      {"company_name": "DockRoute", "role": "Founder", "founded_year": 2018, "ended_year": 2020, "outcome": "Bootstrapped logistics consultancy", "confidence": 0.75}
+    ],
+    "skills": ["route optimization", "machine learning", "logistics"],
     "deck": "aethergrid_pitch.md",
     "traction": "Claims 14% route cost reduction in warehouse tests."
   },
@@ -122,4 +187,3 @@
     "traction": "Early design partner conversations, no verified customers."
   }
 ]
-
