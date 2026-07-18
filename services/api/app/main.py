@@ -41,8 +41,17 @@ from .scoring import update_founder_score
 from .search import search_founders
 from .store import store
 from .voice import encode_audio, narrate_text, transcribe_audio
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 MAX_VOICE_AUDIO_BYTES = 25_000_000
 
 
@@ -246,10 +255,6 @@ def ingest_company(company_id: str) -> IngestionRun:
 
 @app.get("/companies/{company_id}/dossier", response_model=Dossier)
 def get_dossier(company_id: str) -> Dossier:
-    _ensure_founder(company_id)
-    resolve_claim_statuses(store.company_claims(company_id), list(store.evidence.values()))
-    _refresh_founder_scores(company_id)
-    store.save()
     return Dossier(
         company=store.company(company_id),
         founders=store.company_founders(company_id),
