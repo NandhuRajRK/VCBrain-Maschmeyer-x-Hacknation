@@ -20,7 +20,6 @@ from .models import (
 )
 from .connectors import pull_signals
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
-from .persistence import FounderScoreRepository
 from .scoring import update_founder_score
 from .store import store
 
@@ -42,6 +41,7 @@ def create_company(payload: CompanyCreate) -> Company:
         message=f"New startup application created for {company.name}.",
     )
     store.trigger_events[event.id] = event
+    store.save()
     return company
 
 
@@ -51,6 +51,7 @@ def create_source(payload: SourceCreate) -> Source:
         raise HTTPException(status_code=404, detail="Company not found")
     source = Source(**payload.model_dump())
     store.sources[source.id] = source
+    store.save()
     return source
 
 
@@ -93,6 +94,7 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
         )
         store.trigger_events[event.id] = event
 
+    store.save()
     return SourcePullResult(
         company_id=payload.company_id,
         created_sources=created,
@@ -140,9 +142,13 @@ def ingest_company(company_id: str) -> IngestionRun:
         store.founders[f"{company_id}:unknown"] = founder
 
     for founder in store.company_founders(company_id):
-        score = update_founder_score(founder, store.company_claims(company_id))
+        score = update_founder_score(
+            founder,
+            store.company_claims(company_id),
+            store.company_sources(company_id),
+        )
         store.founder_scores[founder.id] = score
-    FounderScoreRepository().save(store.founder_scores)
+    store.save()
 
     return IngestionRun(
         company_id=company_id,

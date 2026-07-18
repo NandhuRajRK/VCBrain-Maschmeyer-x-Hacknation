@@ -1,19 +1,33 @@
 from fastapi import HTTPException
 
 from .models import Claim, Company, Evidence, Founder, FounderScore, Segment, Source, TriggerEvent
-from .persistence import FounderScoreRepository
+from .persistence import JsonSqliteStore, MODEL_COLLECTIONS
 
 
 class Store:
     def __init__(self) -> None:
-        self.companies: dict[str, Company] = {}
-        self.founders: dict[str, Founder] = {}
-        self.sources: dict[str, Source] = {}
-        self.segments: dict[str, Segment] = {}
-        self.claims: dict[str, Claim] = {}
-        self.evidence: dict[str, Evidence] = {}
-        self.founder_scores = FounderScoreRepository().load()
-        self.trigger_events: dict[str, TriggerEvent] = {}
+        self.db = JsonSqliteStore()
+        self.companies: dict[str, Company] = self._load("companies")
+        self.founders: dict[str, Founder] = self._load("founders")
+        self.sources: dict[str, Source] = self._load("sources")
+        self.segments: dict[str, Segment] = self._load("segments")
+        self.claims: dict[str, Claim] = self._load("claims")
+        self.evidence: dict[str, Evidence] = self._load("evidence")
+        self.founder_scores: dict[str, FounderScore] = self._load("founder_scores")
+        self.trigger_events: dict[str, TriggerEvent] = self._load("trigger_events")
+
+    def _load(self, collection: str):
+        return self.db.load_collection(collection, MODEL_COLLECTIONS[collection])
+
+    def save(self) -> None:
+        self.db.save_collection("companies", self.companies)
+        self.db.save_collection("founders", self.founders)
+        self.db.save_collection("sources", self.sources)
+        self.db.save_collection("segments", self.segments)
+        self.db.save_collection("claims", self.claims)
+        self.db.save_collection("evidence", self.evidence)
+        self.db.save_collection("founder_scores", self.founder_scores)
+        self.db.save_collection("trigger_events", self.trigger_events)
 
     def company(self, company_id: str) -> Company:
         if company_id not in self.companies:
