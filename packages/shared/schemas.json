@@ -1,0 +1,70 @@
+{
+  "Company": {
+    "id": "string",
+    "name": "string",
+    "website": "url|null",
+    "sector": "string|null",
+    "stage": "string|null",
+    "geography": "string|null",
+    "description": "string|null"
+  },
+  "Founder": {
+    "id": "string",
+    "company_id": "string",
+    "name": "string",
+    "role": "string|null",
+    "linkedin": "url|null",
+    "github": "string|null",
+    "cold_start": "boolean"
+  },
+  "FounderScore": {
+    "founder_id": "string",
+    "score": "number:0-100",
+    "confidence": "number:0-1",
+    "cold_start": "boolean",
+    "evidence_count": "integer",
+    "updated_at": "datetime",
+    "notes": ["string"]
+  },
+  "Claim": {
+    "id": "string",
+    "company_id": "string",
+    "kind": "company|founder|traction|market|product|financial",
+    "text": "string",
+    "status": "extracted|supported|disputed|missing_evidence",
+    "evidence_ids": ["string"],
+    "confidence": "number:0-1"
+  },
+  "Evidence": {
+    "id": "string",
+    "source_id": "string",
+    "segment_id": "string",
+    "quote": "string",
+    "confidence": "number:0-1"
+  },
+  "Dossier": {
+    "company": "Company",
+    "founders": ["Founder"],
+    "sources": ["Source"],
+    "segments": ["Segment"],
+    "claims": ["Claim"],
+    "evidence": ["Evidence"],
+    "founder_scores": ["FounderScore"],
+    "trigger_events": ["TriggerEvent"]
+  },
+  "SearchMatch": {
+    "company": "Company",
+    "founder": "Founder",
+    "score": "FounderScore|null",
+    "match_score": "number:0-100",
+    "reasons": ["string"]
+  },
+  "ActivationDraft": {
+    "founder_id": "string",
+    "company_id": "string",
+    "subject": "string",
+    "message": "string",
+    "evidence_ids": ["string"]
+  }
+}
+
