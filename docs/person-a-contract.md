@@ -42,6 +42,12 @@ The endpoint stores the upload as a source, parses it into segments with
 page/slide-like references where available, creates initial claims/evidence,
 and attaches `llm_tasks` metadata for later LLM extraction.
 
+When `OPENAI_API_KEY` is present, ingestion also runs the dedicated
+`company_profile_extraction` schema for sector, stage, geography, and
+description. Explicit metadata and labeled source text remain authoritative;
+the deterministic parser is the fallback for missing fields or unavailable
+OpenAI calls.
+
 ## Ingestion
 
 `POST /companies/{company_id}/ingest`

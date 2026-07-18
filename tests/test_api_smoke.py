@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -8,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ["VCBRAIN_DB_PATH"] = "/tmp/vcbrain-api-smoke.sqlite3"
 
 from services.api.app import main
+from services.api.app import llm
 from services.api.app.models import (
     Claim,
     ClaimKind,
@@ -22,6 +24,7 @@ from services.api.app.pipeline import resolve_claim_statuses
 
 
 def test_create_pull_ingest_dossier(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     main.store.companies.clear()
     main.store.founders.clear()
     main.store.sources.clear()
@@ -262,3 +265,33 @@ def test_claim_and_founder_contract(monkeypatch):
     resolve_claim_statuses([broken], [])
     assert broken.status == ClaimStatus.missing_evidence
     assert broken.confidence == 0.25
+
+
+def test_openai_company_profile_extraction_is_structured(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    captured = {}
+
+    def fake_call(body):
+        captured.update(body)
+        return json.dumps(
+            {
+                "sector": "AI infrastructure",
+                "stage": "seed",
+                "geography": "Berlin",
+                "description": "GPU workload routing for AI teams.",
+            }
+        )
+
+    monkeypatch.setattr(llm, "_call_openai", fake_call)
+    profile = llm.extract_company_profile("We route GPU workloads for AI teams in Berlin.")
+
+    assert profile is not None
+    assert profile.sector == "AI infrastructure"
+    assert profile.geography == "Berlin"
+    assert captured["text"]["format"]["name"] == "company_profile_extraction"
+    assert captured["text"]["format"]["schema"]["required"] == [
+        "sector",
+        "stage",
+        "geography",
+        "description",
+    ]

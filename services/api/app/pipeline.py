@@ -1,7 +1,7 @@
 import re
 
 from .evidence import build_evidence
-from .llm import extract_claims_from_text
+from .llm import extract_claims_from_text, extract_company_profile
 from .models import (
     Claim,
     ClaimKind,
@@ -25,11 +25,23 @@ def parse_source(source: Source) -> list[Segment]:
 def extract_company_update(segments: list[Segment], source: Source | None = None) -> CompanyUpdate:
     text = "\n".join(segment.text for segment in segments)
     metadata = source.metadata if source else {}
-    return CompanyUpdate(
+    labeled_update = CompanyUpdate(
         sector=metadata.get("sector") or _find_label(text, "sector"),
         stage=metadata.get("stage") or _find_label(text, "stage"),
         geography=metadata.get("geography") or _find_label(text, "geography"),
-        description=metadata.get("description") or (segments[0].text[:240] if segments else None),
+        description=metadata.get("description"),
+    )
+    needs_profile_extraction = any(
+        getattr(labeled_update, field) is None for field in ("sector", "stage", "geography")
+    )
+    llm_update = extract_company_profile(text) if text.strip() and needs_profile_extraction else None
+    return CompanyUpdate(
+        sector=labeled_update.sector or (llm_update.sector if llm_update else None),
+        stage=labeled_update.stage or (llm_update.stage if llm_update else None),
+        geography=labeled_update.geography or (llm_update.geography if llm_update else None),
+        description=metadata.get("description")
+        or (llm_update.description if llm_update else None)
+        or (segments[0].text[:240] if segments else None),
     )
 
 

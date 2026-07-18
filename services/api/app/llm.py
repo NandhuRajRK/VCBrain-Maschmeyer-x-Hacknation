@@ -4,8 +4,13 @@ import re
 import urllib.request
 from typing import Any
 
-from .models import ClaimKind, ExtractedClaim, ParsedFounderQuery, VoiceCommand, VoiceIntent
-from .prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT, FOUNDER_SEARCH_SYSTEM_PROMPT, VOICE_COMMAND_SYSTEM_PROMPT
+from .models import CompanyUpdate, ClaimKind, ExtractedClaim, ParsedFounderQuery, VoiceCommand, VoiceIntent
+from .prompts import (
+    CLAIM_EXTRACTION_SYSTEM_PROMPT,
+    COMPANY_PROFILE_SYSTEM_PROMPT,
+    FOUNDER_SEARCH_SYSTEM_PROMPT,
+    VOICE_COMMAND_SYSTEM_PROMPT,
+)
 
 
 SEARCH_QUERY_SCHEMA = {
@@ -56,6 +61,18 @@ CLAIM_EXTRACTION_SCHEMA = {
     },
 }
 
+COMPANY_PROFILE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["sector", "stage", "geography", "description"],
+    "properties": {
+        "sector": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "stage": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "geography": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    },
+}
+
 VOICE_COMMAND_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -82,6 +99,12 @@ def extract_claims_from_text(text: str, default_kind: ClaimKind) -> list[Extract
         if extracted:
             return extracted
     return _fallback_extract_claims(text, default_kind)
+
+
+def extract_company_profile(text: str) -> CompanyUpdate | None:
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+    return _extract_company_profile_with_openai(text)
 
 
 def parse_voice_command(transcript: str) -> VoiceCommand:
@@ -131,6 +154,22 @@ def _extract_claims_with_openai(text: str) -> list[ExtractedClaim]:
         return []
 
 
+def _extract_company_profile_with_openai(text: str) -> CompanyUpdate | None:
+    body = _responses_body(
+        [
+            {"role": "system", "content": COMPANY_PROFILE_SYSTEM_PROMPT},
+            {"role": "user", "content": text[:6000]},
+        ],
+        "company_profile_extraction",
+        COMPANY_PROFILE_SCHEMA,
+    )
+    try:
+        response_text = _call_openai(body)
+        return CompanyUpdate.model_validate_json(response_text) if response_text else None
+    except Exception:
+        return None
+
+
 def _parse_voice_with_openai(transcript: str) -> VoiceCommand | None:
     body = _responses_body(
         [
@@ -149,7 +188,7 @@ def _parse_voice_with_openai(transcript: str) -> VoiceCommand | None:
 
 def _responses_body(messages: list[dict[str, str]], name: str, schema: dict[str, Any]) -> dict[str, Any]:
     return {
-        "model": os.getenv("OPENAI_MODEL", "gpt-5"),
+        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         "input": messages,
         "text": {
             "format": {

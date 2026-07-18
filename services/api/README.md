@@ -55,7 +55,7 @@ uv run uvicorn services.api.app.main:app --reload
 Optional API keys:
 
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL` defaults to `gpt-5`
+- `OPENAI_MODEL` defaults to `gpt-4o-mini`
 - `OPENAI_TRANSCRIPTION_MODEL` defaults to `gpt-4o-mini-transcribe`
 - `ELEVENLABS_API_KEY`
 - `ELEVENLABS_VOICE_ID` defaults to `JBFqnCBsd6RMkjVDRZzb`
@@ -69,9 +69,12 @@ Optional API keys:
 Missing keys do not break the demo. The connector records a fallback/search
 surface instead, so the dossier still shows evidence gaps explicitly.
 
-`OPENAI_API_KEY` enables structured parsing for `POST /founders/search`.
+`OPENAI_API_KEY` enables structured company-profile extraction during ingestion
+and structured parsing for `POST /founders/search`.
 Without it, the endpoint uses a deterministic parser for demo stability.
-Prompt text is use-case-specific and lives in `services/api/app/prompts.py`.
+Company fields prefer explicit source metadata and labels, then use the
+dedicated profile prompt for unstructured text. Prompt text is use-case-specific
+and lives in `services/api/app/prompts.py`.
 
 `OPENAI_API_KEY` also enables `POST /voice/query`, which accepts browser/mobile
 audio, transcribes it, routes the command, and returns a reusable typed response.
