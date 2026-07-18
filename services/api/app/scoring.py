@@ -10,12 +10,14 @@ def update_founder_score(founder: Founder, claims: list[Claim], sources: list[So
     github = _github_strength(sources)
     launch = _launch_strength(sources)
     research = _research_strength(sources)
+    diligence = _diligence_strength(sources)
+    registry = _registry_strength(sources)
     freshness = _freshness_strength(sources)
     cold_start = evidence_count == 0 or signal_count < 3
-    raw_score = 25.0 + evidence_count * 8.0 + github + launch + research + freshness
+    raw_score = 25.0 + evidence_count * 8.0 + github + launch + research + diligence + registry + freshness
     score = min(100.0, raw_score)
     confidence = min(0.95, 0.2 + evidence_count * 0.12 + min(signal_count, 8) * 0.06)
-    notes = _score_notes(cold_start, github, launch, research, freshness)
+    notes = _score_notes(cold_start, github, launch, research, diligence, registry, freshness)
 
     return FounderScore(
         founder_id=founder.id,
@@ -51,8 +53,29 @@ def _launch_strength(sources: list[Source]) -> float:
 
 
 def _research_strength(sources: list[Source]) -> float:
-    count = sum(1 for source in sources if source.source_type == SourceType.arxiv)
+    count = sum(
+        1
+        for source in sources
+        if source.source_type in {SourceType.arxiv, SourceType.patentsview}
+    )
     return min(14.0, count * 5.0)
+
+
+def _diligence_strength(sources: list[Source]) -> float:
+    source_types = {
+        SourceType.website,
+        SourceType.perplexity,
+        SourceType.exa,
+        SourceType.tavily,
+    }
+    count = sum(1 for source in sources if source.source_type in source_types)
+    return min(16.0, count * 4.0)
+
+
+def _registry_strength(sources: list[Source]) -> float:
+    source_types = {SourceType.opencorporates, SourceType.sec_edgar}
+    count = sum(1 for source in sources if source.source_type in source_types)
+    return min(12.0, count * 6.0)
 
 
 def _freshness_strength(sources: list[Source]) -> float:
@@ -78,6 +101,8 @@ def _score_notes(
     github: float,
     launch: float,
     research: float,
+    diligence: float,
+    registry: float,
     freshness: float,
 ) -> list[str]:
     notes = ["cold_start: limited founder evidence"] if cold_start else ["enough evidence for initial ranking"]
@@ -87,6 +112,10 @@ def _score_notes(
         notes.append("launch/community traction contributed")
     if research:
         notes.append("research relevance contributed")
+    if diligence:
+        notes.append("web diligence coverage contributed")
+    if registry:
+        notes.append("registry or filing verification contributed")
     if freshness:
         notes.append("fresh signals contributed")
     return notes

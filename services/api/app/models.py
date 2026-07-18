@@ -28,6 +28,12 @@ class SourceType(str, Enum):
     hacker_news = "hacker_news"
     product_hunt = "product_hunt"
     arxiv = "arxiv"
+    perplexity = "perplexity"
+    exa = "exa"
+    tavily = "tavily"
+    opencorporates = "opencorporates"
+    sec_edgar = "sec_edgar"
+    patentsview = "patentsview"
     crm_note = "crm_note"
     other = "other"
 
@@ -76,6 +82,13 @@ class ConnectorKind(str, Enum):
     hacker_news = "hacker_news"
     product_hunt = "product_hunt"
     arxiv = "arxiv"
+    website = "website"
+    perplexity = "perplexity"
+    exa = "exa"
+    tavily = "tavily"
+    opencorporates = "opencorporates"
+    sec_edgar = "sec_edgar"
+    patentsview = "patentsview"
 
 
 class Signal(BaseModel):
@@ -93,6 +106,7 @@ class SourcePullRequest(BaseModel):
     query: str | None = None
     github_user: str | None = None
     arxiv_query: str | None = None
+    website_url: HttpUrl | None = None
 
 
 class SourcePullResult(BaseModel):

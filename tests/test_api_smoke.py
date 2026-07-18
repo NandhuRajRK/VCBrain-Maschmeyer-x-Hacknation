@@ -19,7 +19,7 @@ def test_create_pull_ingest_dossier(monkeypatch):
     main.store.founder_scores.clear()
     main.store.trigger_events.clear()
 
-    def fake_pull(connectors, query, github_user=None, arxiv_query=None):
+    def fake_pull(connectors, query, github_user=None, arxiv_query=None, website_url=None):
         return [
             Signal(
                 source=ConnectorKind.github,

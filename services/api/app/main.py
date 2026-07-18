@@ -114,14 +114,28 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
     company = store.company(payload.company_id)
     query = payload.query or company.name
     connectors = payload.connectors or [
-        ConnectorKind.github,
+        ConnectorKind.website,
         ConnectorKind.hacker_news,
+        ConnectorKind.product_hunt,
         ConnectorKind.arxiv,
+        ConnectorKind.perplexity,
+        ConnectorKind.exa,
+        ConnectorKind.tavily,
+        ConnectorKind.opencorporates,
+        ConnectorKind.sec_edgar,
+        ConnectorKind.patentsview,
     ]
     created: list[Source] = []
     deduped = 0
 
-    signals = pull_signals(connectors, query, payload.github_user, payload.arxiv_query)
+    website_url = payload.website_url or company.website
+    signals = pull_signals(
+        connectors,
+        query,
+        payload.github_user,
+        payload.arxiv_query,
+        str(website_url) if website_url else None,
+    )
     for signal in signals:
         source_type = SourceType(signal.source.value)
         key = f"{payload.company_id}:{source_type}:{signal.title.lower()}"

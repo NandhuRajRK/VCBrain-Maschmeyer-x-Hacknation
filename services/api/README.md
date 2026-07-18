@@ -2,9 +2,9 @@
 
 FastAPI service for Nandhu's slice: company intake, source registration,
 parsing, extraction, entity resolution, evidence-backed claims, and dossier
-readback. Source connectors currently normalize GitHub, Hacker News,
-Product Hunt, and arXiv-style signals into the agreed source schema without
-requiring API keys.
+readback. Source connectors normalize public signals, search/research APIs,
+registries, filings, patents, websites, and uploaded founder documents into
+the agreed source schema.
 
 ## Run
 
@@ -25,6 +25,33 @@ uvicorn app.main:app --reload --app-dir services/api
 - `GET /companies/{company_id}/evidence`
 - `GET /companies/{company_id}/founders`
 - `GET /companies/{company_id}/events`
+
+## Source Connectors
+
+`POST /sources/pull` supports:
+
+- `github`
+- `hacker_news`
+- `product_hunt`
+- `arxiv`
+- `website`
+- `perplexity`
+- `exa`
+- `tavily`
+- `opencorporates`
+- `sec_edgar`
+- `patentsview`
+
+Optional API keys:
+
+- `PRODUCT_HUNT_TOKEN`
+- `PERPLEXITY_API_KEY`
+- `EXA_API_KEY`
+- `TAVILY_API_KEY`
+- `OPENCORPORATES_API_TOKEN`
+
+Missing keys do not break the demo. The connector records a fallback/search
+surface instead, so the dossier still shows evidence gaps explicitly.
 
 ## Person A Scope
 

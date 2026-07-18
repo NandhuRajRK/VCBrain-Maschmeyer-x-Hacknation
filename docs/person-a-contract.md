@@ -9,10 +9,12 @@ Nandhu owns the sourcing and memory side of the system.
 Inputs:
 
 - `company_id`
-- `connectors`: `github`, `hacker_news`, `product_hunt`, `arxiv`
+- `connectors`: `github`, `hacker_news`, `product_hunt`, `arxiv`, `website`,
+  `perplexity`, `exa`, `tavily`, `opencorporates`, `sec_edgar`, `patentsview`
 - `query`
 - `github_user`
 - `arxiv_query`
+- `website_url`
 
 Output:
 
@@ -59,3 +61,16 @@ Person B can consume:
 
 Cold-start founders are never hidden. They are returned with `cold_start: true`
 and low confidence so the memo layer can flag evidence gaps explicitly.
+
+## Live API Keys
+
+The system can run without keys, but these unlock richer evidence:
+
+- `PRODUCT_HUNT_TOKEN`
+- `PERPLEXITY_API_KEY`
+- `EXA_API_KEY`
+- `TAVILY_API_KEY`
+- `OPENCORPORATES_API_TOKEN`
+
+GitHub, Hacker News, arXiv, website fetches, SEC ticker lookup, and PatentsView
+search surfaces can run without project-specific credentials.
