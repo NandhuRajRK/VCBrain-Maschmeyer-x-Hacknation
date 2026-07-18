@@ -2,9 +2,9 @@
  * 3-Axis Scoring Engine
  *
  * Scores every opportunity on three independent axes:
- *   1. Founder -- who they are, track record, technical depth
- *   2. Market -- size, growth, competition, timing
- *   3. Idea-vs-Market -- does the idea survive scrutiny, or is the
+ *   1. Founder: who they are, track record, technical depth
+ *   2. Market: size, growth, competition, timing
+ *   3. Idea-vs-Market: does the idea survive scrutiny, or is the
  *      team strong enough to pivot?
  *
  * The axes are NEVER averaged into a single number. Each one
@@ -83,6 +83,13 @@ export interface Evidence {
   segment_id: string;
   quote: string;
   confidence: number;
+
+  /** Fields from Nandhu's evidence pipeline (consumed directly, not re-derived) */
+  source_reliability: number;
+  source_independence: "third_party" | "company_owned" | "founder_provided" | "unknown";
+  freshness_days: number | null;
+  directness: "direct" | "inferred" | "indirect";
+  confidence_reason: string;
 }
 
 export interface FounderData {
@@ -101,6 +108,8 @@ export interface FounderScoreData {
   confidence: number;
   cold_start: boolean;
   evidence_count: number;
+  evidence_coverage: number;
+  contradiction_count: number;
   notes: string[];
 }
 
@@ -136,57 +145,51 @@ export interface DossierInput {
 
 /**
  * How independent are the sources backing this claim?
- * Founder-provided sources score lower than third-party ones.
+ * Consumes the source_independence field that Nandhu's evidence pipeline already computed.
+ * Maps the string categories to a 0-1 factor.
  */
-function sourceIndependence(claim: Claim, sources: Source[], evidence: Evidence[]): number {
+function sourceIndependence(claim: Claim, _sources: Source[], evidence: Evidence[]): number {
   const claimEvidence = evidence.filter((e) => claim.evidence_ids.includes(e.id));
   if (claimEvidence.length === 0) return 0.2;
 
-  const sourceIds = new Set(claimEvidence.map((e) => e.source_id));
-  const relevantSources = sources.filter((s) => sourceIds.has(s.id));
+  const factors: Record<string, number> = {
+    third_party: 1.0,
+    company_owned: 0.65,
+    founder_provided: 0.4,
+    unknown: 0.3,
+  };
 
-  const independentTypes = new Set([
-    "github", "hacker_news", "product_hunt", "arxiv", "press",
-  ]);
-  const founderTypes = new Set([
-    "pitch_deck", "founder_questionnaire", "founder_linkedin",
-  ]);
-
-  let independent = 0;
-  let founderProvided = 0;
-  for (const source of relevantSources) {
-    if (independentTypes.has(source.source_type)) independent++;
-    else if (founderTypes.has(source.source_type)) founderProvided++;
+  let total = 0;
+  for (const ev of claimEvidence) {
+    total += factors[ev.source_independence] ?? 0.3;
   }
-
-  const total = independent + founderProvided;
-  if (total === 0) return 0.3;
-  return 0.3 + 0.7 * (independent / total);
+  return total / claimEvidence.length;
 }
 
 /**
- * How fresh is the evidence? Recent sources score higher.
+ * How fresh is the evidence? Consumes freshness_days from Nandhu's evidence pipeline.
+ * Matches his tiered decay: <=30d = 1.0, <=180d = 0.85, <=365d = 0.7, >365d = 0.55.
  */
-function freshness(claim: Claim, sources: Source[], evidence: Evidence[]): number {
+function freshness(claim: Claim, _sources: Source[], evidence: Evidence[]): number {
   const claimEvidence = evidence.filter((e) => claim.evidence_ids.includes(e.id));
-  const sourceIds = new Set(claimEvidence.map((e) => e.source_id));
-  const relevantSources = sources.filter((s) => sourceIds.has(s.id));
+  if (claimEvidence.length === 0) return 0.5;
 
-  if (relevantSources.length === 0) return 0.5;
-
-  const now = Date.now();
-  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-  const ninetyDays = 90 * 24 * 60 * 60 * 1000;
-
-  let freshCount = 0;
-  for (const source of relevantSources) {
-    const age = now - new Date(source.submitted_at).getTime();
-    if (age <= thirtyDays) freshCount += 1.0;
-    else if (age <= ninetyDays) freshCount += 0.6;
-    else freshCount += 0.3;
+  let total = 0;
+  for (const ev of claimEvidence) {
+    const days = ev.freshness_days;
+    if (days === null || days === undefined) {
+      total += 0.75;
+    } else if (days <= 30) {
+      total += 1.0;
+    } else if (days <= 180) {
+      total += 0.85;
+    } else if (days <= 365) {
+      total += 0.7;
+    } else {
+      total += 0.55;
+    }
   }
-
-  return Math.min(1, freshCount / relevantSources.length);
+  return total / claimEvidence.length;
 }
 
 /**
@@ -261,12 +264,12 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
 
   // Notes
   const notes: string[] = [];
-  if (isColdStart) notes.push("Cold-start founder -- limited track record, score capped at 50");
-  if (founders.length === 1) notes.push("Single founder -- higher execution risk");
+  if (isColdStart) notes.push("Cold-start founder, limited track record, score capped at 50");
+  if (founders.length === 1) notes.push("Single founder, higher execution risk");
   if (founders.length >= 2) notes.push(`Team of ${founders.length} founders`);
   if (hasGithub) notes.push("GitHub presence detected");
   if (disputed.length > 0) notes.push(`${disputed.length} disputed claim(s) on founder`);
-  if (founderClaims.length === 0) notes.push("No founder-specific claims -- scoring from minimal data");
+  if (founderClaims.length === 0) notes.push("No founder-specific claims, scoring from minimal data");
 
   return {
     axis: "founder",
@@ -289,7 +292,7 @@ function scoreMarketAxis(dossier: DossierInput): AxisScore {
   const supporting = allRelevant.filter((c) => c.status === "supported");
   const disputed = allRelevant.filter((c) => c.status === "disputed");
 
-  let rawScore = 40; // baseline -- markets are hard to assess from limited data
+  let rawScore = 40; // baseline, markets are hard to assess from limited data
 
   // More market claims = more evidence of market understanding
   rawScore = Math.min(100, rawScore + marketClaims.length * 6);
@@ -327,11 +330,11 @@ function scoreMarketAxis(dossier: DossierInput): AxisScore {
   const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
 
   const notes: string[] = [];
-  if (marketClaims.length === 0) notes.push("No market-specific claims -- relying on inferred signals");
+  if (marketClaims.length === 0) notes.push("No market-specific claims, relying on inferred signals");
   if (tractionClaims.length > 0) notes.push(`${tractionClaims.length} traction signal(s) detected`);
   if (externalSignals.length > 0) notes.push("External community traction (HN/ProductHunt)");
   if (disputed.length > 0) notes.push(`${disputed.length} disputed market/traction claim(s)`);
-  if (!company.sector) notes.push("No sector identified -- market sizing not possible");
+  if (!company.sector) notes.push("No sector identified, market sizing not possible");
 
   return {
     axis: "market",
@@ -401,9 +404,9 @@ function scoreIdeaVsMarketAxis(dossier: DossierInput): AxisScore {
   const adjustedScore = Math.round(rawScore * avgConfidence * avgIndependence * avgFreshness);
 
   const notes: string[] = [];
-  if (productClaims.length === 0) notes.push("No product claims -- idea not well articulated in sources");
+  if (productClaims.length === 0) notes.push("No product claims, idea not well articulated in sources");
   if (tractionClaims.length > 0) notes.push("Traction validates idea-market alignment");
-  if (avgFounderScore >= 60) notes.push("Strong founder score -- team can pivot if needed");
+  if (avgFounderScore >= 60) notes.push("Strong founder score, team can pivot if needed");
   if (disputed.length > 0) notes.push(`${disputed.length} disputed claim(s) on product/market fit`);
 
   return {
@@ -439,7 +442,7 @@ export function scoreDossier(dossier: DossierInput): ScoringResult {
 
   // Surface key risks
   const risks: string[] = [];
-  if (isColdStart) risks.push("Cold-start founder -- minimal verifiable track record");
+  if (isColdStart) risks.push("Cold-start founder, minimal verifiable track record");
   if (founder.adjustedScore < 30) risks.push("Founder score critically low");
   if (market.adjustedScore < 25) risks.push("Market evidence insufficient for conviction");
   if (ideaVsMarket.adjustedScore < 20) risks.push("Idea-market fit unvalidated");

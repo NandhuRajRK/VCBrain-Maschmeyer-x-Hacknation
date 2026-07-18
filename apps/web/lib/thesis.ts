@@ -4,7 +4,7 @@
  * The fund's investment preferences as a configurable filter.
  * Every company that enters the pipeline is checked against this
  * before any scoring happens. If it fails a hard filter, it's
- * an instant pass -- no resources wasted on analysis.
+ * an instant pass, no resources wasted on analysis.
  */
 
 // ── Types ──────────────────────────────────────────────────────
@@ -25,13 +25,13 @@ export interface ThesisConfig {
   /** Target ownership percentage post-investment */
   ownershipTarget: number;
 
-  /** How much risk the fund tolerates -- affects soft scoring */
+  /** How much risk the fund tolerates. Affects soft scoring */
   riskAppetite: "conservative" | "moderate" | "aggressive";
 
   /** Business models the fund prefers (e.g. "b2b_saas", "marketplace") */
   preferredModels: string[];
 
-  /** Hard exclusions -- any match is an instant reject */
+  /** Hard exclusions: any match is an instant reject */
   exclusions: string[];
 }
 
@@ -39,13 +39,13 @@ export interface ThesisResult {
   /** Did the company pass all hard filters? */
   pass: boolean;
 
-  /** Hard filter failures -- any of these means instant reject */
+  /** Hard filter failures: any of these means instant reject */
   hardFailures: string[];
 
-  /** Soft matches -- things the fund likes that this company has */
+  /** Soft matches: things the fund likes that this company has */
   softMatches: string[];
 
-  /** Soft mismatches -- preferences the company doesn't meet */
+  /** Soft mismatches: preferences the company doesn't meet */
   softMismatches: string[];
 
   /** 0-1 score representing overall thesis alignment */
@@ -58,12 +58,25 @@ function normalize(value: string): string {
   return value.toLowerCase().trim();
 }
 
-function matchesAny(value: string | null | undefined, targets: string[]): boolean {
-  if (!value || targets.length === 0) return true; // no constraint = pass
+/**
+ * Returns { matches, missing } where:
+ *   matches = true if value matches at least one target (or no targets exist)
+ *   missing = true if we could not evaluate because value is null/undefined
+ *
+ * This distinction matters: "missing" is a soft mismatch (flagged, not fatal),
+ * while a real non-match against targets is a hard failure.
+ */
+function matchesAny(
+  value: string | null | undefined,
+  targets: string[]
+): { matches: boolean; missing: boolean } {
+  if (targets.length === 0) return { matches: true, missing: false };
+  if (!value) return { matches: false, missing: true };
   const norm = normalize(value);
-  return targets.some(
+  const matches = targets.some(
     (t) => norm.includes(normalize(t)) || normalize(t).includes(norm)
   );
+  return { matches, missing: false };
 }
 
 function matchesExclusion(
@@ -104,20 +117,35 @@ export function evaluateThesis(
   const softMatches: string[] = [];
   const softMismatches: string[] = [];
 
-  // Hard filters -- any failure = instant reject
+  // Hard filters: any failure = instant reject.
+  // Missing data is NOT a hard failure: it is a soft mismatch (flagged, scored down,
+  // but the company still enters the pipeline so the analyst can gather more data).
 
-  if (!matchesAny(company.sector, thesis.sectors)) {
-    hardFailures.push(`Sector "${company.sector ?? "unknown"}" outside fund thesis`);
+  const sectorCheck = matchesAny(company.sector, thesis.sectors);
+  if (!sectorCheck.matches) {
+    if (sectorCheck.missing) {
+      softMismatches.push("Sector unknown: cannot verify thesis fit");
+    } else {
+      hardFailures.push(`Sector "${company.sector}" outside fund thesis`);
+    }
   }
 
-  if (!matchesAny(company.stage, thesis.stages)) {
-    hardFailures.push(`Stage "${company.stage ?? "unknown"}" outside fund thesis`);
+  const stageCheck = matchesAny(company.stage, thesis.stages);
+  if (!stageCheck.matches) {
+    if (stageCheck.missing) {
+      softMismatches.push("Stage unknown: cannot verify thesis fit");
+    } else {
+      hardFailures.push(`Stage "${company.stage}" outside fund thesis`);
+    }
   }
 
-  if (!matchesAny(company.geography, thesis.geographies)) {
-    hardFailures.push(
-      `Geography "${company.geography ?? "unknown"}" outside fund thesis`
-    );
+  const geoCheck = matchesAny(company.geography, thesis.geographies);
+  if (!geoCheck.matches) {
+    if (geoCheck.missing) {
+      softMismatches.push("Geography unknown: cannot verify thesis fit");
+    } else {
+      hardFailures.push(`Geography "${company.geography}" outside fund thesis`);
+    }
   }
 
   const excluded = matchesExclusion(company, thesis.exclusions);
@@ -125,7 +153,7 @@ export function evaluateThesis(
     hardFailures.push(`Matches exclusion: "${excluded}"`);
   }
 
-  // Soft preferences -- influence fit score but don't reject
+  // Soft preferences: influence fit score but don't reject
 
   if (company.description) {
     const desc = normalize(company.description);
