@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -67,6 +68,8 @@ class CompanyCreate(BaseModel):
 class Company(CompanyCreate):
     id: str = Field(default_factory=lambda: new_id("company"))
     created_at: datetime = Field(default_factory=now)
+    field_provenance: dict[str, str] = Field(default_factory=dict)
+    field_confidence: dict[str, float] = Field(default_factory=dict)
 
 
 class CompanyUpdate(BaseModel):
@@ -140,10 +143,16 @@ class Source(SourceCreate):
     status: IngestionStatus = IngestionStatus.queued
     submitted_at: datetime = Field(default_factory=now)
     source_category: SourceCategory = SourceCategory.founder_doc
+    content_fingerprint: str | None = None
+    duplicate_of_source_id: str | None = None
 
     @model_validator(mode="after")
     def set_source_category(self) -> "Source":
         self.source_category = _source_category(self.source_type)
+        if not self.content_fingerprint:
+            value = self.text or (str(self.url) if self.url else None) or self.title
+            normalized = " ".join(value.lower().split())
+            self.content_fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
         return self
 
 
@@ -158,7 +167,16 @@ def _source_category(source_type: SourceType) -> SourceCategory:
         return SourceCategory.product_hunt
     if source_type == SourceType.pitch_deck:
         return SourceCategory.pitch_deck
-    if source_type in {SourceType.press, SourceType.website}:
+    if source_type in {
+        SourceType.press,
+        SourceType.website,
+        SourceType.perplexity,
+        SourceType.exa,
+        SourceType.tavily,
+        SourceType.opencorporates,
+        SourceType.sec_edgar,
+        SourceType.patentsview,
+    }:
         return SourceCategory.press
     return SourceCategory.founder_doc
 
@@ -194,6 +212,14 @@ class ClaimStatus(str, Enum):
     missing_evidence = "missing_evidence"
 
 
+class ClaimVerification(str, Enum):
+    unverified = "unverified"
+    source_backed = "source_backed"
+    independently_supported = "independently_supported"
+    disputed = "disputed"
+    missing_evidence = "missing_evidence"
+
+
 class Evidence(BaseModel):
     id: str = Field(default_factory=lambda: new_id("ev"))
     source_id: str
@@ -214,6 +240,8 @@ class Claim(BaseModel):
     kind: ClaimKind
     text: str
     status: ClaimStatus = ClaimStatus.extracted
+    verification: ClaimVerification = ClaimVerification.unverified
+    status_reason: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
 
@@ -222,6 +250,13 @@ class ExtractedClaim(BaseModel):
     kind: ClaimKind
     text: str = Field(min_length=1)
     confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class ContradictionAssessment(BaseModel):
+    contradicts: bool
+    temporal_difference: bool = False
+    confidence: float = Field(default=0.5, ge=0, le=1)
+    reason: str
 
 
 class FounderScore(BaseModel):
@@ -234,6 +269,56 @@ class FounderScore(BaseModel):
     contradiction_count: int = 0
     updated_at: datetime = Field(default_factory=now)
     notes: list[str] = Field(default_factory=list)
+
+
+class FounderScoreSnapshot(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("score_snapshot"))
+    company_id: str
+    founder_id: str
+    score: float = Field(ge=0, le=100)
+    confidence: float = Field(ge=0, le=1)
+    cold_start: bool
+    evidence_count: int
+    contradiction_count: int
+    score_delta: float = 0
+    confidence_delta: float = 0
+    reason: str
+    created_at: datetime = Field(default_factory=now)
+
+
+class ClaimStatusChange(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("claim_change"))
+    company_id: str
+    claim_id: str
+    previous_status: ClaimStatus
+    current_status: ClaimStatus
+    previous_verification: ClaimVerification
+    current_verification: ClaimVerification
+    confidence: float = Field(ge=0, le=1)
+    reason: str
+    created_at: datetime = Field(default_factory=now)
+
+
+class DiligenceAction(BaseModel):
+    priority: str
+    category: str
+    title: str
+    reason: str
+    suggested_source_type: SourceCategory | None = None
+    claim_ids: list[str] = Field(default_factory=list)
+    expected_readiness_gain: int = Field(default=0, ge=0, le=100)
+
+
+class DecisionReadiness(BaseModel):
+    company_id: str
+    score: int = Field(ge=0, le=100)
+    status: str
+    components: dict[str, float]
+    blockers: list[str] = Field(default_factory=list)
+    next_actions: list[DiligenceAction] = Field(default_factory=list)
+    contradiction_count: int = 0
+    cold_start: bool = True
+    updated_at: datetime = Field(default_factory=now)
 
 
 class FounderSearchRequest(BaseModel):
@@ -319,6 +404,10 @@ class DemoSeedResult(BaseModel):
 class TriggerKind(str, Enum):
     new_application = "new_application"
     signal_threshold_crossed = "signal_threshold_crossed"
+    contradiction_detected = "contradiction_detected"
+    score_changed = "score_changed"
+    cold_start_resolved = "cold_start_resolved"
+    decision_ready = "decision_ready"
 
 
 class TriggerEvent(BaseModel):
@@ -339,6 +428,14 @@ class Dossier(BaseModel):
     evidence: list[Evidence]
     founder_scores: list[FounderScore]
     trigger_events: list[TriggerEvent]
+
+
+class CompanyTimeline(BaseModel):
+    company_id: str
+    score_snapshots: list[FounderScoreSnapshot]
+    claim_changes: list[ClaimStatusChange]
+    trigger_events: list[TriggerEvent]
+    readiness: DecisionReadiness
 
 
 class IngestionRun(BaseModel):

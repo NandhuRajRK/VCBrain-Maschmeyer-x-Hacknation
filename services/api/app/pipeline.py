@@ -1,11 +1,12 @@
 import re
 
 from .evidence import build_evidence
-from .llm import extract_claims_from_text, extract_company_profile
+from .llm import assess_contradiction, extract_claims_from_text, extract_company_profile
 from .models import (
     Claim,
     ClaimKind,
     ClaimStatus,
+    ClaimVerification,
     CompanyUpdate,
     Evidence,
     ExtractedClaim,
@@ -14,6 +15,9 @@ from .models import (
     Source,
     SourceType,
 )
+
+
+_CONTRADICTION_CACHE: dict[tuple[str, str], tuple[bool, str]] = {}
 
 
 def parse_source(source: Source) -> list[Segment]:
@@ -97,17 +101,31 @@ def resolve_claim_statuses(claims: list[Claim], evidence: list[Evidence]) -> Non
         linked = [evidence_by_id[item] for item in claim.evidence_ids if item in evidence_by_id]
         if not linked or len(linked) != len(claim.evidence_ids):
             claim.status = ClaimStatus.missing_evidence
+            claim.verification = ClaimVerification.missing_evidence
+            claim.status_reason = "One or more evidence links are missing."
             claim.confidence = round(min(claim.confidence, 0.25), 3)
         else:
             claim.status = ClaimStatus.supported
+            independence = {item.source_independence for item in linked}
+            if "third_party" in independence:
+                claim.verification = ClaimVerification.independently_supported
+                claim.status_reason = "Linked to at least one independent third-party source."
+            else:
+                claim.verification = ClaimVerification.source_backed
+                claim.status_reason = "Linked evidence is founder-provided or company-owned."
 
     for index, left in enumerate(claims):
         for right in claims[index + 1 :]:
             if left.status == ClaimStatus.missing_evidence or right.status == ClaimStatus.missing_evidence:
                 continue
-            if _contradicts(left, right):
+            contradicts, reason = _contradiction(left, right)
+            if contradicts:
                 left.status = ClaimStatus.disputed
                 right.status = ClaimStatus.disputed
+                left.verification = ClaimVerification.disputed
+                right.verification = ClaimVerification.disputed
+                left.status_reason = f"Contradiction with {right.id}: {reason}"
+                right.status_reason = f"Contradiction with {left.id}: {reason}"
 
 
 def _claim_confidence(claim: ExtractedClaim, evidence: Evidence) -> float:
@@ -118,18 +136,43 @@ def _claim_confidence(claim: ExtractedClaim, evidence: Evidence) -> float:
     return round(min(1.0, value), 3)
 
 
-def _contradicts(left: Claim, right: Claim) -> bool:
+def _contradiction(left: Claim, right: Claim) -> tuple[bool, str]:
     related_kinds = {left.kind, right.kind}
     if left.kind != right.kind and related_kinds != {ClaimKind.financial, ClaimKind.traction}:
-        return False
+        return False, "Claims describe unrelated diligence categories."
     overlap = _topic_tokens(left.text) & _topic_tokens(right.text)
     if not overlap:
-        return False
+        return False, "Claims do not share a material topic."
     left_numbers = set(re.findall(r"\b\d+(?:\.\d+)?\b", left.text))
     right_numbers = set(re.findall(r"\b\d+(?:\.\d+)?\b", right.text))
-    numeric_conflict = bool(left_numbers and right_numbers and left_numbers != right_numbers)
+    numeric_conflict = bool(
+        left_numbers
+        and right_numbers
+        and not (left_numbers <= right_numbers or right_numbers <= left_numbers)
+    )
     negation = any(term in f" {left.text.lower()} {right.text.lower()} " for term in [" not ", " only ", " no ", " without "])
-    return (numeric_conflict and len(overlap) >= 1) or (negation and len(overlap) >= 2)
+    if not numeric_conflict and not (negation and len(overlap) >= 1):
+        return False, "No incompatible value or negation was found."
+
+    left_years = set(re.findall(r"\b(?:19|20)\d{2}\b", left.text))
+    right_years = set(re.findall(r"\b(?:19|20)\d{2}\b", right.text))
+    if left_years and right_years and left_years.isdisjoint(right_years) and not negation:
+        return False, "The values refer to different reporting periods."
+
+    key = tuple(sorted((left.id, right.id)))
+    if key not in _CONTRADICTION_CACHE:
+        assessment = assess_contradiction(left.text, right.text)
+        if assessment and assessment.confidence >= 0.55:
+            _CONTRADICTION_CACHE[key] = (
+                assessment.contradicts and not assessment.temporal_difference,
+                assessment.reason,
+            )
+        else:
+            reason = "Claims contain incompatible values for the same topic."
+            if negation:
+                reason = "One claim explicitly negates or narrows the other."
+            _CONTRADICTION_CACHE[key] = (True, reason)
+    return _CONTRADICTION_CACHE[key]
 
 
 def _topic_tokens(text: str) -> set[str]:

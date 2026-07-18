@@ -4,13 +4,25 @@ import re
 import urllib.request
 from typing import Any
 
-from .models import CompanyUpdate, ClaimKind, ExtractedClaim, ParsedFounderQuery, VoiceCommand, VoiceIntent
+from .models import (
+    ClaimKind,
+    CompanyUpdate,
+    ContradictionAssessment,
+    ExtractedClaim,
+    ParsedFounderQuery,
+    VoiceCommand,
+    VoiceIntent,
+)
 from .prompts import (
     CLAIM_EXTRACTION_SYSTEM_PROMPT,
     COMPANY_PROFILE_SYSTEM_PROMPT,
+    CONTRADICTION_SYSTEM_PROMPT,
     FOUNDER_SEARCH_SYSTEM_PROMPT,
     VOICE_COMMAND_SYSTEM_PROMPT,
 )
+
+
+_CONTRADICTION_CALLS = 0
 
 
 SEARCH_QUERY_SCHEMA = {
@@ -73,6 +85,18 @@ COMPANY_PROFILE_SCHEMA = {
     },
 }
 
+CONTRADICTION_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["contradicts", "temporal_difference", "confidence", "reason"],
+    "properties": {
+        "contradicts": {"type": "boolean"},
+        "temporal_difference": {"type": "boolean"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "reason": {"type": "string"},
+    },
+}
+
 VOICE_COMMAND_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -105,6 +129,29 @@ def extract_company_profile(text: str) -> CompanyUpdate | None:
     if not os.getenv("OPENAI_API_KEY"):
         return None
     return _extract_company_profile_with_openai(text)
+
+
+def assess_contradiction(left: str, right: str) -> ContradictionAssessment | None:
+    global _CONTRADICTION_CALLS
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+    limit = int(os.getenv("OPENAI_CONTRADICTION_MAX_CALLS", "8"))
+    if _CONTRADICTION_CALLS >= limit:
+        return None
+    _CONTRADICTION_CALLS += 1
+    body = _responses_body(
+        [
+            {"role": "system", "content": CONTRADICTION_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Claim A: {left[:1000]}\nClaim B: {right[:1000]}"},
+        ],
+        "claim_contradiction",
+        CONTRADICTION_SCHEMA,
+    )
+    try:
+        response_text = _call_openai(body)
+        return ContradictionAssessment.model_validate_json(response_text) if response_text else None
+    except Exception:
+        return None
 
 
 def parse_voice_command(transcript: str) -> VoiceCommand:

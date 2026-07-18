@@ -12,7 +12,6 @@ def update_founder_score(
     linked_ids = {evidence_id for claim in claims for evidence_id in claim.evidence_ids}
     linked_evidence = [item for item in evidence if item.id in linked_ids]
     evidence_count = len(linked_evidence)
-    signal_count = len(claims)
     contradiction_count = sum(1 for claim in claims if claim.status == ClaimStatus.disputed)
     evidence_quality = mean(item.confidence for item in linked_evidence) if linked_evidence else 0.0
     evidence_coverage = _evidence_coverage(linked_evidence)
@@ -21,7 +20,8 @@ def update_founder_score(
     founder_data_points = _founder_data_points(founder, claims, sources)
     cold_start = founder_data_points < 2
     confidence = round((evidence_quality * 0.7 + evidence_coverage * 0.3) * contradiction_penalty, 3)
-    score = round((signal_strength * 0.45 + evidence_quality * 0.35 + evidence_coverage * 0.2) * 100, 1)
+    base_score = (signal_strength * 0.45 + evidence_quality * 0.35 + evidence_coverage * 0.2) * 100
+    score = round(base_score * contradiction_penalty, 1)
     notes = _score_notes(
         cold_start,
         evidence_quality,
