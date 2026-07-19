@@ -6,7 +6,9 @@
 
 .shell {
   display: flex;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ── Sidebar ── */
@@ -86,7 +88,12 @@
 }
 
 .brandIcon {
-  font-size: var(--text-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--text-md);
   color: var(--side-text);
   flex-shrink: 0;
 }
@@ -95,7 +102,7 @@
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   color: var(--side-text);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   opacity: 1;
   transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
 }
@@ -149,11 +156,11 @@
 .navLink {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 0.7rem;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: var(--weight-normal);
   color: var(--side-text-2);
   white-space: nowrap;
@@ -183,9 +190,11 @@
 }
 
 .navIcon {
-  font-size: var(--text-sm);
-  width: 1rem;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
   color: var(--side-muted);
   flex-shrink: 0;
 }
@@ -244,6 +253,137 @@
   pointer-events: none;
 }
 
+.usageCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--side-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--side-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+
+.usageTop,
+.usageLabel,
+.usageNumbers {
+  display: flex;
+  align-items: center;
+}
+
+.usageTop { justify-content: space-between; gap: var(--space-2); }
+.usageLabel { gap: var(--space-2); color: var(--side-text-2); }
+.usageNumbers { gap: var(--space-1); }
+.usageNumbers strong { color: var(--side-text); font-size: var(--text-md); }
+.usageBar { height: 6px; overflow: hidden; border-radius: 999px; background: rgba(0, 0, 0, 0.55); }
+.usageBar span { display: block; width: 34%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a855f7, #7c3aed); }
+.usageNote { color: var(--side-muted); }
+
+.themeControl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: var(--space-3);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.themeControl button {
+  min-width: 0;
+  padding: var(--space-2) 0;
+  color: var(--side-muted);
+  font-size: var(--text-xs);
+  border-radius: 4px;
+}
+
+.themeControl button[data-active="true"] { color: var(--side-text); background: rgba(255, 255, 255, 0.12); }
+.themeControl button:hover { color: var(--side-text); }
+
+.profileArea { position: relative; margin-top: var(--space-4); }
+
+.profileButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  color: var(--side-text-2);
+  font-size: var(--text-sm);
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.profileButton:hover,
+.profileButton[aria-expanded="true"] { color: var(--side-text); background: var(--side-hover); border-color: var(--side-border); }
+.profileLabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.profileMenu {
+  --side-text: #f4f4f5;
+  --side-text-2: #d4d4d8;
+  --side-muted: #8b8b96;
+  --side-border: rgba(255, 255, 255, 0.08);
+  position: fixed;
+  left: calc(var(--sidebar-width) + 8px);
+  bottom: var(--space-4);
+  z-index: 250;
+  width: min(300px, calc(100vw - var(--sidebar-width) - 24px));
+  padding: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
+}
+
+:global(html[data-theme="light"]) .sidebar {
+  --side-bg: #ffffff;
+  --side-text: #18181b;
+  --side-text-2: #3f3f46;
+  --side-muted: #71717a;
+  --side-border: rgba(0, 0, 0, 0.1);
+  --side-hover: rgba(0, 0, 0, 0.045);
+  --side-active: rgba(0, 0, 0, 0.075);
+}
+
+:global(html[data-theme="light"]) .profileMenu {
+  --side-text: #18181b;
+  --side-text-2: #3f3f46;
+  --side-muted: #71717a;
+  --side-border: rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+}
+
+:global(html[data-theme="light"]) .usageCard { background: rgba(0, 0, 0, 0.035); }
+:global(html[data-theme="light"]) .usageBar { background: rgba(0, 0, 0, 0.12); }
+:global(html[data-theme="light"]) .themeControl { background: rgba(0, 0, 0, 0.07); }
+:global(html[data-theme="light"]) .themeControl button[data-active="true"] { background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+
+.sidebar[data-collapsed="true"] .profileLabel { opacity: 0; width: 0; }
+.sidebar[data-collapsed="true"] .profileButton { justify-content: center; padding-inline: 0; }
+.profileMenu[data-collapsed="true"] { left: 64px; width: min(300px, calc(100vw - 80px)); }
+.profileMenu .usageCard { margin-top: 0; }
+
+.logoutButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  color: var(--side-muted);
+  font-size: var(--text-sm);
+  text-align: left;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.logoutButton:hover { color: var(--side-text); }
+
 /* ── Collapse toggle ──
  * Fixed to the viewport (NOT a child of .sidebar), so the sidebar's
  * overflow:hidden cannot clip it. Rides the right edge of the sidebar
@@ -289,12 +429,13 @@
 }
 
 .collapseIcon[data-collapsed="true"] {
-  transform: rotate(180deg);
+  transform: none;
 }
 
 /* ── Content ── */
 
 .content {
+  position: relative;
   flex: 1;
   min-width: 0;
   margin-left: var(--sidebar-width);
@@ -302,13 +443,68 @@
    * it opens, so the content narrows to sit beside it. This rule owns the
    * transition timing below. */
   padding: var(--space-8) var(--space-10);
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   transition: margin-left var(--duration-normal, 0.25s) var(--ease-out),
     margin-right 0.45s var(--ease-out);
+}
+
+.content > :not(.contentWave) {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+}
+
+.contentWave {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--sidebar-width);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.42;
+  mask-image: radial-gradient(circle at 82% 12%, black 0%, transparent 52%);
+  transition: left var(--duration-normal) var(--ease-out);
+}
+
+.shell:has(.sidebar[data-collapsed="true"]) .contentWave {
+  left: 56px;
 }
 
 /* When the sidebar is collapsed, the content reclaims the space.
  * Driven purely by CSS: :has() watches the sidebar's data attribute. */
 .shell:has(.sidebar[data-collapsed="true"]) .content {
   margin-left: 56px;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: 64px;
+    padding: var(--space-3) var(--space-4);
+    border-right: 0;
+    border-bottom: 1px solid var(--side-border);
+  }
+
+  .sidebar[data-mobile-open="true"] {
+    height: min(76dvh, 560px);
+  }
+
+  .brand { padding-bottom: 0; margin: 0; }
+  .nav { display: none; flex: 1; overflow-y: auto; margin-top: var(--space-5); }
+  .sidebar[data-mobile-open="true"] .nav { display: flex; }
+  .sidebarFooter,
+  .profileArea,
+  .resizeHandle { display: none; }
+  .collapseBtn { top: 20px; left: auto; right: var(--space-4); }
+  .collapseBtn[data-collapsed="true"] { left: auto; }
+  .content,
+  .shell:has(.sidebar[data-collapsed="true"]) .content { margin-left: 0; padding: var(--space-5); padding-top: 84px; }
+  .contentWave,
+  .shell:has(.sidebar[data-collapsed="true"]) .contentWave { left: 0; top: 64px; }
 }

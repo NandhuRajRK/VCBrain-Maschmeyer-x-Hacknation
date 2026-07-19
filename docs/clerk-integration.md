@@ -12,6 +12,8 @@ Add these values to the local `.env` file, never to git:
 CLERK_SECRET_KEY=sk_test_...
 CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 CLERK_AUTHORIZED_PARTIES=http://localhost:3000
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=https://your-clerk-domain.clerk.accounts.dev/sign-in
 ```
 
 The secret key and PEM JWT public key are available in Clerk Dashboard -> API

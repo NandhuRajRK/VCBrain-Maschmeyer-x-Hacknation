@@ -4,6 +4,8 @@ import "./globals.css";
 import styles from "./layout.module.css";
 import Sidebar from "./Sidebar";
 import AssistantChat from "./AssistantChat";
+import AsciiWave from "./AsciiWave";
+import AuthProvider from "./AuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,13 +30,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <body className="grain" suppressHydrationWarning>
-        <div className={styles.shell}>
-          <Sidebar />
-          <main className={styles.content}>
-            {children}
-          </main>
-          <AssistantChat />
-        </div>
+        <AuthProvider>
+          <div className={styles.shell}>
+            <Sidebar />
+            <main className={styles.content}>
+              <div className={styles.contentWave}><AsciiWave /></div>
+              {children}
+            </main>
+            <AssistantChat />
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

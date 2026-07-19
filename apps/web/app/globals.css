@@ -24,6 +24,7 @@
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717a;
   --text-muted: #52525b;
+  --ascii-fill: #c4c8cf;
 
   /* ── Decision colors ── */
   --color-invest: #22c55e;
@@ -99,17 +100,40 @@
 
 html {
   height: 100%;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
   color: var(--text-primary);
   background: var(--bg-root);
+}
+
+html[data-theme="light"] {
+  --bg-root: #f7f7f8;
+  --bg-surface: #ffffff;
+  --bg-raised: #f1f1f3;
+  --bg-hover: #e8e8eb;
+  --bg-active: #dedee3;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-default: rgba(0, 0, 0, 0.14);
+  --border-strong: rgba(0, 0, 0, 0.22);
+  --text-primary: #18181b;
+  --text-secondary: #3f3f46;
+  --text-tertiary: #52525b;
+  --text-muted: #71717a;
+  --ascii-fill: #4b5563;
+  --color-invest: #15803d;
+  --color-conditional: #a16207;
+  --color-hold: #475569;
+  --color-reject: #b91c1c;
 }
 
 a {
@@ -173,6 +197,8 @@ input, textarea, select {
   background: rgba(255, 255, 255, 0.15);
   color: var(--text-primary);
 }
+
+html[data-theme="light"] ::selection { background: rgba(0, 0, 0, 0.12); }
 
 /* While a sidebar is being dragged, keep resizing crisp: no width or
    margin transitions, no text selection, and a resize cursor everywhere. */
