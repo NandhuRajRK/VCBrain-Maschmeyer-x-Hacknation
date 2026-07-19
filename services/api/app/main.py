@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
 
 from . import config as config
 from .document_parser import LLM_TASKS, parse_document
@@ -49,6 +49,7 @@ from .provenance import apply_company_update, find_duplicate_source, initialize_
 from .search import search_founders
 from .store import store
 from .voice import encode_audio, narrate_text, transcribe_audio
+from .auth import require_user
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
 MAX_VOICE_AUDIO_BYTES = 25_000_000
@@ -57,6 +58,16 @@ MAX_VOICE_AUDIO_BYTES = 25_000_000
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/auth/me")
+def current_user(claims: dict = Depends(require_user)) -> dict[str, str | None]:
+    """Stable handoff endpoint for the Clerk-aware frontend."""
+    return {
+        "user_id": claims.get("sub"),
+        "session_id": claims.get("sid"),
+        "organization_id": claims.get("org_id"),
+    }
 
 
 @app.post("/companies", response_model=Company, status_code=201)
