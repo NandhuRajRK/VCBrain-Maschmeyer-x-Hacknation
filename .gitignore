@@ -43,3 +43,4 @@ logs/
 # Nested generated data (e.g. services/api/data/processed)
 **/data/processed/
 **/data/raw/
+.vercel/
