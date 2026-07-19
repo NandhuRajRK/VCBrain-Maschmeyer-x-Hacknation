@@ -28,6 +28,7 @@ from services.api.app.pipeline import resolve_claim_statuses
 
 def test_create_pull_ingest_dossier(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
     main.store.companies.clear()
     main.store.founders.clear()
     main.store.sources.clear()
@@ -302,6 +303,19 @@ def test_openai_company_profile_extraction_is_structured(monkeypatch):
         "geography",
         "description",
     ]
+
+
+def test_chat_title_endpoint_uses_dedicated_generator(monkeypatch):
+    monkeypatch.setattr(main, "generate_chat_title", lambda question: "Berlin AI founders")
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/assistant/title",
+        json={"question": "Find technical AI founders in Berlin with strong GitHub evidence"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"title": "Berlin AI founders"}
 
 
 def test_decision_flight_recorder_and_source_dedup(monkeypatch):
@@ -767,3 +781,44 @@ def test_opportunity_intent_prefills_analysis_without_live_llm(monkeypatch):
     assert draft["sector"] == "AI infrastructure"
     assert draft["geography"] == "Berlin"
     assert draft["website"] == "https://vector.example"
+
+
+def test_internal_memory_and_ranked_founder_contract(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    main.store.internal_memories.clear()
+    main.store.companies.clear()
+    main.store.founders.clear()
+    main.store.founder_scores.clear()
+    main.store.founder_score_history.clear()
+    client = TestClient(main.app)
+
+    company = client.post("/companies", json={"name": "MemoryCo"}).json()
+    memory = client.post(
+        "/internal-memory",
+        json={
+            "kind": "rejected_deal",
+            "title": "Partner review",
+            "body": "Timing risk was too high for the current fund thesis.",
+            "company_id": company["id"],
+            "tags": ["timing", "partner-review"],
+        },
+    )
+    assert memory.status_code == 201
+    assert memory.json()["organization_id"] == "demo-org"
+    assert client.get(f"/companies/{company['id']}/internal-memory").json()[0]["kind"] == "rejected_deal"
+
+    founder = client.post(
+        "/sources",
+        json={
+            "company_id": company["id"],
+            "source_type": "pitch_deck",
+            "title": "Founder profile",
+            "text": "Founder: Nia Cole. Sector: AI. Stage: seed.",
+        },
+    )
+    assert founder.status_code == 201
+    assert client.post(f"/companies/{company['id']}/ingest").status_code == 200
+    ranked = client.get("/founders/ranked")
+    assert ranked.status_code == 200
+    assert ranked.json()[0]["founder"]["name"] == "Nia Cole"
+    assert "trend" in ranked.json()[0]

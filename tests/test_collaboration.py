@@ -38,11 +38,41 @@ def test_deal_workspace_collaboration_and_conflicts():
         headers=lead,
         json={"user_id": "user_partner", "role": "partner"},
     ).status_code == 201
-    assert client.post(
+    note = client.post(
         f"{base}/collaboration/notes",
         headers=lead,
-        json={"body": "Verify enterprise references."},
-    ).status_code == 201
+        json={"body": "Verify enterprise references.", "anchor": "Readiness", "mentions": ["user_partner"]},
+    )
+    assert note.status_code == 201
+    assert note.json()["anchor"] == "Readiness"
+    assert note.json()["mentions"] == ["user_partner"]
+    parent_id = note.json()["id"]
+    other_company_id = client.post("/companies", json={"name": "OtherCo"}).json()["id"]
+    other_note = client.post(
+        f"/companies/{other_company_id}/collaboration/notes",
+        headers={"X-Actor-Id": "other_lead"},
+        json={"body": "Private note."},
+    )
+    assert other_note.status_code == 201
+    assert client.patch(
+        f"{base}/collaboration/notes/{parent_id}",
+        headers=lead,
+        json={**note.json(), "parent_id": other_note.json()["id"], "version": 1},
+    ).status_code == 404
+    reply = client.post(
+        f"{base}/collaboration/notes",
+        headers=partner,
+        json={"body": "I will own the reference calls.", "parent_id": parent_id, "anchor": "Readiness"},
+    )
+    assert reply.status_code == 201
+    assert reply.json()["parent_id"] == parent_id
+    resolved = client.patch(
+        f"{base}/collaboration/notes/{parent_id}",
+        headers=lead,
+        json={**note.json(), "status": "resolved", "version": 1},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "resolved"
     task = client.post(
         f"{base}/collaboration/tasks",
         headers=partner,
@@ -54,7 +84,7 @@ def test_deal_workspace_collaboration_and_conflicts():
     workspace = client.get(f"{base}/collaboration", headers=lead)
     assert workspace.status_code == 200
     assert len(workspace.json()["members"]) == 2
-    assert len(workspace.json()["activity"]) == 3
+    assert len(workspace.json()["activity"]) == 5
 
     assert client.patch(
         f"{base}/collaboration/tasks/{task_id}",
@@ -113,3 +143,47 @@ def test_collaboration_is_organization_scoped():
         f"{base}/collaboration",
         headers={"X-Actor-Id": "outsider", "X-Organization-Id": "org_a"},
     ).status_code == 403
+
+
+def test_company_data_routes_do_not_cross_organization_boundaries():
+    for collection in (
+        store.companies,
+        store.founders,
+        store.sources,
+        store.segments,
+        store.claims,
+        store.evidence,
+        store.founder_scores,
+        store.founder_score_history,
+        store.claim_status_changes,
+        store.trigger_events,
+    ):
+        collection.clear()
+
+    client = TestClient(app)
+    org_a = {"X-Actor-Id": "a", "X-Organization-Id": "org_a"}
+    org_b = {"X-Actor-Id": "b", "X-Organization-Id": "org_b"}
+    company = client.post("/companies", headers=org_a, json={"name": "PrivateCo"}).json()
+    company_id = company["id"]
+
+    assert client.post(
+        "/sources",
+        headers=org_b,
+        json={"company_id": company_id, "source_type": "press", "title": "Leak"},
+    ).status_code == 404
+    assert client.post(
+        "/sources/pull",
+        headers=org_b,
+        json={"company_id": company_id, "connectors": []},
+    ).status_code == 404
+    assert client.get(f"/companies/{company_id}/dossier", headers=org_b).status_code == 404
+    assert client.post(
+        "/outcomes/simulate",
+        headers=org_b,
+        json={},
+    ).status_code == 200
+    assert client.post(
+        f"/companies/{company_id}/outcomes/simulate",
+        headers=org_b,
+        json={},
+    ).status_code == 404

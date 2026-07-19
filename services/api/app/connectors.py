@@ -17,6 +17,7 @@ def pull_signals(
     github_user: str | None = None,
     arxiv_query: str | None = None,
     website_url: str | None = None,
+    max_website_pages: int = 3,
 ) -> list[Signal]:
     signals: list[Signal] = []
     for connector in connectors:
@@ -29,7 +30,7 @@ def pull_signals(
         elif connector == ConnectorKind.arxiv:
             signals.extend(_arxiv_signals(arxiv_query or query))
         elif connector == ConnectorKind.website and website_url:
-            signals.extend(_website_signals(website_url))
+            signals.extend(_website_signals(website_url, max_website_pages))
         elif connector == ConnectorKind.perplexity:
             signals.extend(_perplexity_signals(query))
         elif connector == ConnectorKind.exa:
@@ -180,28 +181,36 @@ def _arxiv_signals(query: str) -> list[Signal]:
     return signals or [_arxiv_fallback(query)]
 
 
-def _website_signals(url: str) -> list[Signal]:
-    html = _get_text(url)
-    if not html:
-        return [_fallback(ConnectorKind.website, url, "company website")]
-
-    parser = TextHTMLParser()
-    parser.feed(html)
-    title = parser.title or f"Website: {url}"
-    text = _clean_text(" ".join(parser.text))[:1200]
-    return [
-        Signal(
+def _website_signals(url: str, max_pages: int = 3) -> list[Signal]:
+    root = urllib.parse.urlparse(url)
+    queue = [url]
+    visited: set[str] = set()
+    signals: list[Signal] = []
+    while queue and len(visited) < max_pages:
+        page_url = queue.pop(0)
+        if page_url in visited:
+            continue
+        visited.add(page_url)
+        html = _get_text(page_url)
+        if not html:
+            continue
+        parser = TextHTMLParser()
+        parser.feed(html)
+        title = parser.title or f"Website: {page_url}"
+        text = _clean_text(" ".join(parser.text))[:1800]
+        links = [urllib.parse.urljoin(page_url, link) for link in parser.links]
+        signals.append(Signal(
             source=ConnectorKind.website,
             title=title,
-            url=url,
-            text=text or f"Company website content from {url}.",
-            metadata={
-                "fetch_status": "live",
-                "links": parser.links[:20],
-                "character_count": len(text),
-            },
-        )
-    ]
+            url=page_url,
+            text=text or f"Company website content from {page_url}.",
+            metadata={"fetch_status": "live", "links": links[:20], "crawled_pages": len(visited), "character_count": len(text)},
+        ))
+        for link in links:
+            parsed = urllib.parse.urlparse(link)
+            if parsed.netloc == root.netloc and link not in visited and link not in queue:
+                queue.append(link)
+    return signals or [_fallback(ConnectorKind.website, url, "company website")]
 
 
 def _perplexity_signals(query: str) -> list[Signal]:

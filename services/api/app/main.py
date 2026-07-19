@@ -44,9 +44,13 @@ from .models import (
     FounderSearchRequest,
     IngestionRun,
     IngestionStatus,
+    InternalMemory,
+    InternalMemoryCreate,
+    InternalMemoryKind,
     InvitationStatus,
     Segment,
     SearchMatch,
+    RankedFounder,
     Source,
     SourceCreate,
     SourcePullRequest,
@@ -77,12 +81,14 @@ from .store import store
 from .outcomes import simulate_outcome
 from .voice import encode_audio, narrate_text, transcribe_audio
 from .auth import actor_id, auth_context, organization_id
+from .jobs import enqueue_analysis_job
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Iskra API", version="0.1.0")
+_cors_origins = [item.strip() for item in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",") if item.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -113,6 +119,17 @@ def collaboration_transaction() -> Generator[None, None, None]:
         store.reload_collaboration()
         yield
         store.save_collaboration(connection)
+
+
+def _authorize_company_access(company_id: str, request: Request) -> Company:
+    """Apply the organization boundary to routes without a company URL middleware check."""
+    company = store.company(company_id)
+    request_org = organization_id(request)
+    if company.organization_id and company.organization_id != request_org:
+        raise HTTPException(status_code=404, detail="Company not found")
+    if os.getenv("CLERK_SECRET_KEY") and not company.organization_id:
+        raise HTTPException(status_code=403, detail="Company is not assigned to an organization")
+    return company
 
 
 @app.get("/health")
@@ -156,7 +173,7 @@ def save_thesis(payload: FundThesis, request: Request) -> FundThesis:
 def list_analysis_jobs(request: Request) -> list[AnalysisJob]:
     request_org = organization_id(request)
     jobs = list(store.analysis_jobs.values())
-    if os.getenv("CLERK_SECRET_KEY"):
+    if request_org:
         jobs = [job for job in jobs if job.organization_id == request_org]
     return sorted(jobs, key=lambda job: job.updated_at, reverse=True)
 
@@ -165,7 +182,7 @@ def list_analysis_jobs(request: Request) -> list[AnalysisJob]:
 def workspace_usage(request: Request) -> dict:
     request_org = organization_id(request)
     jobs = list(store.analysis_jobs.values())
-    if os.getenv("CLERK_SECRET_KEY"):
+    if request_org:
         jobs = [job for job in jobs if job.organization_id == request_org]
     limit = max(1, int(os.getenv("VCBRAIN_ANALYSIS_CREDIT_LIMIT", "100")))
     used = len(jobs)
@@ -174,7 +191,7 @@ def workspace_usage(request: Request) -> dict:
 
 @app.post("/analysis-jobs", response_model=AnalysisJob, status_code=201)
 def create_analysis_job(payload: AnalysisJobCreate, request: Request) -> AnalysisJob:
-    company = store.company(payload.company_id)
+    company = _authorize_company_access(payload.company_id, request)
     request_org = organization_id(request)
     if company.organization_id and company.organization_id != request_org:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -196,6 +213,7 @@ def update_analysis_job(job_id: str, payload: AnalysisJobUpdate, request: Reques
     if not job:
         raise HTTPException(status_code=404, detail="Analysis job not found")
     request_org = organization_id(request)
+    _authorize_company_access(job.company_id, request)
     if job.organization_id and job.organization_id != request_org:
         raise HTTPException(status_code=404, detail="Analysis job not found")
     job.stage = payload.stage
@@ -207,8 +225,40 @@ def update_analysis_job(job_id: str, payload: AnalysisJobUpdate, request: Reques
     return job
 
 
+@app.post("/analysis-jobs/{job_id}/run", response_model=AnalysisJob, status_code=202)
+def run_analysis_job(job_id: str, request: Request) -> AnalysisJob:
+    job = store.analysis_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    request_org = organization_id(request)
+    _authorize_company_access(job.company_id, request)
+    if job.organization_id and job.organization_id != request_org:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    if job.status == "running" and job.stage != "creating":
+        return job
+    job.status = "running"
+    job.stage = "queued"
+    job.progress = 10
+    job.attempts += 1
+    job.updated_at = now()
+    store.save()
+    enqueue_analysis_job(lambda: _execute_analysis_job(job.id))
+    return job
+
+
+@app.post("/analysis-jobs/{job_id}/retry", response_model=AnalysisJob, status_code=202)
+def retry_analysis_job(job_id: str, request: Request) -> AnalysisJob:
+    job = store.analysis_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    if job.attempts >= job.max_attempts:
+        raise HTTPException(status_code=409, detail="This analysis has reached its retry limit")
+    return run_analysis_job(job_id, request)
+
+
 @app.post("/outcomes/simulate", response_model=OutcomeSimulationResult)
-def simulate_outcomes(payload: OutcomeSimulationInput) -> OutcomeSimulationResult:
+def simulate_outcomes(payload: OutcomeSimulationInput, request: Request) -> OutcomeSimulationResult:
+    auth_context(request)
     return simulate_outcome(payload)
 
 
@@ -216,8 +266,9 @@ def simulate_outcomes(payload: OutcomeSimulationInput) -> OutcomeSimulationResul
 def simulate_company_outcomes(
     company_id: str,
     payload: OutcomeSimulationInput,
+    request: Request,
 ) -> OutcomeSimulationResult:
-    store.company(company_id)
+    _authorize_company_access(company_id, request)
     return simulate_outcome(payload, company_id)
 
 
@@ -274,7 +325,8 @@ def add_collaboration_note(
 ) -> CollaborationNote:
     actor = _authorize_collaborator(company_id, request)
     _validate_collaboration_links(company_id, payload.claim_ids, payload.evidence_ids)
-    note = CollaborationNote(company_id=company_id, author_id=actor, **payload.model_dump())
+    _validate_note_parent(company_id, payload.parent_id)
+    note = CollaborationNote(company_id=company_id, organization_id=store.company(company_id).organization_id, author_id=actor, **payload.model_dump())
     store.collaboration_notes[note.id] = note
     _record_activity(company_id, note.author_id, "note_added", "note", note.id, "Added a deal note")
     return note
@@ -295,9 +347,16 @@ def update_collaboration_note(
     if note.version != payload.version:
         raise HTTPException(status_code=409, detail="Note changed; refresh before editing")
     _validate_collaboration_links(company_id, payload.claim_ids, payload.evidence_ids)
+    _validate_note_parent(company_id, payload.parent_id)
     note.body = payload.body
     note.claim_ids = payload.claim_ids
     note.evidence_ids = payload.evidence_ids
+    note.anchor = payload.anchor
+    note.mentions = payload.mentions
+    note.parent_id = payload.parent_id
+    note.status = payload.status
+    note.position_x = payload.position_x
+    note.position_y = payload.position_y
     note.version += 1
     note.updated_at = now()
     _record_activity(company_id, actor_id(request), "note_updated", "note", note.id, "Updated a deal note")
@@ -312,7 +371,7 @@ def add_deal_task(
     _: None = Depends(collaboration_transaction),
 ) -> DealTask:
     actor = _authorize_collaborator(company_id, request)
-    task = DealTask(company_id=company_id, creator_id=actor, **payload.model_dump())
+    task = DealTask(company_id=company_id, organization_id=store.company(company_id).organization_id, creator_id=actor, **payload.model_dump())
     store.deal_tasks[task.id] = task
     _record_activity(company_id, task.creator_id, "task_added", "task", task.id, task.title)
     return task
@@ -418,6 +477,13 @@ def _validate_collaboration_links(company_id: str, claim_ids: list[str], evidenc
         raise HTTPException(status_code=422, detail="Every evidence item must belong to this deal")
 
 
+def _validate_note_parent(company_id: str, parent_id: str | None) -> None:
+    if parent_id:
+        parent = store.collaboration_notes.get(parent_id)
+        if not parent or parent.company_id != company_id:
+            raise HTTPException(status_code=404, detail="Parent comment not found")
+
+
 def _authorize_collaborator(company_id: str, request: Request) -> str:
     """Bootstrap the first teammate, then enforce workspace membership."""
     company = store.company(company_id)
@@ -458,6 +524,7 @@ def _record_activity(
 ) -> DealActivity:
     activity = DealActivity(
         company_id=company_id,
+        organization_id=store.company(company_id).organization_id,
         actor_id=actor,
         action=action,
         entity_type=entity_type,
@@ -486,15 +553,14 @@ def create_company(payload: CompanyCreate, request: Request) -> Company:
 @app.get("/companies", response_model=list[Company])
 def list_companies(request: Request) -> list[Company]:
     request_org = organization_id(request)
-    if not os.getenv("CLERK_SECRET_KEY"):
+    if not request_org:
         return list(store.companies.values())
     return [company for company in store.companies.values() if company.organization_id == request_org]
 
 
 @app.post("/sources", response_model=Source, status_code=201)
-def create_source(payload: SourceCreate) -> Source:
-    if payload.company_id not in store.companies:
-        raise HTTPException(status_code=404, detail="Company not found")
+def create_source(payload: SourceCreate, request: Request) -> Source:
+    _authorize_company_access(payload.company_id, request)
     source = Source(**payload.model_dump())
     duplicate = find_duplicate_source(store.company_sources(payload.company_id), source)
     if duplicate:
@@ -505,6 +571,69 @@ def create_source(payload: SourceCreate) -> Source:
     store.sources[source.id] = source
     store.save()
     return source
+
+
+def _memory_organization(request: Request) -> str:
+    return organization_id(request) or "demo-org"
+
+
+def _validate_memory_links(payload: InternalMemoryCreate, request: Request) -> tuple[str, Company | None]:
+    organization = _memory_organization(request)
+    company = _authorize_company_access(payload.company_id, request) if payload.company_id else None
+    if company and company.organization_id and company.organization_id != organization:
+        raise HTTPException(status_code=404, detail="Company not found")
+    if payload.founder_id:
+        founder = store.founder(payload.founder_id)
+        _authorize_company_access(founder.company_id, request)
+        if company and founder.company_id != company.id:
+            raise HTTPException(status_code=422, detail="Founder must belong to the selected company")
+        if founder.company_id and store.company(founder.company_id).organization_id not in {None, organization}:
+            raise HTTPException(status_code=404, detail="Founder not found")
+    return organization, company
+
+
+@app.get("/internal-memory", response_model=list[InternalMemory])
+def list_internal_memory(
+    request: Request,
+    company_id: str | None = None,
+    kind: InternalMemoryKind | None = None,
+) -> list[InternalMemory]:
+    organization = _memory_organization(request)
+    rows = [item for item in store.internal_memories.values() if item.organization_id == organization]
+    if company_id:
+        rows = [item for item in rows if item.company_id == company_id]
+    if kind:
+        rows = [item for item in rows if item.kind == kind]
+    return sorted(rows, key=lambda item: item.updated_at, reverse=True)
+
+
+@app.post("/internal-memory", response_model=InternalMemory, status_code=201)
+def create_internal_memory(payload: InternalMemoryCreate, request: Request) -> InternalMemory:
+    organization, _ = _validate_memory_links(payload, request)
+    duplicate = next(
+        (item for item in store.internal_memories.values()
+         if item.organization_id == organization and item.content_fingerprint == InternalMemory(**payload.model_dump(), organization_id=organization, author_id=actor_id(request)).content_fingerprint),
+        None,
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail={"message": "This internal memory already exists", "existing_memory_id": duplicate.id})
+    memory = InternalMemory(
+        organization_id=organization,
+        author_id=actor_id(request),
+        **payload.model_dump(),
+    )
+    store.internal_memories[memory.id] = memory
+    store.save()
+    return memory
+
+
+@app.get("/companies/{company_id}/internal-memory", response_model=list[InternalMemory])
+def get_company_internal_memory(company_id: str, request: Request) -> list[InternalMemory]:
+    company = _authorize_company_access(company_id, request)
+    organization = _memory_organization(request)
+    if company.organization_id and company.organization_id != organization:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return sorted(store.company_internal_memories(company_id), key=lambda item: item.updated_at, reverse=True)
 
 
 @app.post("/companies/{company_id}/documents", response_model=DocumentUploadResult)
@@ -568,8 +697,8 @@ async def upload_document(company_id: str, file: UploadFile = File(...)) -> Docu
 
 
 @app.post("/sources/pull", response_model=SourcePullResult)
-def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
-    company = store.company(payload.company_id)
+def pull_sources(payload: SourcePullRequest, request: Request) -> SourcePullResult:
+    company = _authorize_company_access(payload.company_id, request)
     query = payload.query or company.name
     connectors = payload.connectors or [
         ConnectorKind.website,
@@ -587,13 +716,24 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
     deduped = 0
 
     website_url = payload.website_url or company.website
-    signals = pull_signals(
-        connectors,
-        query,
-        payload.github_user,
-        payload.arxiv_query,
-        str(website_url) if website_url else None,
-    )
+    try:
+        signals = pull_signals(
+            connectors,
+            query,
+            payload.github_user,
+            payload.arxiv_query,
+            str(website_url) if website_url else None,
+            payload.max_website_pages,
+        )
+    except TypeError:
+        # Keeps lightweight connector fakes and older integrations compatible.
+        signals = pull_signals(
+            connectors,
+            query,
+            payload.github_user,
+            payload.arxiv_query,
+            str(website_url) if website_url else None,
+        )
     for signal in signals:
         source_type = SourceType(signal.source.value)
         source = Source(
@@ -631,7 +771,12 @@ def pull_sources(payload: SourcePullRequest) -> SourcePullResult:
 
 
 @app.post("/companies/{company_id}/ingest", response_model=IngestionRun)
-def ingest_company(company_id: str) -> IngestionRun:
+def ingest_company(company_id: str, request: Request) -> IngestionRun:
+    _authorize_company_access(company_id, request)
+    return _ingest_company(company_id)
+
+
+def _ingest_company(company_id: str) -> IngestionRun:
     sources = store.company_sources(company_id)
     parsed_segments = 0
     extracted_claims = 0
@@ -673,8 +818,32 @@ def ingest_company(company_id: str) -> IngestionRun:
     )
 
 
+def _execute_analysis_job(job_id: str) -> None:
+    job = store.analysis_jobs.get(job_id)
+    if not job:
+        return
+    try:
+        job.stage = "ingesting"
+        job.progress = 35
+        job.updated_at = now()
+        store.save()
+        _ingest_company(job.company_id)
+        job.stage = "complete"
+        job.progress = 100
+        job.status = "complete"
+        job.error = None
+    except Exception as exc:
+        job.status = "failed"
+        job.stage = "failed"
+        job.progress = min(job.progress, 90)
+        job.error = f"Analysis could not finish: {type(exc).__name__}"
+    job.updated_at = now()
+    store.save()
+
+
 @app.get("/companies/{company_id}/dossier", response_model=Dossier)
-def get_dossier(company_id: str) -> Dossier:
+def get_dossier(company_id: str, request: Request) -> Dossier:
+    _authorize_company_access(company_id, request)
     _ensure_founder(company_id)
     if not store.company_founder_scores(company_id):
         refresh_company_memory(store, company_id)
@@ -692,32 +861,38 @@ def get_dossier(company_id: str) -> Dossier:
 
 
 @app.get("/companies/{company_id}/readiness", response_model=DecisionReadiness)
-def get_readiness(company_id: str) -> DecisionReadiness:
+def get_readiness(company_id: str, request: Request) -> DecisionReadiness:
+    _authorize_company_access(company_id, request)
     return calculate_readiness(store, company_id)
 
 
 @app.get("/companies/{company_id}/timeline", response_model=CompanyTimeline)
-def get_timeline(company_id: str) -> CompanyTimeline:
+def get_timeline(company_id: str, request: Request) -> CompanyTimeline:
+    _authorize_company_access(company_id, request)
     return build_timeline(store, company_id)
 
 
 @app.get("/companies/{company_id}/claims", response_model=list[Claim])
-def get_claims(company_id: str) -> list[Claim]:
+def get_claims(company_id: str, request: Request) -> list[Claim]:
+    _authorize_company_access(company_id, request)
     return store.company_claims(company_id)
 
 
 @app.get("/companies/{company_id}/evidence", response_model=list[Evidence])
-def get_evidence(company_id: str) -> list[Evidence]:
+def get_evidence(company_id: str, request: Request) -> list[Evidence]:
+    _authorize_company_access(company_id, request)
     return store.company_evidence(company_id)
 
 
 @app.get("/companies/{company_id}/founders", response_model=list[Founder])
-def get_founders(company_id: str) -> list[Founder]:
+def get_founders(company_id: str, request: Request) -> list[Founder]:
+    _authorize_company_access(company_id, request)
     return store.company_founders(company_id)
 
 
 @app.get("/companies/{company_id}/founder-passports", response_model=list[FounderPassport])
-def get_founder_passports(company_id: str) -> list[FounderPassport]:
+def get_founder_passports(company_id: str, request: Request) -> list[FounderPassport]:
+    _authorize_company_access(company_id, request)
     return [build_founder_passport(founder) for founder in store.company_founders(company_id)]
 
 
@@ -725,8 +900,9 @@ def get_founder_passports(company_id: str) -> list[FounderPassport]:
 def enrich_company_founders(
     company_id: str,
     payload: FounderEnrichmentRequest,
+    request: Request,
 ) -> FounderEnrichmentResult:
-    store.company(company_id)
+    _authorize_company_access(company_id, request)
     founders = store.company_founders(company_id)
     if not founders:
         raise HTTPException(status_code=400, detail="Ingest a founder source before enrichment")
@@ -771,7 +947,7 @@ def enrich_company_founders(
                 created.append(source)
 
     store.save()
-    ingestion = ingest_company(company_id)
+    ingestion = _ingest_company(company_id)
     return FounderEnrichmentResult(
         company_id=company_id,
         founder_ids=[founder.id for founder in founders],
@@ -783,13 +959,47 @@ def enrich_company_founders(
 
 
 @app.get("/founders/{founder_id}/passport", response_model=FounderPassport)
-def get_founder_passport(founder_id: str) -> FounderPassport:
-    return build_founder_passport(store.founder(founder_id))
+def get_founder_passport(founder_id: str, request: Request) -> FounderPassport:
+    founder = store.founder(founder_id)
+    _authorize_company_access(founder.company_id, request)
+    return build_founder_passport(founder)
 
 
 @app.get("/founders", response_model=list[Founder])
-def list_founders() -> list[Founder]:
-    return list(store.founders.values())
+def list_founders(request: Request) -> list[Founder]:
+    request_org = organization_id(request)
+    founders = list(store.founders.values())
+    if request_org:
+        founders = [founder for founder in founders if (store.company(founder.company_id).organization_id == request_org)]
+    return founders
+
+
+@app.get("/founders/ranked", response_model=list[RankedFounder])
+def ranked_founders(request: Request, limit: int = 50) -> list[RankedFounder]:
+    request_org = organization_id(request)
+    rows: list[RankedFounder] = []
+    for founder in store.founders.values():
+        company = store.company(founder.company_id)
+        if request_org and company.organization_id != request_org:
+            continue
+        score = store.founder_scores.get(founder.id)
+        history = sorted(
+            (item for item in store.founder_score_history.values() if item.founder_id == founder.id),
+            key=lambda item: item.created_at,
+            reverse=True,
+        )
+        delta = history[0].score_delta if history else 0
+        trend = "up" if delta > 0.5 else "down" if delta < -0.5 else "flat"
+        rows.append(RankedFounder(
+            founder=founder,
+            company=company,
+            score=score,
+            score_delta=delta,
+            trend=trend,
+            internal_memory_count=len(store.company_internal_memories(company.id)),
+        ))
+    rows.sort(key=lambda row: (row.score.score if row.score else -1, row.score.confidence if row.score else -1), reverse=True)
+    return rows[: max(1, min(limit, 100))]
 
 
 def _founder_enrichment_query(founder_name: str, company_name: str) -> str:
@@ -800,30 +1010,37 @@ def _founder_enrichment_query(founder_name: str, company_name: str) -> str:
 
 
 @app.get("/companies/{company_id}/events", response_model=list[TriggerEvent])
-def get_events(company_id: str) -> list[TriggerEvent]:
+def get_events(company_id: str, request: Request) -> list[TriggerEvent]:
+    _authorize_company_access(company_id, request)
     return store.company_trigger_events(company_id)
 
 
 @app.post("/founders/search", response_model=list[SearchMatch])
-def search_founder_memory(payload: FounderSearchRequest) -> list[SearchMatch]:
+def search_founder_memory(payload: FounderSearchRequest, request: Request) -> list[SearchMatch]:
+    request_org = organization_id(request)
+    companies = list(store.companies.values())
+    if request_org:
+        companies = [company for company in companies if company.organization_id == request_org]
+    company_ids = {company.id for company in companies}
     return search_founders(
         payload.query,
-        list(store.companies.values()),
-        list(store.founders.values()),
-        store.founder_scores,
-        list(store.claims.values()),
-        list(store.sources.values()),
-        list(store.evidence.values()),
+        companies,
+        [founder for founder in store.founders.values() if founder.company_id in company_ids],
+        {key: value for key, value in store.founder_scores.items() if value.founder_id in {founder.id for founder in store.founders.values() if founder.company_id in company_ids}},
+        [claim for claim in store.claims.values() if claim.company_id in company_ids],
+        [source for source in store.sources.values() if source.company_id in company_ids],
+        [evidence for evidence in store.evidence.values() if store.sources.get(evidence.source_id) and store.sources[evidence.source_id].company_id in company_ids],
         payload.limit,
     )
 
 
 @app.post("/founders/activate", response_model=ActivationDraft)
-def activate_founder(payload: ActivateRequest) -> ActivationDraft:
+def activate_founder(payload: ActivateRequest, request: Request) -> ActivationDraft:
     founder = next((item for item in store.founders.values() if item.id == payload.founder_id), None)
     if not founder:
         raise HTTPException(status_code=404, detail="Founder not found")
 
+    _authorize_company_access(founder.company_id, request)
     company = store.company(founder.company_id)
     claims = store.company_claims(company.id)
     usable_claims = sorted(
@@ -853,7 +1070,8 @@ def activate_founder(payload: ActivateRequest) -> ActivationDraft:
 
 
 @app.post("/voice/narrate")
-def narrate(payload: VoiceNarrationRequest) -> Response:
+def narrate(payload: VoiceNarrationRequest, request: Request) -> Response:
+    auth_context(request)
     audio = narrate_text(payload.text, payload.voice_id)
     return Response(
         content=audio,
@@ -863,7 +1081,8 @@ def narrate(payload: VoiceNarrationRequest) -> Response:
 
 
 @app.post("/voice/transcribe")
-async def transcribe(audio: UploadFile = File(...)) -> dict[str, str]:
+async def transcribe(request: Request, audio: UploadFile = File(...)) -> dict[str, str]:
+    auth_context(request)
     content = await audio.read()
     if len(content) > MAX_VOICE_AUDIO_BYTES:
         raise HTTPException(status_code=413, detail="Audio input exceeds the 25 MB limit")
@@ -872,23 +1091,26 @@ async def transcribe(audio: UploadFile = File(...)) -> dict[str, str]:
 
 @app.post("/voice/query", response_model=VoiceQueryResponse)
 async def query_by_voice(
+    request: Request,
     audio: UploadFile = File(...),
     speak_response: bool = Form(False),
     voice_id: str | None = Form(None),
     limit: int = Form(10),
 ) -> VoiceQueryResponse:
+    auth_context(request)
     if not 1 <= limit <= 50:
         raise HTTPException(status_code=422, detail="limit must be between 1 and 50")
     content = await audio.read(MAX_VOICE_AUDIO_BYTES + 1)
     if len(content) > MAX_VOICE_AUDIO_BYTES:
         raise HTTPException(status_code=413, detail="Audio input exceeds the 25 MB limit")
     transcript = transcribe_audio(content, audio.filename or "voice.webm", audio.content_type)
-    return _run_voice_query(transcript, limit, speak_response, voice_id)
+    return _run_voice_query(transcript, limit, speak_response, voice_id, request)
 
 
 @app.post("/voice/query/text", response_model=VoiceQueryResponse)
-def query_by_text(payload: VoiceTextQueryRequest) -> VoiceQueryResponse:
-    return _run_voice_query(payload.transcript, payload.limit, payload.speak_response, payload.voice_id)
+def query_by_text(payload: VoiceTextQueryRequest, request: Request) -> VoiceQueryResponse:
+    auth_context(request)
+    return _run_voice_query(payload.transcript, payload.limit, payload.speak_response, payload.voice_id, request)
 
 
 def _run_voice_query(
@@ -896,20 +1118,27 @@ def _run_voice_query(
     limit: int,
     speak_response: bool,
     voice_id: str | None,
+    request: Request,
 ) -> VoiceQueryResponse:
     command = parse_voice_command(transcript)
     parsed_query = None
     results: list[SearchMatch] = []
     if command.intent == VoiceIntent.founder_search:
         parsed_query = parse_founder_query(command.query)
+        request_org = organization_id(request)
+        companies = list(store.companies.values())
+        if request_org:
+            companies = [company for company in companies if company.organization_id == request_org]
+        company_ids = {company.id for company in companies}
+        founders = [founder for founder in store.founders.values() if founder.company_id in company_ids]
         results = search_founders(
             command.query,
-            list(store.companies.values()),
-            list(store.founders.values()),
-            store.founder_scores,
-            list(store.claims.values()),
-            list(store.sources.values()),
-            list(store.evidence.values()),
+            companies,
+            founders,
+            {key: value for key, value in store.founder_scores.items() if value.founder_id in {founder.id for founder in founders}},
+            [claim for claim in store.claims.values() if claim.company_id in company_ids],
+            [source for source in store.sources.values() if source.company_id in company_ids],
+            [evidence for evidence in store.evidence.values() if store.sources.get(evidence.source_id) and store.sources[evidence.source_id].company_id in company_ids],
             limit,
             parsed_query=parsed_query,
         )
@@ -945,7 +1174,9 @@ def _voice_response_text(intent: VoiceIntent, results: list[SearchMatch]) -> str
 
 
 @app.post("/demo/seed", response_model=DemoSeedResult)
-def seed_demo_data(reset: bool = True) -> DemoSeedResult:
+def seed_demo_data(request: Request, reset: bool = True) -> DemoSeedResult:
+    if os.getenv("CLERK_SECRET_KEY") or os.getenv("APP_ENV", "").lower() == "production":
+        raise HTTPException(status_code=404, detail="Demo seed is disabled in deployed environments")
     return seed_demo(reset=reset)
 
 
@@ -992,12 +1223,13 @@ def _refresh_founder_scores(company_id: str) -> None:
         store.founder_scores[founder.id] = score
 
 
-from .models import AssistantQueryRequest, AssistantResponse
-from .llm import answer_portfolio_question
+from .models import AssistantQueryRequest, AssistantResponse, ChatTitleRequest, ChatTitleResponse
+from .llm import answer_portfolio_question, generate_chat_title
 
 
 @app.post("/assistant/query", response_model=AssistantResponse)
-def assistant_query(payload: AssistantQueryRequest) -> AssistantResponse:
+def assistant_query(payload: AssistantQueryRequest, request: Request) -> AssistantResponse:
+    auth_context(request)
     history = [{"role": m.role, "content": m.content} for m in payload.history]
     answer = answer_portfolio_question(payload.question, payload.context, history)
     if answer is None:
@@ -1005,8 +1237,16 @@ def assistant_query(payload: AssistantQueryRequest) -> AssistantResponse:
     return AssistantResponse(answer=answer.strip(), grounded=True)
 
 
+@app.post("/assistant/title", response_model=ChatTitleResponse)
+def assistant_title(payload: ChatTitleRequest, request: Request) -> ChatTitleResponse:
+    auth_context(request)
+    title = generate_chat_title(payload.question)
+    return ChatTitleResponse(title=title or payload.question.strip()[:80])
+
+
 @app.post("/assistant/opportunity-intent", response_model=OpportunityDraft)
-def assistant_opportunity_intent(payload: OpportunityIntentRequest) -> OpportunityDraft:
+def assistant_opportunity_intent(payload: OpportunityIntentRequest, request: Request) -> OpportunityDraft:
+    auth_context(request)
     return parse_opportunity_intent(payload.request)
 
 

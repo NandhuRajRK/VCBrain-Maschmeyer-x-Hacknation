@@ -11,6 +11,8 @@ dependencies = [
   "python-docx",
   "python-dotenv",
   "python-pptx",
+  "openpyxl",
+  "pillow",
   "clerk-backend-api",
 ]
 

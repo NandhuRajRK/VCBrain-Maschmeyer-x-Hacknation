@@ -43,6 +43,10 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
         return _parse_pptx(content)
     if ext == ".docx":
         return _parse_docx(content)
+    if ext in {".xlsx", ".xls"}:
+        return _parse_spreadsheet(content, ext)
+    if ext in {".png", ".jpg", ".jpeg", ".webp"}:
+        return _parse_image(content, ext)
     return _parse_text(content, SourceType.document, warning=f"Unsupported extension: {ext or 'none'}")
 
 
@@ -124,6 +128,54 @@ def _parse_docx(content: bytes) -> ParsedDocument:
         fallback.parser = "docx_fallback"
         fallback.warnings.append(f"DOCX parser unavailable or failed: {type(exc).__name__}")
         return fallback
+
+
+def _parse_spreadsheet(content: bytes, ext: str) -> ParsedDocument:
+    try:
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+        chunks: list[ParsedChunk] = []
+        for sheet in workbook.worksheets:
+            rows = []
+            for values in sheet.iter_rows(values_only=True):
+                cells = [str(value).strip() for value in values if value is not None and str(value).strip()]
+                if cells:
+                    rows.append(" | ".join(cells))
+            chunks.append(ParsedChunk(heading=f"Sheet: {sheet.title}", text="\n".join(rows) or "Empty sheet."))
+        return ParsedDocument(SourceType.financial_model, chunks, "openpyxl")
+    except Exception as exc:
+        fallback = _parse_text(content, SourceType.financial_model)
+        fallback.parser = "spreadsheet_fallback"
+        fallback.warnings.append(f"Spreadsheet parser unavailable or failed: {type(exc).__name__}")
+        return fallback
+
+
+def _parse_image(content: bytes, ext: str) -> ParsedDocument:
+    warnings: list[str] = []
+    try:
+        from io import BytesIO
+        from PIL import Image
+
+        image = Image.open(BytesIO(content))
+        metadata = f"Image dimensions: {image.width}x{image.height}; format: {image.format or ext.lstrip('.')}."
+        try:
+            import pytesseract
+            text = pytesseract.image_to_string(image).strip()
+            if text:
+                return ParsedDocument(SourceType.founder_questionnaire, _chunk_text(text, "Image OCR"), "pytesseract")
+            warnings.append("OCR ran but found no readable text.")
+        except Exception:
+            warnings.append("OCR is optional; install Tesseract to extract image text locally.")
+        return ParsedDocument(SourceType.founder_questionnaire, [ParsedChunk(heading="Image", text=metadata)], "pillow", warnings)
+    except Exception as exc:
+        return ParsedDocument(
+            SourceType.founder_questionnaire,
+            [ParsedChunk(heading="Image", text="Image received; no readable text extracted.")],
+            "image_fallback",
+            [f"Image parser unavailable or failed: {type(exc).__name__}"],
+        )
 
 
 def _chunk_text(text: str, heading: str) -> list[ParsedChunk]:

@@ -17,6 +17,7 @@ from .models import (
 )
 from .prompts import (
     CLAIM_EXTRACTION_SYSTEM_PROMPT,
+    CHAT_TITLE_SYSTEM_PROMPT,
     COMPANY_PROFILE_SYSTEM_PROMPT,
     CONTRADICTION_SYSTEM_PROMPT,
     FOUNDER_PASSPORT_SYSTEM_PROMPT,
@@ -559,6 +560,28 @@ def answer_portfolio_question(
         return _call_openai_text(body)
     except Exception:
         return None
+
+
+def generate_chat_title(question: str) -> str | None:
+    """Create a short, dedicated title without sending portfolio context."""
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+    body = {
+        "model": os.getenv("OPENAI_TITLE_MODEL", "gpt-4o-mini"),
+        "input": [
+            {"role": "system", "content": CHAT_TITLE_SYSTEM_PROMPT},
+            {"role": "user", "content": question[:2000]},
+        ],
+        "max_output_tokens": 24,
+    }
+    try:
+        title = _call_openai_text(body)
+    except Exception:
+        return None
+    if not title:
+        return None
+    cleaned = re.sub(r"[\"'\n`#]", "", title).strip().rstrip(".")
+    return cleaned[:80] or None
 
 
 def _call_openai_text(body: dict[str, Any]) -> str | None:

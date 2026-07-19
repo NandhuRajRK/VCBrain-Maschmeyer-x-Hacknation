@@ -112,6 +112,9 @@ class AnalysisJob(AnalysisJobUpdate):
     created_by: str
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
+    attempts: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=3, ge=1, le=5)
+    next_retry_at: datetime | None = None
 
 
 class WorkHistoryEntry(BaseModel):
@@ -216,6 +219,7 @@ class SourcePullRequest(BaseModel):
     github_user: str | None = None
     arxiv_query: str | None = None
     website_url: HttpUrl | None = None
+    max_website_pages: int = Field(default=3, ge=1, le=5)
 
 
 class SourcePullResult(BaseModel):
@@ -297,6 +301,43 @@ class DocumentUploadResult(BaseModel):
     llm_tasks: list[str] = Field(default_factory=list)
 
 
+class InternalMemoryKind(str, Enum):
+    prior_memo = "prior_memo"
+    rejected_deal = "rejected_deal"
+    portfolio_company = "portfolio_company"
+    crm_note = "crm_note"
+    email = "email"
+    partner_note = "partner_note"
+    investment_committee = "investment_committee"
+
+
+class InternalMemoryCreate(BaseModel):
+    kind: InternalMemoryKind
+    title: str = Field(min_length=1, max_length=300)
+    body: str = Field(min_length=1, max_length=50000)
+    company_id: str | None = None
+    founder_id: str | None = None
+    author_name: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class InternalMemory(InternalMemoryCreate):
+    id: str = Field(default_factory=lambda: new_id("memory"))
+    organization_id: str
+    author_id: str
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+    content_fingerprint: str | None = None
+
+    @model_validator(mode="after")
+    def set_fingerprint(self) -> "InternalMemory":
+        if not self.content_fingerprint:
+            normalized = " ".join(f"{self.title} {self.body}".lower().split())
+            self.content_fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
+        return self
+
+
 class ClaimKind(str, Enum):
     company = "company"
     founder = "founder"
@@ -370,6 +411,15 @@ class FounderScore(BaseModel):
     contradiction_count: int = 0
     updated_at: datetime = Field(default_factory=now)
     notes: list[str] = Field(default_factory=list)
+
+
+class RankedFounder(BaseModel):
+    founder: Founder
+    company: Company
+    score: FounderScore | None = None
+    score_delta: float = 0
+    trend: str = "flat"
+    internal_memory_count: int = 0
 
 
 class FounderScoreSnapshot(BaseModel):
@@ -586,6 +636,12 @@ class CollaborationNoteCreate(BaseModel):
     body: str = Field(min_length=1, max_length=12000)
     claim_ids: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
+    anchor: str | None = Field(default=None, max_length=200)
+    mentions: list[str] = Field(default_factory=list, max_length=20)
+    parent_id: str | None = None
+    status: str = Field(default="open", pattern="^(open|resolved)$")
+    position_x: float | None = Field(default=None, ge=0)
+    position_y: float | None = Field(default=None, ge=0)
 
 
 class CollaborationNoteUpdate(CollaborationNoteCreate):
@@ -595,6 +651,7 @@ class CollaborationNoteUpdate(CollaborationNoteCreate):
 class CollaborationNote(CollaborationNoteCreate):
     id: str = Field(default_factory=lambda: new_id("note"))
     company_id: str
+    organization_id: str | None = None
     author_id: str
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
@@ -617,6 +674,7 @@ class DealTaskUpdate(BaseModel):
 class DealTask(DealTaskCreate):
     id: str = Field(default_factory=lambda: new_id("task"))
     company_id: str
+    organization_id: str | None = None
     creator_id: str
     status: CollaborationStatus = CollaborationStatus.open
     created_at: datetime = Field(default_factory=now)
@@ -627,6 +685,7 @@ class DealTask(DealTaskCreate):
 class DealActivity(BaseModel):
     id: str = Field(default_factory=lambda: new_id("activity"))
     company_id: str
+    organization_id: str | None = None
     actor_id: str
     action: str
     entity_type: str
@@ -734,6 +793,14 @@ class AssistantQueryRequest(BaseModel):
 class AssistantResponse(BaseModel):
     answer: str
     grounded: bool
+
+
+class ChatTitleRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class ChatTitleResponse(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
 
 
 class OpportunityIntentRequest(BaseModel):

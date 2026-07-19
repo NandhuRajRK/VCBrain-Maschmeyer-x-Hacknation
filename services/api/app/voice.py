@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import urllib.parse
+import urllib.error
 import urllib.request
 from pathlib import PurePath
 
@@ -34,6 +35,12 @@ def narrate_text(text: str, voice_id: str | None = None) -> bytes:
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             return response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise HTTPException(status_code=502, detail="ElevenLabs narration is not authorized. Check the API key permissions.") from exc
+        if exc.code == 429:
+            raise HTTPException(status_code=502, detail="ElevenLabs narration is rate limited. Try again shortly.") from exc
+        raise HTTPException(status_code=502, detail=f"ElevenLabs narration failed: HTTP {exc.code}") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"ElevenLabs narration failed: {type(exc).__name__}") from exc
 
@@ -67,6 +74,12 @@ def transcribe_audio(content: bytes, filename: str, content_type: str | None = N
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             text = json.loads(response.read().decode("utf-8")).get("text", "").strip()
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise HTTPException(status_code=502, detail="OpenAI transcription is not authorized. Check OPENAI_API_KEY.") from exc
+        if exc.code == 429:
+            raise HTTPException(status_code=502, detail="OpenAI transcription is rate limited. Try again shortly.") from exc
+        raise HTTPException(status_code=502, detail=f"OpenAI transcription failed: HTTP {exc.code}") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"OpenAI transcription failed: {type(exc).__name__}") from exc
     if not text:

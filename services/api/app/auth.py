@@ -20,6 +20,8 @@ def require_user(request: Request) -> dict[str, Any]:
     """Verify a Clerk session and return its claims for protected routes."""
     secret_key = os.getenv("CLERK_SECRET_KEY")
     if not secret_key:
+        if os.getenv("APP_ENV", "").lower() == "production":
+            raise HTTPException(status_code=503, detail="Clerk authentication is required in production")
         raise HTTPException(status_code=503, detail="Clerk authentication is not configured")
 
     try:
@@ -66,6 +68,8 @@ def auth_context(request: Request) -> dict[str, Any]:
             "organization_role": claims.get("org_role"),
             "organization_permissions": claims.get("org_permissions", []),
         }
+    if os.getenv("APP_ENV", "").lower() == "production":
+        raise HTTPException(status_code=503, detail="Clerk authentication is required in production")
     return {
         "user_id": request.headers.get("X-Actor-Id", "demo-user"),
         "organization_id": request.headers.get("X-Organization-Id"),

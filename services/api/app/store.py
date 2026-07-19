@@ -15,6 +15,7 @@ from .models import (
     FounderScore,
     FounderScoreSnapshot,
     FundThesis,
+    InternalMemory,
     Segment,
     Source,
     TriggerEvent,
@@ -42,28 +43,33 @@ class Store:
         self.trigger_events: dict[str, TriggerEvent] = self._load("trigger_events")
         self.fund_theses: dict[str, FundThesis] = self._load("fund_theses")
         self.analysis_jobs: dict[str, AnalysisJob] = self._load("analysis_jobs")
+        self.internal_memories: dict[str, InternalMemory] = self._load("internal_memories")
 
     def _load(self, collection: str):
         return self.db.load_collection(collection, MODEL_COLLECTIONS[collection])
 
     def save(self) -> None:
-        self.db.save_collection("companies", self.companies)
-        self.db.save_collection("founders", self.founders)
-        self.db.save_collection("sources", self.sources)
-        self.db.save_collection("segments", self.segments)
-        self.db.save_collection("claims", self.claims)
-        self.db.save_collection("evidence", self.evidence)
-        self.db.save_collection("founder_scores", self.founder_scores)
-        self.db.save_collection("founder_score_history", self.founder_score_history)
-        self.db.save_collection("claim_status_changes", self.claim_status_changes)
-        self.db.save_collection("deal_members", self.deal_members)
-        self.db.save_collection("collaboration_notes", self.collaboration_notes)
-        self.db.save_collection("deal_tasks", self.deal_tasks)
-        self.db.save_collection("deal_activity", self.deal_activity)
-        self.db.save_collection("deal_invitations", self.deal_invitations)
-        self.db.save_collection("trigger_events", self.trigger_events)
-        self.db.save_collection("fund_theses", self.fund_theses)
-        self.db.save_collection("analysis_jobs", self.analysis_jobs)
+        # Collaboration collections are committed only by collaboration_transaction.
+        # Keeping them out of this snapshot prevents an ingestion request from
+        # overwriting a teammate's newer comment or task.
+        collections = (
+            ("companies", self.companies),
+            ("founders", self.founders),
+            ("sources", self.sources),
+            ("segments", self.segments),
+            ("claims", self.claims),
+            ("evidence", self.evidence),
+            ("founder_scores", self.founder_scores),
+            ("founder_score_history", self.founder_score_history),
+            ("claim_status_changes", self.claim_status_changes),
+            ("trigger_events", self.trigger_events),
+            ("fund_theses", self.fund_theses),
+            ("analysis_jobs", self.analysis_jobs),
+            ("internal_memories", self.internal_memories),
+        )
+        with self.db.immediate_transaction() as connection:
+            for collection, rows in collections:
+                self.db.replace_collection(collection, rows, connection)
 
     def company_members(self, company_id: str) -> list[DealMember]:
         self.company(company_id)
@@ -84,6 +90,10 @@ class Store:
     def company_invitations(self, company_id: str) -> list[DealInvitation]:
         self.company(company_id)
         return [item for item in self.deal_invitations.values() if item.company_id == company_id]
+
+    def company_internal_memories(self, company_id: str) -> list[InternalMemory]:
+        self.company(company_id)
+        return [item for item in self.internal_memories.values() if item.company_id == company_id]
 
     def reload_collaboration(self) -> None:
         self.deal_members = self._load("deal_members")

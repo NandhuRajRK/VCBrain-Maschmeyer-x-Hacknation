@@ -155,8 +155,8 @@ def calculate_readiness(target: Store, company_id: str) -> DecisionReadiness:
 
     profile_fields = [company.sector, company.stage, company.geography, company.description]
     profile = sum(bool(value) for value in profile_fields) / len(profile_fields)
-    present_kinds = {claim.kind for claim in claims if claim.status != ClaimStatus.missing_evidence}
-    claim_coverage = len(present_kinds & REQUIRED_CLAIM_KINDS) / len(REQUIRED_CLAIM_KINDS)
+    supported_kinds = {claim.kind for claim in claims if claim.status == ClaimStatus.supported}
+    claim_coverage = len(supported_kinds & REQUIRED_CLAIM_KINDS) / len(REQUIRED_CLAIM_KINDS)
     independence = len({item.source_independence for item in evidence}) / 3 if evidence else 0
     resolution = (
         sum(claim.status in {ClaimStatus.supported, ClaimStatus.disputed} for claim in claims) / len(claims)
@@ -199,19 +199,19 @@ def calculate_readiness(target: Store, company_id: str) -> DecisionReadiness:
             )
         )
 
-    missing_kinds = REQUIRED_CLAIM_KINDS - present_kinds
+    missing_kinds = REQUIRED_CLAIM_KINDS - supported_kinds
     for kind in sorted(missing_kinds, key=lambda item: item.value):
-        blockers.append(f"No evidence-backed {kind.value} claim")
+        blockers.append(_missing_claim_blocker(kind))
         actions.append(_action_for_missing_kind(kind))
 
     if "third_party" not in {item.source_independence for item in evidence}:
-        blockers.append("No independent third-party evidence")
+        blockers.append("External corroboration is missing: current evidence is founder-provided or company-owned.")
         actions.append(
             DiligenceAction(
                 priority="high",
                 category="evidence",
-                title="Collect one independent source",
-                reason="Founder-provided claims currently lack external corroboration.",
+                title="Add external corroboration",
+                reason="Add one independent source such as GitHub activity, a press article, HN/Product Hunt traction, arXiv research, or a company registry record.",
                 suggested_source_type=SourceCategory.press,
                 expected_readiness_gain=12,
             )
@@ -233,13 +233,13 @@ def calculate_readiness(target: Store, company_id: str) -> DecisionReadiness:
         )
 
     if cold_start:
-        blockers.append("Founder remains cold-start")
+        blockers.append("Founder evidence is provisional: little independent track-record data is available.")
         actions.append(
             DiligenceAction(
                 priority="medium",
                 category="founder",
-                title="Verify one founder track-record signal",
-                reason="A GitHub profile, work sample, or reference would materially improve confidence.",
+                title="Verify founder history",
+                reason="Add a LinkedIn, GitHub, work-history, education, prior-venture, work-sample, or reference source.",
                 suggested_source_type=SourceCategory.github,
                 expected_readiness_gain=10,
             )
@@ -273,21 +273,31 @@ def build_timeline(target: Store, company_id: str) -> CompanyTimeline:
 
 def _action_for_missing_kind(kind: ClaimKind) -> DiligenceAction:
     guidance = {
-        ClaimKind.founder: ("Verify founder background", SourceCategory.github, 8),
-        ClaimKind.market: ("Add independent market evidence", SourceCategory.press, 8),
-        ClaimKind.product: ("Request a product walkthrough", SourceCategory.founder_doc, 6),
-        ClaimKind.traction: ("Verify one customer or usage metric", SourceCategory.press, 10),
-        ClaimKind.financial: ("Request a financial proof point", SourceCategory.founder_doc, 10),
+        ClaimKind.founder: ("Verify founder history", "Add a LinkedIn, GitHub, work-history, education, prior-venture, work-sample, or reference source.", SourceCategory.github, 8),
+        ClaimKind.market: ("Validate the market", "Add market size, customer demand, competitive context, or another independently sourced market signal.", SourceCategory.press, 8),
+        ClaimKind.product: ("Verify the product", "Request a product walkthrough or technical document that demonstrates the stated product capability.", SourceCategory.founder_doc, 6),
+        ClaimKind.traction: ("Verify traction", "Add one customer, usage, revenue, retention, or launch metric with a supporting source.", SourceCategory.press, 10),
+        ClaimKind.financial: ("Verify financials", "Add a financial model, revenue proof point, cap table, or fundraising document.", SourceCategory.founder_doc, 10),
     }
-    title, source_type, gain = guidance[kind]
+    title, reason, source_type, gain = guidance[kind]
     return DiligenceAction(
         priority="high" if kind in {ClaimKind.traction, ClaimKind.financial} else "medium",
         category=kind.value,
         title=title,
-        reason=f"No usable {kind.value} evidence is present in the dossier.",
+        reason=reason,
         suggested_source_type=source_type,
         expected_readiness_gain=gain,
     )
+
+
+def _missing_claim_blocker(kind: ClaimKind) -> str:
+    return {
+        ClaimKind.founder: "Founder evidence gap: no supported claim verifies career history, education, prior ventures, or execution track record.",
+        ClaimKind.market: "Market evidence gap: no supported claim validates demand, market size, or competitive context.",
+        ClaimKind.product: "Product evidence gap: no supported claim verifies what the product does or how it works.",
+        ClaimKind.traction: "Traction evidence gap: no supported claim verifies customers, usage, revenue, or retention.",
+        ClaimKind.financial: "Financial evidence gap: no supported claim verifies revenue, burn, runway, or fundraising terms.",
+    }[kind]
 
 
 def _score_change_reason(previous, current) -> str:

@@ -2,6 +2,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
+from threading import RLock
 
 from pydantic import BaseModel
 
@@ -20,6 +21,7 @@ from .models import (
     FounderScore,
     FounderScoreSnapshot,
     FundThesis,
+    InternalMemory,
     Segment,
     Source,
     TriggerEvent,
@@ -33,7 +35,14 @@ class JsonSqliteStore:
     def __init__(self, path: Path = DB_PATH) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.lock = RLock()
+        self.conn = sqlite3.connect(self.path, check_same_thread=False, timeout=30)
+        try:
+            self.path.chmod(0o600)
+        except OSError:
+            pass
+        self.conn.execute("pragma busy_timeout = 30000")
+        self.conn.execute("pragma journal_mode = wal")
         self.conn.execute(
             """
             create table if not exists records (
@@ -47,16 +56,22 @@ class JsonSqliteStore:
         )
 
     def load_collection(self, collection: str, model: type[BaseModel]) -> dict[str, BaseModel]:
-        rows = self.conn.execute(
-            "select key, payload from records where collection = ?",
-            (collection,),
-        ).fetchall()
+        with self.lock:
+            rows = self.conn.execute(
+                "select key, payload from records where collection = ?",
+                (collection,),
+            ).fetchall()
         return {key: model.model_validate_json(payload) for key, payload in rows}
 
     def save_collection(self, collection: str, rows: dict[str, BaseModel]) -> None:
-        with self.conn:
-            self.conn.execute("delete from records where collection = ?", (collection,))
-            self.conn.executemany(
+        with self.lock, self.conn:
+            self.replace_collection(collection, rows, self.conn)
+
+    def replace_collection(self, collection: str, rows: dict[str, BaseModel], connection) -> None:
+        """Replace one collection inside the caller's transaction."""
+        with self.lock:
+            connection.execute("delete from records where collection = ?", (collection,))
+            connection.executemany(
                 """
                 insert into records (collection, key, payload)
                 values (?, ?, ?)
@@ -64,34 +79,33 @@ class JsonSqliteStore:
                   payload = excluded.payload,
                   updated_at = current_timestamp
                 """,
-                [
-                    (collection, key, value.model_dump_json())
-                    for key, value in rows.items()
-                ],
+                [(collection, key, value.model_dump_json()) for key, value in rows.items()],
             )
 
     def upsert_collection(self, collection: str, rows: dict[str, BaseModel], connection) -> None:
-        connection.executemany(
-            """
-            insert into records (collection, key, payload)
-            values (?, ?, ?)
-            on conflict(collection, key) do update set
-              payload = excluded.payload,
-              updated_at = current_timestamp
-            """,
-            [(collection, key, value.model_dump_json()) for key, value in rows.items()],
-        )
+        with self.lock:
+            connection.executemany(
+                """
+                insert into records (collection, key, payload)
+                values (?, ?, ?)
+                on conflict(collection, key) do update set
+                  payload = excluded.payload,
+                  updated_at = current_timestamp
+                """,
+                [(collection, key, value.model_dump_json()) for key, value in rows.items()],
+            )
 
     @contextmanager
     def immediate_transaction(self):
-        self.conn.execute("BEGIN IMMEDIATE")
-        try:
-            yield self.conn
-        except Exception:
-            self.conn.rollback()
-            raise
-        else:
-            self.conn.commit()
+        with self.lock:
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield self.conn
+            except Exception:
+                self.conn.rollback()
+                raise
+            else:
+                self.conn.commit()
 
 
 MODEL_COLLECTIONS = {
@@ -112,4 +126,5 @@ MODEL_COLLECTIONS = {
     "trigger_events": TriggerEvent,
     "fund_theses": FundThesis,
     "analysis_jobs": AnalysisJob,
+    "internal_memories": InternalMemory,
 }
