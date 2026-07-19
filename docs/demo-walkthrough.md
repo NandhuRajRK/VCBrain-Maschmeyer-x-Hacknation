@@ -8,7 +8,7 @@ into a fast decision without hiding uncertainty.
 ```bash
 cp .env.example .env
 uv sync --group dev
-VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run python scripts/seed_demo.py --reset
+uv run python scripts/seed_demo.py --reset --db-path /tmp/iskra-demo.sqlite3 --organization-id demo
 VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run uvicorn services.api.app.main:app --reload
 ```
 
@@ -24,20 +24,22 @@ Open <http://localhost:3000> and confirm the dashboard loads before presenting.
 
 ## 1. Portfolio Cockpit
 
-Start on the dashboard. Show decision candidates, thesis fit, evidence
-confidence, open diligence work, ranked founders, pipeline velocity, and the
-interactive global intelligence map.
+Start on the dashboard. Show active companies, decision-ready count, open
+diligence actions, average readiness, and the interactive global intelligence
+map. Switch the map between companies and founders and use the geography
+filter to make the portfolio spatially legible.
 
 The point: the investor sees where attention is needed before opening a deck.
 
 ## 2. Evidence-Backed Company Review
 
-Open AetherGrid from Deal Flow.
+Open AetherGrid from Deal Flow and select the company review.
 
 Show:
 
 - the Founder Passport with sourced employment, education, and prior ventures
-- the three independent investment axes
+- the Decision tab and its readiness blockers
+- the Analysis tab with three independent investment axes
 - claims grouped by type and linked to readable evidence
 - readiness blockers and next diligence actions
 - the investment memo, red-team view, and decision-flip conditions
@@ -96,6 +98,10 @@ The completed flow opens the company analysis directly.
 Add a contextual comment to a claim, mention a teammate, create a verification
 task, and open the outcome simulator. Adjust growth, churn, margin, and dilution
 to show runway, next-round valuation, ownership, and MOIC changing instantly.
+
+Use `/sourcing` as an optional opening when the judges want to see founder and
+company discovery before the active pipeline. Run a thesis-driven scan, review
+the source badges and confidence, then promote one lead into Deal Flow.
 
 The point: the decision becomes a shared operating workflow, not a static memo.
 

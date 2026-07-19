@@ -7,6 +7,7 @@ This documentation supports the HackNation submission for the Maschmeyer Group
 
 - [Submission overview](INTRO.md): challenge, product thesis, and judging story.
 - [Demo walkthrough](demo-walkthrough.md): the five-minute presentation flow.
+- [Pitch script](pitch-script.md): a concise judge-facing presentation script.
 - [Manual validation](demo-fixtures/MANUAL_E2E_TEST.md): repeatable browser and
   voice checks using synthetic files.
 - [Current product status](product-status.md): implemented workflows and

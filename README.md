@@ -180,7 +180,7 @@ Clerk Dashboard. See [Clerk integration](docs/clerk-integration.md).
 Use a separate SQLite file to keep the demo repeatable:
 
 ```bash
-VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run python scripts/seed_demo.py --reset
+VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run python scripts/seed_demo.py --reset --organization-id demo
 VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run uvicorn services.api.app.main:app --reload
 ```
 
@@ -209,6 +209,7 @@ do not consume live API credits.
 - [Architecture](docs/architecture.md)
 - [API reference](docs/api-reference.md)
 - [Demo walkthrough](docs/demo-walkthrough.md)
+- [Pitch script](docs/pitch-script.md)
 - [LLM and prompt design](docs/llm-prompts.md)
 - [Voice modes](docs/voice-mode.md)
 - [Authentication and enterprise SSO](docs/clerk-integration.md)
