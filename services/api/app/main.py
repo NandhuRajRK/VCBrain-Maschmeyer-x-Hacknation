@@ -44,7 +44,7 @@ from .voice import encode_audio, narrate_text, transcribe_audio
 from fastapi.middleware.cors import CORSMiddleware
 
 
-app = FastAPI(title="VC Brain API", version="0.1.0")
+app = FastAPI(title="Iskra API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -322,7 +322,7 @@ def activate_founder(payload: ActivateRequest) -> ActivationDraft:
         subject=f"{company.name} x Maschmeyer Group",
         message=(
             f"Hi {founder.name},\n\n"
-            f"We are mapping exceptional founders for the Maschmeyer Group VC Brain. "
+            f"We are mapping exceptional founders for the Maschmeyer Group Iskra. "
             f"{company.name} stood out because of {context}. "
             "If you are open to it, I would love to compare notes and understand "
             "what you are building next.\n\n"
@@ -411,7 +411,7 @@ def _voice_response_text(intent: VoiceIntent, results: list[SearchMatch]) -> str
         VoiceIntent.memo_review: "investment memo",
         VoiceIntent.decision_review: "investment decision",
         VoiceIntent.activation: "founder outreach",
-        VoiceIntent.unknown: "VC Brain action",
+        VoiceIntent.unknown: "Iskra action",
     }
     return f"I routed this to the {labels[intent]} view for the workspace to handle."
 
@@ -454,3 +454,29 @@ def _refresh_founder_scores(company_id: str) -> None:
         )
         founder.cold_start = score.cold_start
         store.founder_scores[founder.id] = score
+
+
+from .models import AssistantQueryRequest, AssistantResponse
+from .llm import answer_portfolio_question
+
+
+@app.post("/assistant/query", response_model=AssistantResponse)
+def assistant_query(payload: AssistantQueryRequest) -> AssistantResponse:
+    history = [{"role": m.role, "content": m.content} for m in payload.history]
+    answer = answer_portfolio_question(payload.question, payload.context, history)
+    if answer is None:
+        return AssistantResponse(answer=_assistant_fallback(payload.context), grounded=False)
+    return AssistantResponse(answer=answer.strip(), grounded=True)
+
+
+def _assistant_fallback(context: str) -> str:
+    if not context.strip():
+        return (
+            "I cannot see the portfolio yet. Open the dashboard so the companies load, "
+            "then ask me again."
+        )
+    return (
+        "The language model is not configured on this API service, so I cannot answer in "
+        "natural language yet. Set OPENAI_API_KEY on the service and I will reason across the "
+        "whole portfolio. Until then, the dashboard filters and sortable columns cover most questions."
+    )

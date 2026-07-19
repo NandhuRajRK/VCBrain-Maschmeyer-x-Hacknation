@@ -347,3 +347,19 @@ class IngestionRun(BaseModel):
     parsed_segments: int
     extracted_claims: int
     status: IngestionStatus
+
+
+class AssistantMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AssistantQueryRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    context: str = Field(default="", max_length=20000)
+    history: list[AssistantMessage] = Field(default_factory=list)
+
+
+class AssistantResponse(BaseModel):
+    answer: str
+    grounded: bool
