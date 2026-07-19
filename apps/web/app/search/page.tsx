@@ -10,9 +10,10 @@ import { analyzePipeline, askAssistant, generateChatTitle, listCompanies, narrat
 import { buildPortfolioContext, type PortfolioItem } from "../../lib/assistant";
 import { userError } from "../../lib/errors";
 import { DEFAULT_THESIS } from "../../lib/thesis";
-import { timeGreeting, workspaceUserName } from "../../lib/user";
+import { timeGreeting } from "../../lib/user";
 import { useDismissableLayer, useUnsavedChanges } from "../../lib/use-dismissable-layer";
 import { createVoiceCapture, type VoiceCapture } from "../../lib/voice-recorder";
+import { useWorkspaceAuth } from "../AuthProvider";
 import IskraOrb from "../IskraOrb";
 import OpportunityModal from "../OpportunityModal";
 import styles from "./page.module.css";
@@ -30,6 +31,7 @@ const INITIAL_CHAT: ChatSession = { id: "iskra-new-chat", title: "New chat", upd
 const titleForMessages = (messages: Message[]) => messages.find((message) => message.role === "user")?.content.trim().slice(0, 52) || "New chat";
 
 export default function IskraPage() {
+  const auth = useWorkspaceAuth();
   const router = useRouter();
   const initialChat = INITIAL_CHAT;
   const [query, setQuery] = useState("");
@@ -45,7 +47,7 @@ export default function IskraPage() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceInteraction, setVoiceInteraction] = useState<VoiceInteraction>("dictation");
   const [greeting, setGreeting] = useState("Good afternoon");
-  const [userName, setUserName] = useState("there");
+  const userName = auth.name;
   const [showJump, setShowJump] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -88,7 +90,7 @@ export default function IskraPage() {
     setChatSessions(sessions.length ? sessions : [initial]);
     setActiveChatId(initial.id);
     setMessages(initial.messages);
-    setGreeting(timeGreeting()); setUserName(workspaceUserName()); hydratedRef.current = true;
+    setGreeting(timeGreeting()); hydratedRef.current = true;
     listCompanies().then(setCompanies).catch(() => setCompanies([]));
     return () => { streamRef.current?.getTracks().forEach((track) => track.stop()); audioRef.current?.pause(); abortRef.current?.abort(); if (revealTimerRef.current) window.clearInterval(revealTimerRef.current); };
   }, [initialChat]);

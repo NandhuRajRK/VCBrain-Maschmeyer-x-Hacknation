@@ -7,9 +7,10 @@ import type { ApiCompany, ApiRankedFounder, PipelineResult } from "../lib/api";
 import { analyzePipeline, listCompanies, listRankedFounders } from "../lib/api";
 import { userError } from "../lib/errors";
 import { DEFAULT_THESIS } from "../lib/thesis";
-import { timeGreeting, workspaceUserName } from "../lib/user";
+import { timeGreeting } from "../lib/user";
 import IskraOrb from "./IskraOrb";
 import GlobalIntelligenceMap from "./GlobalIntelligenceMap";
+import { useWorkspaceAuth } from "./AuthProvider";
 import styles from "./page.module.css";
 
 type Row = { company: ApiCompany; pipeline: PipelineResult | null };
@@ -71,17 +72,19 @@ function FounderRanking({ founders }: { founders: ApiRankedFounder[] }) {
 }
 
 export default function Dashboard() {
+  const auth = useWorkspaceAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [rankedFounders, setRankedFounders] = useState<ApiRankedFounder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [welcome, setWelcome] = useState("Welcome back");
   const [showLoading, setShowLoading] = useState(false);
 
   useEffect(() => {
-    const identityTimer = window.setTimeout(() => setWelcome(`${timeGreeting()}, ${workspaceUserName()}`), 0);
+    if (!auth.ready) return;
     const loadingTimer = window.setTimeout(() => setShowLoading(true), 280);
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
         const [companies, founders] = await Promise.all([
@@ -100,8 +103,8 @@ export default function Dashboard() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; window.clearTimeout(identityTimer); window.clearTimeout(loadingTimer); };
-  }, []);
+    return () => { cancelled = true; window.clearTimeout(loadingTimer); };
+  }, [auth.ready, auth.organizationId]);
 
   const analyzed = rows.filter((row): row is Row & { pipeline: PipelineResult } => Boolean(row.pipeline));
   const priority = useMemo(() => [...analyzed].sort((a, b) => {
@@ -114,7 +117,7 @@ export default function Dashboard() {
   const risks = analyzed.reduce((total, row) => total + row.pipeline.scores.risks.length, 0);
 
   return <div className={styles.page}>
-    <header className={styles.header}><div><p className={styles.eyebrow}>Investment desk</p><h1>{welcome}</h1></div><Link href="/opportunities" className={styles.dashboardLink}>Deal flow <ArrowRight size={15} /></Link></header>
+    <header className={styles.header}><div><p className={styles.eyebrow}>{auth.organizationName} · Investment desk</p><h1>{timeGreeting()}, {auth.name}</h1></div><Link href="/opportunities" className={styles.dashboardLink}>Deal flow <ArrowRight size={15} /></Link></header>
     {loading && showLoading && <div className={styles.empty}><IskraOrb size={34} /><p>Preparing the portfolio view...</p></div>}
     {error && <div className={styles.empty}><p className={styles.emptyError}>{error}</p></div>}
     {!loading && !error && rows.length === 0 && <div className={styles.empty}><p>No analyses yet.</p><Link href="/opportunities?new=1">Run the first analysis <ArrowRight size={14} /></Link></div>}

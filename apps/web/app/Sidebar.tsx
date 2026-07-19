@@ -157,7 +157,7 @@ export default function Sidebar() {
         </nav>
 
         <div className={styles.sidebarFooter}>
-          <span className={styles.footerMeta}>Maschmeyer Group</span>
+          <span className={styles.footerMeta}>{auth.organizationName}</span>
           <span className={styles.footerVersion}>v0.1.0</span>
           <div className={styles.profileArea}>
             <button
