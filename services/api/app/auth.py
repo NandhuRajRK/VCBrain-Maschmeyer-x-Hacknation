@@ -54,13 +54,18 @@ def organization_id(request: Request) -> str | None:
     return auth_context(request)["organization_id"]
 
 
-def auth_context(request: Request) -> dict[str, str | None]:
+def auth_context(request: Request) -> dict[str, Any]:
     if os.getenv("CLERK_SECRET_KEY"):
         claims = require_user(request)
         organization = claims.get("org_id")
         if not organization:
             raise HTTPException(status_code=403, detail="An active Clerk organization is required")
-        return {"user_id": str(claims["sub"]), "organization_id": str(organization)}
+        return {
+            "user_id": str(claims["sub"]),
+            "organization_id": str(organization),
+            "organization_role": claims.get("org_role"),
+            "organization_permissions": claims.get("org_permissions", []),
+        }
     return {
         "user_id": request.headers.get("X-Actor-Id", "demo-user"),
         "organization_id": request.headers.get("X-Organization-Id"),

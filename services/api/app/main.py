@@ -89,12 +89,14 @@ def health() -> dict[str, str]:
 
 
 @app.get("/auth/me")
-def current_user(claims: dict = Depends(require_user)) -> dict[str, str | None]:
+def current_user(claims: dict = Depends(require_user)) -> dict:
     """Stable handoff endpoint for the Clerk-aware frontend."""
     return {
         "user_id": claims.get("sub"),
         "session_id": claims.get("sid"),
         "organization_id": claims.get("org_id"),
+        "organization_role": claims.get("org_role"),
+        "organization_permissions": claims.get("org_permissions", []),
     }
 
 
