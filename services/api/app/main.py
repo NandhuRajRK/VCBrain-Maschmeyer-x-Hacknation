@@ -51,6 +51,8 @@ from .models import (
     VoiceQueryResponse,
     VoiceTextQueryRequest,
     now,
+    OutcomeSimulationInput,
+    OutcomeSimulationResult,
 )
 from .connectors import pull_signals
 from .founder_passport import build_founder_passport, enrich_founder_passports
@@ -60,6 +62,7 @@ from .pipeline import extract_claims, extract_company_update, extract_founders, 
 from .provenance import apply_company_update, find_duplicate_source, initialize_company_provenance
 from .search import search_founders
 from .store import store
+from .outcomes import simulate_outcome
 from .voice import encode_audio, narrate_text, transcribe_audio
 from .auth import actor_id, require_user
 
@@ -80,6 +83,20 @@ def current_user(claims: dict = Depends(require_user)) -> dict[str, str | None]:
         "session_id": claims.get("sid"),
         "organization_id": claims.get("org_id"),
     }
+
+
+@app.post("/outcomes/simulate", response_model=OutcomeSimulationResult)
+def simulate_outcomes(payload: OutcomeSimulationInput) -> OutcomeSimulationResult:
+    return simulate_outcome(payload)
+
+
+@app.post("/companies/{company_id}/outcomes/simulate", response_model=OutcomeSimulationResult)
+def simulate_company_outcomes(
+    company_id: str,
+    payload: OutcomeSimulationInput,
+) -> OutcomeSimulationResult:
+    store.company(company_id)
+    return simulate_outcome(payload, company_id)
 
 
 @app.get("/companies/{company_id}/collaboration", response_model=DealWorkspace)

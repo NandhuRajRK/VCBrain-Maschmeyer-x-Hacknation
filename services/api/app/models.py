@@ -605,3 +605,50 @@ class DealWorkspace(BaseModel):
     notes: list[CollaborationNote] = Field(default_factory=list)
     tasks: list[DealTask] = Field(default_factory=list)
     activity: list[DealActivity] = Field(default_factory=list)
+
+
+class OutcomeSimulationInput(BaseModel):
+    initial_investment_usd: float = Field(default=100_000, gt=0)
+    entry_valuation_usd: float = Field(default=5_000_000, gt=0, description="Pre-money valuation")
+    starting_mrr_usd: float = Field(default=25_000, ge=0)
+    monthly_growth_pct: float = Field(default=10, ge=-99, le=200)
+    monthly_churn_pct: float = Field(default=2, ge=0, le=100)
+    gross_margin_pct: float = Field(default=70, ge=0, le=100)
+    monthly_burn_usd: float = Field(default=100_000, ge=0)
+    cash_on_hand_usd: float = Field(default=1_000_000, ge=0)
+    months_to_next_round: int = Field(default=12, ge=1, le=60)
+    next_round_raise_usd: float = Field(default=2_000_000, gt=0)
+    target_next_round_dilution_pct: float = Field(default=20, gt=0, lt=100)
+    exit_months: int = Field(default=60, ge=1, le=120)
+    exit_revenue_multiple: float = Field(default=8, ge=0, le=100)
+    exit_probability: float = Field(default=0.15, ge=0, le=1)
+
+
+class OutcomeScenario(BaseModel):
+    label: str
+    projected_mrr_usd: float
+    projected_arr_usd: float
+    runway_months: float | None
+    required_next_round_pre_money_usd: float
+    post_round_ownership_pct: float
+    exit_value_usd: float
+    expected_return_usd: float
+    expected_moic: float
+
+
+class OutcomeSimulationResult(BaseModel):
+    company_id: str | None = None
+    initial_ownership_pct: float
+    effective_monthly_growth_pct: float
+    projected_mrr_usd: float
+    projected_arr_usd: float
+    monthly_gross_profit_usd: float
+    runway_months: float | None
+    cash_flow_positive: bool
+    required_next_round_pre_money_usd: float
+    next_round_post_money_usd: float
+    post_round_ownership_pct: float
+    exit_value_usd: float
+    expected_return_usd: float
+    expected_moic: float
+    scenarios: list[OutcomeScenario]
