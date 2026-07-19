@@ -5,6 +5,10 @@
   height: var(--orb-size);
   flex: 0 0 var(--orb-size);
   isolation: isolate;
+  border-radius: 50%;
+  overflow: hidden;
+  background: transparent;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .25);
   transition: transform 480ms var(--ease-out), filter 480ms var(--ease-out);
 }
 
@@ -17,116 +21,87 @@
 .particles {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: inherit;
+  pointer-events: none;
 }
 
-.halo {
-  inset: 14%;
-  background: conic-gradient(from 120deg, rgba(34, 211, 238, 0.38), rgba(139, 92, 246, 0.4), rgba(236, 72, 153, 0.32), rgba(34, 211, 238, 0.38));
-  filter: blur(calc(var(--orb-size) * 0.28));
-  animation: haloBreathe 3.6s ease-in-out infinite;
-}
-
+/* A quiet, photographic surface—not a colorful "AI" icon. */
 .outerShell {
-  inset: 5%;
-  overflow: hidden;
-  border: 1px solid rgba(103, 232, 249, 0.52);
-  background: conic-gradient(from 210deg, rgba(34, 211, 238, 0.6), rgba(59, 130, 246, 0.22) 28%, rgba(236, 72, 153, 0.56) 58%, rgba(139, 92, 246, 0.5) 78%, rgba(34, 211, 238, 0.6));
-  box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.16), 0 10px 24px rgba(0, 0, 0, 0.3);
-  animation: outerDrift 8s ease-in-out infinite alternate;
+  background:
+    radial-gradient(ellipse at 31% 23%, rgba(255,255,255,.72) 0%, rgba(255,255,255,.25) 12%, transparent 31%),
+    radial-gradient(ellipse at 61% 58%, #646669 0%, #3b3d40 35%, #202225 61%, #111214 80%, #050506 100%);
+  box-shadow: inset 1px 1px 2px rgba(255,255,255,.3), inset -11px -12px 20px rgba(0,0,0,.74), inset 0 0 0 1px rgba(255,255,255,.16);
 }
 
 .middleShell {
-  inset: 17% 11% 11% 17%;
-  border: 1px solid rgba(216, 180, 254, 0.62);
-  background: radial-gradient(circle at 36% 25%, rgba(255, 255, 255, 0.72), transparent 24%), linear-gradient(145deg, rgba(168, 85, 247, 0.88), rgba(236, 72, 153, 0.55) 48%, rgba(6, 182, 212, 0.74));
-  box-shadow: inset -8px -9px 14px rgba(49, 23, 91, 0.34), inset 6px 5px 10px rgba(255, 255, 255, 0.2);
-  animation: middleDrift 6.2s ease-in-out infinite alternate;
+  inset: 7%;
+  opacity: .76;
+  background:
+    repeating-radial-gradient(ellipse at 12% 27%, rgba(255,255,255,.16) 0 1px, transparent 1px 3px),
+    repeating-radial-gradient(ellipse at 76% 68%, rgba(0,0,0,.42) 0 1px, transparent 1px 4px);
+  background-size: 5px 5px, 7px 7px;
+  mix-blend-mode: soft-light;
+  animation: grainShift 1.1s steps(2, end) infinite;
 }
 
 .core {
-  inset: 31% 27% 25% 29%;
-  overflow: hidden;
-  background: radial-gradient(circle at 32% 25%, #ecfeff 0 10%, #67e8f9 24%, #14b8a6 58%, #155e75 100%);
-  box-shadow: 0 0 12px rgba(45, 212, 191, 0.64), inset -4px -5px 7px rgba(8, 47, 73, 0.46);
-  animation: surfaceMorph 7s ease-in-out infinite alternate;
+  inset: 10%;
+  background: radial-gradient(ellipse at 38% 30%, rgba(255,255,255,.15), transparent 25%), radial-gradient(ellipse at 59% 66%, rgba(0,0,0,.05), #303235 60%, #17181a 100%);
+  box-shadow: inset 5px 5px 12px rgba(255,255,255,.05), inset -8px -9px 13px rgba(0,0,0,.38);
 }
 
+/* The moving illumination travels around the face, not as a colored ring. */
 .flow {
-  inset: 3% -2%;
-  border: max(1px, calc(var(--orb-size) * 0.035)) solid transparent;
-  border-top-color: rgba(103, 232, 249, 0.78);
-  border-right-color: rgba(236, 72, 153, 0.66);
-  filter: blur(calc(var(--orb-size) * 0.012));
+  inset: 5%;
+  background: conic-gradient(from 18deg, transparent 0deg, transparent 208deg, rgba(255,255,255,.02) 228deg, rgba(255,255,255,.68) 256deg, rgba(255,255,255,.06) 280deg, transparent 304deg, transparent 360deg);
+  -webkit-mask: radial-gradient(circle, transparent 49%, #000 54%, #000 66%, transparent 71%);
+  mask: radial-gradient(circle, transparent 49%, #000 54%, #000 66%, transparent 71%);
+  filter: blur(calc(var(--orb-size) * .035));
   mix-blend-mode: screen;
-  transform: rotate(-24deg) scaleY(0.58);
+  animation: orbitLight 5.8s linear infinite;
 }
 
-.flowOne { animation: flowSpin 5.4s linear infinite; }
-.flowTwo { inset: 9% -5%; opacity: 0.78; border-top-color: rgba(196, 181, 253, 0.84); border-right-color: rgba(34, 211, 238, 0.64); animation: flowSpinReverse 7.8s linear infinite; }
-.flowThree { inset: -3% 12%; opacity: 0.64; border-top-color: rgba(244, 114, 182, 0.82); border-right-color: rgba(139, 92, 246, 0.58); animation: flowSpin 9.5s linear infinite reverse; }
+.flowTwo { inset: 12%; opacity: .38; filter: blur(calc(var(--orb-size) * .02)); animation-duration: 8.7s; animation-direction: reverse; }
+.flowThree { display: none; }
 
 .glint {
-  inset: 17% 20% 52% 18%;
-  background: linear-gradient(115deg, rgba(255,255,255,0.76), transparent 68%);
-  filter: blur(2px);
-  transform: rotate(-18deg);
-  animation: glintDrift 4.8s ease-in-out infinite alternate;
+  inset: 12% 23% 56% 17%;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,.42), transparent 67%);
+  filter: blur(calc(var(--orb-size) * .045));
+  opacity: .66;
+  transform: rotate(-25deg);
+  animation: glintOrbit 5.8s linear infinite;
 }
 
-.particles { pointer-events: none; }
-.particles i {
-  --particle: 0;
-  --angle: 0deg;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 3px;
-  margin: -1.5px;
-  border-radius: 50%;
-  background: hsl(calc(178 + var(--particle) * 13) 82% 68%);
-  opacity: 0;
-  transform: rotate(var(--angle)) translateX(calc(var(--orb-size) * 0.42)) scale(0.2);
+.halo {
+  inset: -12%;
+  z-index: -1;
+  background: radial-gradient(circle, rgba(235,236,238,.14), transparent 61%);
+  filter: blur(calc(var(--orb-size) * .16));
+  opacity: .54;
 }
+
+.particles { display: none; }
 
 .orb[data-voice="true"] {
-  transform: scale(1.55);
-  filter: saturate(1.2);
+  transform: scale(1.3);
+  filter: brightness(1.16);
 }
 
-.orb[data-voice="true"] .outerShell { animation-duration: 2.3s; }
-.orb[data-voice="true"] .middleShell { animation-duration: 1.9s; }
-.orb[data-voice="true"] .core { animation-duration: 1.55s; }
-.orb[data-voice="true"] .flowOne { animation-duration: 2.2s; }
-.orb[data-voice="true"] .flowTwo { animation-duration: 3s; }
-.orb[data-voice="true"] .halo { animation-duration: 1.7s; }
-.orb[data-voice="true"] .particles i { animation: edgeScatter 1.8s ease-in-out infinite; animation-delay: calc(var(--particle) * -90ms); }
+.orb[data-voice="true"] .flow,
+.orb[data-voice="true"] .glint { animation-duration: 2.4s; }
+.orb[data-voice="true"] .halo { opacity: .78; }
 
-@keyframes surfaceMorph {
-  0% { border-radius: 48% 52% 46% 54% / 53% 47% 55% 45%; transform: rotate(-3deg) scale(0.98); }
-  50% { border-radius: 55% 45% 53% 47% / 46% 56% 44% 54%; transform: rotate(4deg) scale(1.02); }
-  100% { border-radius: 46% 54% 49% 51% / 56% 44% 52% 48%; transform: rotate(-1deg) scale(1); }
-}
-
-@keyframes outerDrift { from { border-radius: 46% 54% 58% 42% / 54% 45% 55% 46%; transform: rotate(-5deg); } to { border-radius: 57% 43% 47% 53% / 44% 57% 43% 56%; transform: rotate(9deg); } }
-@keyframes middleDrift { from { border-radius: 54% 46% 43% 57% / 47% 58% 42% 53%; transform: translate(-2%, 2%) rotate(3deg); } to { border-radius: 44% 56% 58% 42% / 57% 43% 55% 45%; transform: translate(3%, -3%) rotate(-8deg); } }
-@keyframes flowSpin { to { transform: rotate(336deg) scaleY(0.58); } }
-@keyframes flowSpinReverse { to { transform: rotate(-384deg) scaleY(0.62); } }
-@keyframes haloBreathe { 0%, 100% { opacity: 0.35; transform: scale(0.88); } 50% { opacity: 0.82; transform: scale(1.16); } }
-@keyframes glintDrift { from { transform: translate(-3%, -2%) rotate(-18deg); } to { transform: translate(12%, 9%) rotate(12deg); } }
-@keyframes edgeScatter {
-  0%, 100% { opacity: 0; transform: rotate(var(--angle)) translateX(calc(var(--orb-size) * 0.38)) scale(0.3); }
-  42% { opacity: 0.95; }
-  72% { opacity: 0.25; transform: rotate(calc(var(--angle) + 8deg)) translateX(calc(var(--orb-size) * 0.78)) scale(1); }
+@keyframes orbitLight { to { transform: rotate(360deg); } }
+@keyframes glintOrbit { to { transform: rotate(335deg); } }
+@keyframes grainShift {
+  0% { background-position: 0 0, 0 0; }
+  50% { background-position: 3px -2px, -2px 3px; }
+  100% { background-position: -2px 3px, 3px -2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .outerShell,
   .middleShell,
-  .core,
   .flow,
-  .glint,
-  .halo,
-  .particles i { animation: none !important; }
+  .glint { animation: none !important; }
 }

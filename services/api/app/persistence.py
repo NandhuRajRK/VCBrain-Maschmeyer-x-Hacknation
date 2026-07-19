@@ -15,6 +15,8 @@ from .models import (
     DealInvitation,
     DealMember,
     DealTask,
+    DiscoveryCandidate,
+    DiscoveryRun,
     Evidence,
     Founder,
     FounderScore,
@@ -112,4 +114,6 @@ MODEL_COLLECTIONS = {
     "trigger_events": TriggerEvent,
     "fund_theses": FundThesis,
     "analysis_jobs": AnalysisJob,
+    "discovery_candidates": DiscoveryCandidate,
+    "discovery_runs": DiscoveryRun,
 }

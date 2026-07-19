@@ -10,6 +10,8 @@ from .models import (
     DealInvitation,
     DealMember,
     DealTask,
+    DiscoveryCandidate,
+    DiscoveryRun,
     Evidence,
     Founder,
     FounderScore,
@@ -42,6 +44,8 @@ class Store:
         self.trigger_events: dict[str, TriggerEvent] = self._load("trigger_events")
         self.fund_theses: dict[str, FundThesis] = self._load("fund_theses")
         self.analysis_jobs: dict[str, AnalysisJob] = self._load("analysis_jobs")
+        self.discovery_candidates: dict[str, DiscoveryCandidate] = self._load("discovery_candidates")
+        self.discovery_runs: dict[str, DiscoveryRun] = self._load("discovery_runs")
 
     def _load(self, collection: str):
         return self.db.load_collection(collection, MODEL_COLLECTIONS[collection])
@@ -64,6 +68,8 @@ class Store:
         self.db.save_collection("trigger_events", self.trigger_events)
         self.db.save_collection("fund_theses", self.fund_theses)
         self.db.save_collection("analysis_jobs", self.analysis_jobs)
+        self.db.save_collection("discovery_candidates", self.discovery_candidates)
+        self.db.save_collection("discovery_runs", self.discovery_runs)
 
     def company_members(self, company_id: str) -> list[DealMember]:
         self.company(company_id)

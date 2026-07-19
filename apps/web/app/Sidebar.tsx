@@ -10,13 +10,13 @@ import {
   Plus,
   Search,
   Settings2,
+  Sparkle,
   Sparkles,
   UserCircle,
   LogOut,
 } from "lucide-react";
 import styles from "./layout.module.css";
 import AsciiWave from "./AsciiWave";
-import IskraOrb from "./IskraOrb";
 import { useWorkspaceAuth } from "./AuthProvider";
 import { fetchUsage } from "../lib/api";
 
@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   {
     section: "Pipeline",
     links: [
-      { href: "/", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/", icon: LayoutDashboard, label: "Sourcing Inbox" },
       { href: "/opportunities", icon: Plus, label: "Deal Flow" },
     ],
   },
@@ -130,7 +130,7 @@ export default function Sidebar() {
         <AsciiWave />
 
         <div className={styles.brand}>
-          <span className={styles.brandIcon}><IskraOrb size={20} /></span>
+          <span className={styles.brandIcon}><Sparkle size={18} strokeWidth={1.6} aria-hidden="true" /></span>
           <span className={styles.brandName}>Iskra</span>
         </div>
 

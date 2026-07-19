@@ -1,122 +1,122 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleAlert, Gauge, ShieldCheck, Target } from "lucide-react";
-import type { ApiCompany, PipelineResult } from "../lib/api";
-import { analyzePipeline, listCompanies } from "../lib/api";
+import { ArrowRight, ExternalLink, Radar, Sparkles } from "lucide-react";
+import type { ApiDiscoveryCandidate } from "../lib/api";
+import { listDiscoveryCandidates, promoteDiscoveryCandidate, runDiscoveryScan } from "../lib/api";
 import { userError } from "../lib/errors";
-import { DEFAULT_THESIS } from "../lib/thesis";
 import { timeGreeting } from "../lib/user";
 import IskraOrb from "./IskraOrb";
-import GlobalIntelligenceMap from "./GlobalIntelligenceMap";
 import { useWorkspaceAuth } from "./AuthProvider";
 import styles from "./page.module.css";
 
-type Row = { company: ApiCompany; pipeline: PipelineResult | null };
-const ORDER: Record<string, number> = { invest: 0, conditional_invest: 1, hold: 2, reject: 3 };
-const LABELS: Record<string, string> = { invest: "Invest", conditional_invest: "Conditional", hold: "Hold", reject: "Reject" };
+const SOURCE_LABELS: Record<string, string> = {
+  github: "GitHub", hacker_news: "Hacker News", product_hunt: "Product Hunt", arxiv: "arXiv",
+};
 
-function median(values: number[]) {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+function sourceDetail(candidate: ApiDiscoveryCandidate) {
+  const points = Number(candidate.source_metadata.points ?? candidate.source_metadata.votes ?? 0);
+  const comments = Number(candidate.source_metadata.comments ?? 0);
+  if (points) return `${points} point${points === 1 ? "" : "s"}${comments ? ` · ${comments} comments` : ""}`;
+  return new Date(candidate.observed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function PipelineTrend({ rows }: { rows: Row[] }) {
-  const weeks = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - start.getDay() - 35);
-    return Array.from({ length: 6 }, (_, index) => {
-      const from = new Date(start); from.setDate(start.getDate() + index * 7);
-      const to = new Date(from); to.setDate(from.getDate() + 7);
-      return { label: from.toLocaleDateString(undefined, { month: "short", day: "numeric" }), count: rows.filter(({ company }) => { const created = new Date(company.created_at); return created >= from && created < to; }).length };
-    });
-  }, [rows]);
-  const width = 720; const height = 150; const pad = 14;
-  const max = Math.max(1, ...weeks.map((week) => week.count));
-  const points = weeks.map((week, index) => `${pad + index * ((width - pad * 2) / 5)},${height - pad - (week.count / max) * (height - pad * 2)}`).join(" ");
-  const area = `${pad},${height - pad} ${points} ${width - pad},${height - pad}`;
-  return <section className={styles.trend}>
-    <div className={styles.sectionHeading}><div><p>Pipeline velocity</p><h2>New analyses</h2></div><strong>{weeks.at(-1)?.count ?? 0}<small> this week</small></strong></div>
-    <div className={styles.chart}>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="New analyses over six weeks" preserveAspectRatio="none">
-        <defs><linearGradient id="pipeline-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--chart-accent)" stopOpacity=".34"/><stop offset="1" stopColor="var(--chart-accent)" stopOpacity="0"/></linearGradient></defs>
-        {[0.25, 0.5, 0.75].map((value) => <line key={value} x1={pad} x2={width - pad} y1={height * value} y2={height * value} className={styles.gridLine} />)}
-        <polygon points={area} fill="url(#pipeline-fill)" />
-        <polyline points={points} className={styles.trendLine} />
-        {weeks.map((week, index) => { const x = pad + index * ((width - pad * 2) / 5); const y = height - pad - (week.count / max) * (height - pad * 2); return <circle key={week.label} cx={x} cy={y} r="4" className={styles.trendPoint}><title>{week.label}: {week.count} analyses</title></circle>; })}
-      </svg>
-      <div className={styles.axis}>{weeks.map((week) => <span key={week.label}>{week.label}</span>)}</div>
-    </div>
-  </section>;
+function candidateContext(candidate: ApiDiscoveryCandidate) {
+  const stripped = candidate.headline.replace(/^show\s+hn\s*:\s*/i, "").trim();
+  const withoutName = stripped.replace(new RegExp(`^${candidate.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "i"), "").trim();
+  return withoutName ? `Observed launch: ${withoutName}` : "Observed public launch";
 }
 
 export default function Dashboard() {
   const auth = useWorkspaceAuth();
-  const [rows, setRows] = useState<Row[]>([]);
+  const [candidates, setCandidates] = useState<ApiDiscoveryCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [promoting, setPromoting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showLoading, setShowLoading] = useState(false);
+  const [lastQueries, setLastQueries] = useState<string[]>([]);
 
   useEffect(() => {
     if (!auth.ready) return;
-    const loadingTimer = window.setTimeout(() => setShowLoading(true), 280);
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    (async () => {
-      try {
-        const companies = await listCompanies();
-        const results = await Promise.all(companies.map(async (company) => {
-          try { return { company, pipeline: await analyzePipeline(company.id, DEFAULT_THESIS) }; }
-          catch { return { company, pipeline: null }; }
-        }));
-        if (!cancelled) setRows(results);
-      } catch (caught) {
-        if (!cancelled) setError(userError(caught, "dashboard"));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; window.clearTimeout(loadingTimer); };
+    const timer = window.setTimeout(() => {
+      void listDiscoveryCandidates()
+        .then((items) => { if (!cancelled) { setError(null); setCandidates(items); } })
+        .catch((caught) => { if (!cancelled) setError(userError(caught, "dashboard")); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [auth.ready, auth.organizationId]);
 
-  const analyzed = rows.filter((row): row is Row & { pipeline: PipelineResult } => Boolean(row.pipeline));
-  const priority = useMemo(() => [...analyzed].sort((a, b) => {
-    const decision = (ORDER[a.pipeline.memo.decision] ?? 9) - (ORDER[b.pipeline.memo.decision] ?? 9);
-    return decision || b.pipeline.thesis.fitScore - a.pipeline.thesis.fitScore;
-  }).slice(0, 4), [analyzed]);
-  const candidates = analyzed.filter((row) => ["invest", "conditional_invest"].includes(row.pipeline.memo.decision)).length;
-  const thesisFit = Math.round(median(analyzed.map((row) => row.pipeline.thesis.fitScore)));
-  const confidence = Math.round(median(analyzed.map((row) => row.pipeline.scores.overallConfidence * 100)));
-  const risks = analyzed.reduce((total, row) => total + row.pipeline.scores.risks.length, 0);
+  const scan = async () => {
+    setScanning(true);
+    setError(null);
+    try {
+      const result = await runDiscoveryScan();
+      setLastQueries(result.queries);
+      setCandidates((current) => [...result.candidates, ...current]);
+    } catch (caught) {
+      setError(userError(caught, "dashboard"));
+    } finally {
+      setScanning(false);
+    }
+  };
 
-  return <div className={styles.page}>
-    <header className={styles.header}><div><p className={styles.eyebrow}>{auth.organizationName} · Investment desk</p><h1>{timeGreeting()}, {auth.name}</h1></div><Link href="/opportunities" className={styles.dashboardLink}>Deal flow <ArrowRight size={15} /></Link></header>
-    {loading && showLoading && <div className={styles.empty}><IskraOrb size={34} /><p>Preparing the portfolio view...</p></div>}
-    {error && <div className={styles.empty}><p className={styles.emptyError}>{error}</p></div>}
-    {!loading && !error && rows.length === 0 && <div className={styles.empty}><p>No analyses yet.</p><Link href="/opportunities?new=1">Run the first analysis <ArrowRight size={14} /></Link></div>}
-    {!loading && analyzed.length > 0 && <>
-      <section className={styles.metrics} aria-label="Portfolio metrics">
-        <article><Target size={16} /><p>Deployment candidates</p><strong>{candidates}</strong><small>Invest or conditional</small></article>
-        <article><Gauge size={16} /><p>Median thesis fit</p><strong>{thesisFit}<span>/100</span></strong><small>Across analyzed deals</small></article>
-        <article><ShieldCheck size={16} /><p>Evidence confidence</p><strong>{confidence}<span>%</span></strong><small>Median confidence</small></article>
-        <article><CircleAlert size={16} /><p>Open diligence risks</p><strong>{risks}</strong><small>Across the portfolio</small></article>
-      </section>
-      <section className={styles.intelligenceRow}>
-        <PipelineTrend rows={rows} />
-        <section className={styles.queue}>
-          <div className={styles.sectionHeading}><div><p>Priority queue</p><h2>Recommendations</h2></div><Link href="/opportunities" title="Open deal flow"><ArrowRight size={15} /></Link></div>
-          <div className={styles.queueList}>{priority.map((row) => <Link href={`/company/${row.company.id}`} key={row.company.id} className={styles.queueRow}>
-            <div><strong>{row.company.name}</strong><small>{[row.company.sector, row.company.stage].filter(Boolean).join(" · ")}</small></div>
-            <span data-decision={row.pipeline.memo.decision}>{LABELS[row.pipeline.memo.decision]}</span>
-            <b>{Math.round(row.pipeline.scores.overallConfidence * 100)}%<small>trust</small></b>
-          </Link>)}</div>
-        </section>
-      </section>
-      <GlobalIntelligenceMap companies={rows.map((row) => row.company)} />
-    </>}
+  const promote = async (candidate: ApiDiscoveryCandidate) => {
+    setPromoting(candidate.id);
+    try {
+      const result = await promoteDiscoveryCandidate(candidate.id);
+      setCandidates((current) => current.map((item) => item.id === candidate.id ? result.candidate : item));
+      window.location.assign(`/company/${result.company.id}`);
+    } catch (caught) {
+      setError(userError(caught, "dashboard"));
+      setPromoting(null);
+    }
+  };
+
+  const active = candidates.filter((candidate) => candidate.status === "new");
+  const promoted = candidates.filter((candidate) => candidate.status === "promoted");
+
+  return <div className={`${styles.page} ${styles.discoveryPage}`}>
+    <header className={styles.discoveryHeader}>
+      <div>
+        <p className={styles.eyebrow}>{auth.organizationName} · Sourcing inbox</p>
+        <h1>{timeGreeting()}, {auth.name}</h1>
+      </div>
+      <button type="button" className={styles.scanButton} onClick={() => void scan()} disabled={scanning || !auth.ready}>
+        <Radar size={16} />{scanning ? "Scanning public signals…" : "Run sourcing scan"}
+      </button>
+    </header>
+
+    {lastQueries.length > 0 && <div className={styles.scanReceipt}><Sparkles size={14} /><span>Scanned {lastQueries.join(" · ")}</span></div>}
+    {error && <div className={styles.discoveryError}>{error}</div>}
+
+    <section className={styles.discoveryLayout}>
+      <div className={styles.inbox}>
+        <div className={styles.discoverySectionHead}><div><p className={styles.eyebrow}>New leads</p><h2>Potential companies to investigate</h2></div><span>{active.length} lead{active.length === 1 ? "" : "s"}</span></div>
+        {loading ? <div className={styles.discoveryEmpty}><IskraOrb size={30} /><p>Loading your sourcing inbox…</p></div> : active.length ? <div className={styles.candidateList}>
+          {active.map((candidate) => <article key={candidate.id} className={styles.candidateCard}>
+            <div className={styles.candidateTopline}><span>{SOURCE_LABELS[candidate.source_type] ?? candidate.source_type}</span><span>{sourceDetail(candidate)}</span></div>
+            <h3>{candidate.name}</h3>
+            <p className={styles.candidateHeadline}>{candidateContext(candidate)}</p>
+            <div className={styles.whyNow}><strong>Why Iskra noticed this</strong><p>{candidate.why_now}</p></div>
+            <p className={styles.identityNote}><span>{candidate.identity_status === "corroborated" ? "Founder identity corroborated" : "Founder identity not yet verified"}</span>{candidate.identity_reason}</p>
+            <div className={styles.candidateFooter}>
+              <span><b>{candidate.score}</b> signal strength · {Math.round(candidate.confidence * 100)}% confidence</span>
+              <div>
+                {candidate.source_url && <a href={candidate.source_url} target="_blank" rel="noreferrer">Source <ExternalLink size={13} /></a>}
+                <button type="button" onClick={() => void promote(candidate)} disabled={promoting === candidate.id}>{promoting === candidate.id ? "Preparing…" : "Start diligence"} <ArrowRight size={14} /></button>
+              </div>
+            </div>
+          </article>)}
+        </div> : <div className={styles.discoveryEmpty}><IskraOrb size={34} /><h2>No company leads surfaced yet</h2><p>Only named companies and projects enter this queue. Broad commentary and research stay out of it.</p><button type="button" onClick={() => void scan()} disabled={scanning}>{scanning ? "Scanning…" : "Run first scan"}</button></div>}
+      </div>
+
+      <aside className={styles.discoveryAside}>
+        <div className={styles.discoveryPanel}><p className={styles.eyebrow}>How this works</p><h2>Signal first. Deal second.</h2><ol><li>Iskra queries public launch and technical sources using your thesis.</li><li>Only a named company or project with a concrete source enters this inbox.</li><li>Start diligence to move a lead into the evidence-backed Deal Flow.</li></ol></div>
+        <div className={styles.discoveryPanel}><p className={styles.eyebrow}>Deal flow</p><h2>{promoted.length} promoted</h2><p>Inbound applications and reviewed discoveries share one diligence process.</p><Link href="/opportunities">Open Deal Flow <ArrowRight size={14} /></Link></div>
+      </aside>
+    </section>
   </div>;
 }

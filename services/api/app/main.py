@@ -31,6 +31,11 @@ from .models import (
     DealTask,
     DealTaskCreate,
     DealTaskUpdate,
+    DiscoveryCandidate,
+    DiscoveryCandidateKind,
+    DiscoveryCandidateStatus,
+    DiscoveryPromotionResult,
+    DiscoveryScanResult,
     DealWorkspace,
     DecisionReadiness,
     DocumentUploadResult,
@@ -67,6 +72,7 @@ from .models import (
     OpportunityIntentRequest,
 )
 from .connectors import pull_signals
+from .discovery import run_discovery_scan
 from .founder_passport import build_founder_passport, enrich_founder_passports
 from .llm import parse_founder_query, parse_opportunity_intent, parse_voice_command
 from .memory import build_timeline, calculate_readiness, refresh_company_memory
@@ -150,6 +156,62 @@ def save_thesis(payload: FundThesis, request: Request) -> FundThesis:
     store.fund_theses[organization] = thesis
     store.save()
     return thesis
+
+
+@app.get("/discovery/candidates", response_model=list[DiscoveryCandidate])
+def list_discovery_candidates(request: Request) -> list[DiscoveryCandidate]:
+    organization = _thesis_organization(request)
+    return sorted(
+        [
+            item
+            for item in store.discovery_candidates.values()
+            if item.organization_id == organization and item.candidate_kind == DiscoveryCandidateKind.company
+        ],
+        key=lambda item: (item.status != DiscoveryCandidateStatus.new, -item.score, item.created_at),
+    )
+
+
+@app.post("/discovery/scan", response_model=DiscoveryScanResult)
+def scan_discovery(request: Request) -> DiscoveryScanResult:
+    organization = _thesis_organization(request)
+    thesis = store.fund_theses.get(organization) or FundThesis(organization_id=organization)
+    run, candidates = run_discovery_scan(store, organization, thesis)
+    store.save()
+    return DiscoveryScanResult(run=run, candidates=candidates, queries=run.queries)
+
+
+@app.post("/discovery/candidates/{candidate_id}/promote", response_model=DiscoveryPromotionResult, status_code=201)
+def promote_discovery_candidate(candidate_id: str, request: Request) -> DiscoveryPromotionResult:
+    candidate = store.discovery_candidates.get(candidate_id)
+    if not candidate or candidate.organization_id != _thesis_organization(request):
+        raise HTTPException(status_code=404, detail="Discovery candidate not found")
+    if candidate.candidate_kind != DiscoveryCandidateKind.company:
+        raise HTTPException(status_code=409, detail="This public signal is research, not a company lead")
+    if candidate.company_id:
+        return DiscoveryPromotionResult(candidate=candidate, company=store.company(candidate.company_id))
+
+    company = Company(
+        name=candidate.name,
+        organization_id=candidate.organization_id,
+        description=candidate.headline,
+    )
+    initialize_company_provenance(company, "public_discovery")
+    store.companies[company.id] = company
+    source = Source(
+        company_id=company.id,
+        source_type=SourceType(candidate.source_type.value),
+        title=candidate.headline,
+        url=candidate.source_url,
+        text=candidate.why_now,
+        metadata={**candidate.source_metadata, "discovery_candidate_id": candidate.id, "discovered_at": candidate.observed_at.isoformat()},
+    )
+    store.sources[source.id] = source
+    candidate.status = DiscoveryCandidateStatus.promoted
+    candidate.company_id = company.id
+    candidate.updated_at = now()
+    ingest_company(company.id)
+    store.save()
+    return DiscoveryPromotionResult(candidate=candidate, company=company)
 
 
 @app.get("/analysis-jobs", response_model=list[AnalysisJob])
