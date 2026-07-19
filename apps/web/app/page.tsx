@@ -209,7 +209,7 @@ export default function Dashboard() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.title}>Pipeline</h1>
+          <h1 className={styles.title}>Welcome back, Julia</h1>
           <p className={styles.subtitle}>
             {rows.length} {rows.length === 1 ? "company" : "companies"} in review
             {filter !== "all" && (
