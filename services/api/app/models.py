@@ -67,6 +67,7 @@ class CompanyCreate(BaseModel):
 
 class Company(CompanyCreate):
     id: str = Field(default_factory=lambda: new_id("company"))
+    organization_id: str | None = None
     created_at: datetime = Field(default_factory=now)
     field_provenance: dict[str, str] = Field(default_factory=dict)
     field_confidence: dict[str, float] = Field(default_factory=dict)
@@ -543,6 +544,7 @@ class DealMemberCreate(BaseModel):
 class DealMember(DealMemberCreate):
     id: str = Field(default_factory=lambda: new_id("member"))
     company_id: str
+    organization_id: str | None = None
     added_at: datetime = Field(default_factory=now)
 
 
@@ -601,10 +603,38 @@ class DealActivity(BaseModel):
 
 class DealWorkspace(BaseModel):
     company_id: str
+    organization_id: str | None = None
     members: list[DealMember] = Field(default_factory=list)
     notes: list[CollaborationNote] = Field(default_factory=list)
     tasks: list[DealTask] = Field(default_factory=list)
     activity: list[DealActivity] = Field(default_factory=list)
+    invitations: list["DealInvitation"] = Field(default_factory=list)
+
+
+class InvitationStatus(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    revoked = "revoked"
+
+
+class DealInvitationCreate(BaseModel):
+    invited_user_id: str = Field(min_length=1)
+    display_name: str | None = None
+    role: CollaborationRole = CollaborationRole.analyst
+
+
+class DealInvitation(DealInvitationCreate):
+    id: str = Field(default_factory=lambda: new_id("invite"))
+    company_id: str
+    organization_id: str
+    invited_by: str
+    status: InvitationStatus = InvitationStatus.pending
+    created_at: datetime = Field(default_factory=now)
+    accepted_at: datetime | None = None
+
+
+class DealInvitationAccept(BaseModel):
+    pass
 
 
 class OutcomeSimulationInput(BaseModel):

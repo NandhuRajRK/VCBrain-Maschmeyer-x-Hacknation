@@ -22,6 +22,7 @@ def test_deal_workspace_collaboration_and_conflicts():
         store.collaboration_notes,
         store.deal_tasks,
         store.deal_activity,
+        store.deal_invitations,
         store.trigger_events,
     ):
         collection.clear()
@@ -66,3 +67,49 @@ def test_deal_workspace_collaboration_and_conflicts():
         json={"version": 1, "status": "open"},
     ).status_code == 409
     assert client.get(f"{base}/collaboration", headers={"X-Actor-Id": "outsider"}).status_code == 403
+
+
+def test_collaboration_is_organization_scoped():
+    for collection in (
+        store.companies,
+        store.founders,
+        store.sources,
+        store.segments,
+        store.claims,
+        store.evidence,
+        store.founder_scores,
+        store.founder_score_history,
+        store.claim_status_changes,
+        store.deal_members,
+        store.collaboration_notes,
+        store.deal_tasks,
+        store.deal_activity,
+        store.deal_invitations,
+        store.trigger_events,
+    ):
+        collection.clear()
+
+    client = TestClient(app)
+    org_a_lead = {"X-Actor-Id": "lead", "X-Organization-Id": "org_a"}
+    org_a_partner = {"X-Actor-Id": "partner", "X-Organization-Id": "org_a"}
+    company = client.post("/companies", headers=org_a_lead, json={"name": "TenantCo"}).json()
+    base = f"/companies/{company['id']}"
+    assert company["organization_id"] == "org_a"
+
+    invite = client.post(
+        f"{base}/invitations",
+        headers=org_a_lead,
+        json={"invited_user_id": "partner", "role": "associate"},
+    )
+    assert invite.status_code == 201
+    accepted = client.post(f"/invitations/{invite.json()['id']}/accept", headers=org_a_partner)
+    assert accepted.status_code == 200
+    assert client.get(f"{base}/collaboration", headers=org_a_partner).status_code == 200
+    assert client.get(
+        f"{base}/collaboration",
+        headers={"X-Actor-Id": "partner", "X-Organization-Id": "org_b"},
+    ).status_code == 404
+    assert client.get(
+        f"{base}/collaboration",
+        headers={"X-Actor-Id": "outsider", "X-Organization-Id": "org_a"},
+    ).status_code == 403

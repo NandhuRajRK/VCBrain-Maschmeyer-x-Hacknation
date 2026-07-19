@@ -1,5 +1,7 @@
 import os
 
+from collections.abc import Generator
+
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 
 from . import config as config
@@ -18,6 +20,8 @@ from .models import (
     CollaborationNoteUpdate,
     CollaborationRole,
     DealActivity,
+    DealInvitation,
+    DealInvitationCreate,
     DealMember,
     DealMemberCreate,
     DealTask,
@@ -35,6 +39,7 @@ from .models import (
     FounderSearchRequest,
     IngestionRun,
     IngestionStatus,
+    InvitationStatus,
     Segment,
     SearchMatch,
     Source,
@@ -64,10 +69,18 @@ from .search import search_founders
 from .store import store
 from .outcomes import simulate_outcome
 from .voice import encode_audio, narrate_text, transcribe_audio
-from .auth import actor_id, require_user
+from .auth import actor_id, organization_id, require_user
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
 MAX_VOICE_AUDIO_BYTES = 25_000_000
+
+
+def collaboration_transaction() -> Generator[None, None, None]:
+    """Reload and commit collaboration rows inside one SQLite write lock."""
+    with store.db.immediate_transaction() as connection:
+        store.reload_collaboration()
+        yield
+        store.save_collaboration(connection)
 
 
 @app.get("/health")
@@ -100,14 +113,20 @@ def simulate_company_outcomes(
 
 
 @app.get("/companies/{company_id}/collaboration", response_model=DealWorkspace)
-def get_collaboration_workspace(company_id: str, request: Request) -> DealWorkspace:
+def get_collaboration_workspace(
+    company_id: str,
+    request: Request,
+    _: None = Depends(collaboration_transaction),
+) -> DealWorkspace:
     _authorize_collaborator(company_id, request)
     return DealWorkspace(
         company_id=company_id,
+        organization_id=store.company(company_id).organization_id,
         members=store.company_members(company_id),
         notes=sorted(store.company_notes(company_id), key=lambda item: item.created_at),
         tasks=sorted(store.company_tasks(company_id), key=lambda item: item.created_at),
         activity=sorted(store.company_activity(company_id), key=lambda item: item.created_at),
+        invitations=store.company_invitations(company_id),
     )
 
 
@@ -116,6 +135,7 @@ def add_collaborator(
     company_id: str,
     payload: DealMemberCreate,
     request: Request,
+    _: None = Depends(collaboration_transaction),
 ) -> DealMember:
     actor = _authorize_collaborator(company_id, request)
     member = next(
@@ -126,10 +146,13 @@ def add_collaborator(
         member.display_name = payload.display_name
         member.role = payload.role
     else:
-        member = DealMember(company_id=company_id, **payload.model_dump())
+        member = DealMember(
+            company_id=company_id,
+            organization_id=store.company(company_id).organization_id,
+            **payload.model_dump(),
+        )
         store.deal_members[member.id] = member
     _record_activity(company_id, actor, "collaborator_added", "member", member.id, f"Added {member.user_id} to the deal")
-    store.save()
     return member
 
 
@@ -138,13 +161,13 @@ def add_collaboration_note(
     company_id: str,
     payload: CollaborationNoteCreate,
     request: Request,
+    _: None = Depends(collaboration_transaction),
 ) -> CollaborationNote:
     actor = _authorize_collaborator(company_id, request)
     _validate_collaboration_links(company_id, payload.claim_ids, payload.evidence_ids)
     note = CollaborationNote(company_id=company_id, author_id=actor, **payload.model_dump())
     store.collaboration_notes[note.id] = note
     _record_activity(company_id, note.author_id, "note_added", "note", note.id, "Added a deal note")
-    store.save()
     return note
 
 
@@ -154,6 +177,7 @@ def update_collaboration_note(
     note_id: str,
     payload: CollaborationNoteUpdate,
     request: Request,
+    _: None = Depends(collaboration_transaction),
 ) -> CollaborationNote:
     _authorize_collaborator(company_id, request)
     note = store.collaboration_notes.get(note_id)
@@ -168,7 +192,6 @@ def update_collaboration_note(
     note.version += 1
     note.updated_at = now()
     _record_activity(company_id, actor_id(request), "note_updated", "note", note.id, "Updated a deal note")
-    store.save()
     return note
 
 
@@ -177,12 +200,12 @@ def add_deal_task(
     company_id: str,
     payload: DealTaskCreate,
     request: Request,
+    _: None = Depends(collaboration_transaction),
 ) -> DealTask:
     actor = _authorize_collaborator(company_id, request)
     task = DealTask(company_id=company_id, creator_id=actor, **payload.model_dump())
     store.deal_tasks[task.id] = task
     _record_activity(company_id, task.creator_id, "task_added", "task", task.id, task.title)
-    store.save()
     return task
 
 
@@ -192,6 +215,7 @@ def update_deal_task(
     task_id: str,
     payload: DealTaskUpdate,
     request: Request,
+    _: None = Depends(collaboration_transaction),
 ) -> DealTask:
     actor = _authorize_collaborator(company_id, request)
     task = store.deal_tasks.get(task_id)
@@ -205,8 +229,75 @@ def update_deal_task(
     task.version += 1
     task.updated_at = now()
     _record_activity(company_id, actor, "task_updated", "task", task.id, task.title)
-    store.save()
     return task
+
+
+@app.post("/companies/{company_id}/invitations", response_model=DealInvitation, status_code=201)
+def create_deal_invitation(
+    company_id: str,
+    payload: DealInvitationCreate,
+    request: Request,
+    _: None = Depends(collaboration_transaction),
+) -> DealInvitation:
+    actor = _authorize_collaborator(company_id, request)
+    company = store.company(company_id)
+    if not company.organization_id:
+        raise HTTPException(status_code=400, detail="An organization is required for invitations")
+    if any(
+        item.invited_user_id == payload.invited_user_id and item.status == InvitationStatus.pending
+        for item in store.company_invitations(company_id)
+    ):
+        raise HTTPException(status_code=409, detail="A pending invitation already exists")
+    invitation = DealInvitation(
+        company_id=company_id,
+        organization_id=company.organization_id,
+        invited_by=actor,
+        **payload.model_dump(),
+    )
+    store.deal_invitations[invitation.id] = invitation
+    _record_activity(company_id, actor, "invitation_created", "invitation", invitation.id, "Invited a teammate to the deal")
+    return invitation
+
+
+@app.get("/companies/{company_id}/invitations", response_model=list[DealInvitation])
+def list_deal_invitations(
+    company_id: str,
+    request: Request,
+    _: None = Depends(collaboration_transaction),
+) -> list[DealInvitation]:
+    _authorize_collaborator(company_id, request)
+    return store.company_invitations(company_id)
+
+
+@app.post("/invitations/{invitation_id}/accept", response_model=DealMember)
+def accept_deal_invitation(
+    invitation_id: str,
+    request: Request,
+    _: None = Depends(collaboration_transaction),
+) -> DealMember:
+    invitation = store.deal_invitations.get(invitation_id)
+    if not invitation or invitation.status != InvitationStatus.pending:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if organization_id(request) != invitation.organization_id or actor_id(request) != invitation.invited_user_id:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    company = store.company(invitation.company_id)
+    member = next(
+        (item for item in store.company_members(company.id) if item.user_id == invitation.invited_user_id),
+        None,
+    )
+    if not member:
+        member = DealMember(
+            company_id=company.id,
+            organization_id=invitation.organization_id,
+            user_id=invitation.invited_user_id,
+            display_name=invitation.display_name,
+            role=invitation.role,
+        )
+        store.deal_members[member.id] = member
+    invitation.status = InvitationStatus.accepted
+    invitation.accepted_at = now()
+    _record_activity(company.id, invitation.invited_user_id, "invitation_accepted", "invitation", invitation.id, "Joined the deal workspace")
+    return member
 
 
 def _validate_collaboration_links(company_id: str, claim_ids: list[str], evidence_ids: list[str]) -> None:
@@ -220,20 +311,30 @@ def _validate_collaboration_links(company_id: str, claim_ids: list[str], evidenc
 
 def _authorize_collaborator(company_id: str, request: Request) -> str:
     """Bootstrap the first teammate, then enforce workspace membership."""
-    store.company(company_id)
+    company = store.company(company_id)
     actor = actor_id(request)
+    request_org = organization_id(request)
+    if company.organization_id and company.organization_id != request_org:
+        raise HTTPException(status_code=404, detail="Deal workspace not found")
+    if not company.organization_id and os.getenv("CLERK_SECRET_KEY"):
+        raise HTTPException(status_code=403, detail="Deal is not assigned to an organization")
+    if not company.organization_id and request_org:
+        company.organization_id = request_org
     members = store.company_members(company_id)
     if not members:
         member = DealMember(
             company_id=company_id,
+            organization_id=company.organization_id,
             user_id=actor,
             display_name=request.headers.get("X-Actor-Name"),
             role=CollaborationRole.partner,
         )
         store.deal_members[member.id] = member
-        store.save()
         return actor
-    if not any(member.user_id == actor for member in members):
+    if not any(
+        member.user_id == actor and member.organization_id == company.organization_id
+        for member in members
+    ):
         raise HTTPException(status_code=403, detail="You are not a member of this deal workspace")
     return actor
 
@@ -259,8 +360,8 @@ def _record_activity(
 
 
 @app.post("/companies", response_model=Company, status_code=201)
-def create_company(payload: CompanyCreate) -> Company:
-    company = Company(**payload.model_dump())
+def create_company(payload: CompanyCreate, request: Request) -> Company:
+    company = Company(organization_id=organization_id(request), **payload.model_dump())
     initialize_company_provenance(company)
     store.companies[company.id] = company
     event = TriggerEvent(
