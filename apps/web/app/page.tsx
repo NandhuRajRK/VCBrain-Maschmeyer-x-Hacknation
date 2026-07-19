@@ -210,15 +210,6 @@ export default function Dashboard() {
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>Welcome back, Julia</h1>
-          <p className={styles.subtitle}>
-            {rows.length} {rows.length === 1 ? "company" : "companies"} in review
-            {filter !== "all" && (
-              <span className={styles.filterTag}>
-                {" "}filtered: {decisionLabel(filter)}
-                <button type="button" className={styles.filterClear} onClick={() => setFilter("all")}>&times;</button>
-              </span>
-            )}
-          </p>
         </div>
       </header>
 
@@ -228,6 +219,7 @@ export default function Dashboard() {
           type="button"
           className={styles.stat}
           data-active={filter === "all"}
+          data-decision="all"
           onClick={() => handleFilter("all")}
         >
           <span className={styles.statValue}>{rows.length}</span>
@@ -267,6 +259,7 @@ export default function Dashboard() {
           type="button"
           className={styles.stat}
           data-active={filter === "reject"}
+          data-decision="reject"
           onClick={() => handleFilter("reject")}
         >
           <span className={styles.statValue}>{rejectCount}</span>

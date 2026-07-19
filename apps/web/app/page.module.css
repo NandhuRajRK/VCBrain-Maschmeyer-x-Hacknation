@@ -65,114 +65,119 @@
 }
 
 .stat {
+  --glass-tint: 154, 164, 172;
   position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-5) var(--space-6);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: none;
-  border-radius: var(--radius-md);
+  isolation: isolate;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.025) 42%, rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  border: 1px solid transparent;
+  border-radius: 18px;
   cursor: pointer;
   text-align: left;
   overflow: hidden;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: background 0.35s ease-in-out,
-              box-shadow 0.35s ease-in-out;
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16),
+    0 10px 26px rgba(0, 0, 0, 0.2);
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background 220ms ease;
 }
 
-/* Per-decision glass tints */
+.stat[data-decision="all"] {
+  --glass-tint: 156, 173, 181;
+}
+
 .stat[data-decision="invest"] {
-  background: rgba(34, 197, 94, 0.06);
+  --glass-tint: 88, 177, 121;
 }
 
 .stat[data-decision="conditional_invest"] {
-  background: rgba(234, 179, 8, 0.06);
+  --glass-tint: 194, 164, 79;
 }
 
 .stat[data-decision="hold"] {
-  background: rgba(100, 116, 139, 0.06);
+  --glass-tint: 127, 143, 158;
 }
 
 .stat[data-decision="reject"] {
-  background: rgba(239, 68, 68, 0.06);
+  --glass-tint: 191, 111, 111;
 }
 
-/* Floating grain overlay — visible only when active */
 .stat::before {
   content: "";
   position: absolute;
-  inset: -50%;
-  width: 200%;
-  height: 200%;
+  z-index: 0;
+  inset: -8%;
   pointer-events: none;
-  opacity: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 200px 200px;
-  transition: opacity 0.4s ease-in-out;
-}
-
-.stat[data-active="true"]::before {
-  opacity: 0.07;
-  animation: grainDrift 8s linear infinite;
-}
-
-@keyframes grainDrift {
-  0%   { transform: translate(0, 0); }
-  25%  { transform: translate(-30px, 20px); }
-  50%  { transform: translate(15px, -25px); }
-  75%  { transform: translate(-20px, -10px); }
-  100% { transform: translate(0, 0); }
+  opacity: 0.22;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.82'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 96% 50%, rgba(var(--glass-tint), 0.8), rgba(var(--glass-tint), 0.28) 35%, transparent 67%);
+  background-size: 220px 220px, 100% 100%;
+  background-blend-mode: screen, normal;
+  filter: blur(1px);
+  will-change: transform, opacity;
 }
 
 .stat:hover {
-  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-2px);
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.1));
+  border-color: rgba(var(--glass-tint), 0.18);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -18px 30px rgba(var(--glass-tint), 0.07),
+    0 10px 26px rgba(0, 0, 0, 0.28);
 }
 
-/* Per-decision hover tints */
-.stat[data-decision="invest"]:hover {
-  background: rgba(34, 197, 94, 0.1);
-}
-
-.stat[data-decision="conditional_invest"]:hover {
-  background: rgba(234, 179, 8, 0.1);
-}
-
-.stat[data-decision="hold"]:hover {
-  background: rgba(100, 116, 139, 0.1);
-}
-
-.stat[data-decision="reject"]:hover {
-  background: rgba(239, 68, 68, 0.1);
+.stat:hover::before,
+.stat[data-active="true"]::before {
+  opacity: 0.45;
+  animation: glassGrainFloat 4.5s ease-in-out infinite;
 }
 
 .stat[data-active="true"] {
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06) 42%, rgba(255, 255, 255, 0.11));
+  border-color: rgba(var(--glass-tint), 0.24);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 2px 8px rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -22px 34px rgba(var(--glass-tint), 0.12),
+    0 10px 26px rgba(0, 0, 0, 0.3);
 }
 
-.stat[data-active="true"][data-decision="invest"] {
-  background: rgba(34, 197, 94, 0.12);
+@keyframes glassGrainFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(0.98);
+  }
+  50% {
+    transform: translate3d(-8%, 3%, 0) scale(1.04);
+  }
 }
 
-.stat[data-active="true"][data-decision="conditional_invest"] {
-  background: rgba(234, 179, 8, 0.12);
+.stat:focus-visible {
+  outline: 2px solid rgba(var(--glass-tint), 0.95);
+  outline-offset: 3px;
 }
 
-.stat[data-active="true"][data-decision="hold"] {
-  background: rgba(100, 116, 139, 0.12);
-}
+@media (prefers-reduced-motion: reduce) {
+  .stat {
+    transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  }
 
-.stat[data-active="true"][data-decision="reject"] {
-  background: rgba(239, 68, 68, 0.12);
+  .stat:hover {
+    transform: none;
+  }
+
+  .stat:hover::before,
+  .stat[data-active="true"]::before {
+    animation: none;
+  }
 }
 
 /* Keep text above the grain layer */
@@ -543,23 +548,23 @@
 }
 
 .decision[data-decision="invest"] {
-  color: var(--color-invest);
-  background: var(--color-invest-muted);
+  color: #78aa89;
+  background: rgba(120, 170, 137, 0.08);
 }
 
 .decision[data-decision="conditional_invest"] {
-  color: var(--color-conditional);
-  background: var(--color-conditional-muted);
+  color: #b9a166;
+  background: rgba(185, 161, 102, 0.08);
 }
 
 .decision[data-decision="hold"] {
-  color: var(--color-hold);
-  background: var(--color-hold-muted);
+  color: #8d9aaa;
+  background: rgba(141, 154, 170, 0.08);
 }
 
 .decision[data-decision="reject"] {
-  color: var(--color-reject);
-  background: var(--color-reject-muted);
+  color: #bd8585;
+  background: rgba(189, 133, 133, 0.08);
 }
 
 /* ── Score values ── */
