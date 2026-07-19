@@ -67,6 +67,7 @@ class CompanyCreate(BaseModel):
 
 class Company(CompanyCreate):
     id: str = Field(default_factory=lambda: new_id("company"))
+    organization_id: str | None = None
     created_at: datetime = Field(default_factory=now)
     field_provenance: dict[str, str] = Field(default_factory=dict)
     field_confidence: dict[str, float] = Field(default_factory=dict)
@@ -519,3 +520,167 @@ class FounderEnrichmentResult(BaseModel):
     created_sources: list[Source]
     deduped_sources: int
     ingestion: IngestionRun
+
+
+class CollaborationRole(str, Enum):
+    partner = "partner"
+    associate = "associate"
+    analyst = "analyst"
+    observer = "observer"
+
+
+class CollaborationStatus(str, Enum):
+    open = "open"
+    in_progress = "in_progress"
+    done = "done"
+
+
+class DealMemberCreate(BaseModel):
+    user_id: str = Field(min_length=1)
+    display_name: str | None = None
+    role: CollaborationRole = CollaborationRole.analyst
+
+
+class DealMember(DealMemberCreate):
+    id: str = Field(default_factory=lambda: new_id("member"))
+    company_id: str
+    organization_id: str | None = None
+    added_at: datetime = Field(default_factory=now)
+
+
+class CollaborationNoteCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=12000)
+    claim_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class CollaborationNoteUpdate(CollaborationNoteCreate):
+    version: int = Field(ge=1)
+
+
+class CollaborationNote(CollaborationNoteCreate):
+    id: str = Field(default_factory=lambda: new_id("note"))
+    company_id: str
+    author_id: str
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+    version: int = 1
+
+
+class DealTaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    assignee_id: str | None = None
+    due_at: datetime | None = None
+
+
+class DealTaskUpdate(BaseModel):
+    status: CollaborationStatus | None = None
+    assignee_id: str | None = None
+    due_at: datetime | None = None
+    version: int = Field(ge=1)
+
+
+class DealTask(DealTaskCreate):
+    id: str = Field(default_factory=lambda: new_id("task"))
+    company_id: str
+    creator_id: str
+    status: CollaborationStatus = CollaborationStatus.open
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+    version: int = 1
+
+
+class DealActivity(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("activity"))
+    company_id: str
+    actor_id: str
+    action: str
+    entity_type: str
+    entity_id: str
+    summary: str
+    created_at: datetime = Field(default_factory=now)
+
+
+class DealWorkspace(BaseModel):
+    company_id: str
+    organization_id: str | None = None
+    members: list[DealMember] = Field(default_factory=list)
+    notes: list[CollaborationNote] = Field(default_factory=list)
+    tasks: list[DealTask] = Field(default_factory=list)
+    activity: list[DealActivity] = Field(default_factory=list)
+    invitations: list["DealInvitation"] = Field(default_factory=list)
+
+
+class InvitationStatus(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    revoked = "revoked"
+
+
+class DealInvitationCreate(BaseModel):
+    invited_user_id: str = Field(min_length=1)
+    display_name: str | None = None
+    role: CollaborationRole = CollaborationRole.analyst
+
+
+class DealInvitation(DealInvitationCreate):
+    id: str = Field(default_factory=lambda: new_id("invite"))
+    company_id: str
+    organization_id: str
+    invited_by: str
+    status: InvitationStatus = InvitationStatus.pending
+    created_at: datetime = Field(default_factory=now)
+    accepted_at: datetime | None = None
+
+
+class DealInvitationAccept(BaseModel):
+    pass
+
+
+class OutcomeSimulationInput(BaseModel):
+    initial_investment_usd: float = Field(default=100_000, gt=0)
+    entry_valuation_usd: float = Field(default=5_000_000, gt=0, description="Pre-money valuation")
+    starting_mrr_usd: float = Field(default=25_000, ge=0)
+    monthly_growth_pct: float = Field(default=10, ge=-99, le=200)
+    monthly_churn_pct: float = Field(default=2, ge=0, le=100)
+    gross_margin_pct: float = Field(default=70, ge=0, le=100)
+    monthly_burn_usd: float = Field(default=100_000, ge=0)
+    cash_on_hand_usd: float = Field(default=1_000_000, ge=0)
+    months_to_next_round: int = Field(default=12, ge=1, le=60)
+    next_round_raise_usd: float = Field(default=2_000_000, gt=0)
+    target_next_round_dilution_pct: float = Field(default=20, gt=0, lt=100)
+    exit_months: int = Field(default=60, ge=1, le=120)
+    exit_revenue_multiple: float = Field(default=8, ge=0, le=100)
+    exit_probability: float = Field(default=0.15, ge=0, le=1)
+
+
+class OutcomeScenario(BaseModel):
+    label: str
+    next_round_projected_mrr_usd: float
+    projected_mrr_usd: float
+    projected_arr_usd: float
+    runway_months: float | None
+    required_next_round_pre_money_usd: float
+    post_round_ownership_pct: float
+    exit_value_usd: float
+    expected_return_usd: float
+    expected_moic: float
+
+
+class OutcomeSimulationResult(BaseModel):
+    company_id: str | None = None
+    initial_ownership_pct: float
+    effective_monthly_growth_pct: float
+    next_round_projected_mrr_usd: float
+    projected_mrr_usd: float
+    projected_arr_usd: float
+    monthly_gross_profit_usd: float
+    runway_months: float | None
+    cash_flow_positive: bool
+    required_next_round_pre_money_usd: float
+    next_round_post_money_usd: float
+    post_round_ownership_pct: float
+    exit_value_usd: float
+    expected_return_usd: float
+    expected_moic: float
+    scenarios: list[OutcomeScenario]

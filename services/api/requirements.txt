@@ -6,3 +6,4 @@ pypdf
 python-docx
 python-multipart
 python-pptx
+clerk-backend-api

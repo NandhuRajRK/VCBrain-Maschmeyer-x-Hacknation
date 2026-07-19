@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -7,7 +8,12 @@ from pydantic import BaseModel
 from .models import (
     Claim,
     ClaimStatusChange,
+    CollaborationNote,
     Company,
+    DealActivity,
+    DealInvitation,
+    DealMember,
+    DealTask,
     Evidence,
     Founder,
     FounderScore,
@@ -62,6 +68,29 @@ class JsonSqliteStore:
                 ],
             )
 
+    def upsert_collection(self, collection: str, rows: dict[str, BaseModel], connection) -> None:
+        connection.executemany(
+            """
+            insert into records (collection, key, payload)
+            values (?, ?, ?)
+            on conflict(collection, key) do update set
+              payload = excluded.payload,
+              updated_at = current_timestamp
+            """,
+            [(collection, key, value.model_dump_json()) for key, value in rows.items()],
+        )
+
+    @contextmanager
+    def immediate_transaction(self):
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            yield self.conn
+        except Exception:
+            self.conn.rollback()
+            raise
+        else:
+            self.conn.commit()
+
 
 MODEL_COLLECTIONS = {
     "companies": Company,
@@ -73,5 +102,10 @@ MODEL_COLLECTIONS = {
     "founder_scores": FounderScore,
     "founder_score_history": FounderScoreSnapshot,
     "claim_status_changes": ClaimStatusChange,
+    "deal_members": DealMember,
+    "collaboration_notes": CollaborationNote,
+    "deal_tasks": DealTask,
+    "deal_activity": DealActivity,
+    "deal_invitations": DealInvitation,
     "trigger_events": TriggerEvent,
 }

@@ -3,7 +3,12 @@ from fastapi import HTTPException
 from .models import (
     Claim,
     ClaimStatusChange,
+    CollaborationNote,
     Company,
+    DealActivity,
+    DealInvitation,
+    DealMember,
+    DealTask,
     Evidence,
     Founder,
     FounderScore,
@@ -27,6 +32,11 @@ class Store:
         self.founder_scores: dict[str, FounderScore] = self._load("founder_scores")
         self.founder_score_history: dict[str, FounderScoreSnapshot] = self._load("founder_score_history")
         self.claim_status_changes: dict[str, ClaimStatusChange] = self._load("claim_status_changes")
+        self.deal_members: dict[str, DealMember] = self._load("deal_members")
+        self.collaboration_notes: dict[str, CollaborationNote] = self._load("collaboration_notes")
+        self.deal_tasks: dict[str, DealTask] = self._load("deal_tasks")
+        self.deal_activity: dict[str, DealActivity] = self._load("deal_activity")
+        self.deal_invitations: dict[str, DealInvitation] = self._load("deal_invitations")
         self.trigger_events: dict[str, TriggerEvent] = self._load("trigger_events")
 
     def _load(self, collection: str):
@@ -42,7 +52,49 @@ class Store:
         self.db.save_collection("founder_scores", self.founder_scores)
         self.db.save_collection("founder_score_history", self.founder_score_history)
         self.db.save_collection("claim_status_changes", self.claim_status_changes)
+        self.db.save_collection("deal_members", self.deal_members)
+        self.db.save_collection("collaboration_notes", self.collaboration_notes)
+        self.db.save_collection("deal_tasks", self.deal_tasks)
+        self.db.save_collection("deal_activity", self.deal_activity)
+        self.db.save_collection("deal_invitations", self.deal_invitations)
         self.db.save_collection("trigger_events", self.trigger_events)
+
+    def company_members(self, company_id: str) -> list[DealMember]:
+        self.company(company_id)
+        return [item for item in self.deal_members.values() if item.company_id == company_id]
+
+    def company_notes(self, company_id: str) -> list[CollaborationNote]:
+        self.company(company_id)
+        return [item for item in self.collaboration_notes.values() if item.company_id == company_id]
+
+    def company_tasks(self, company_id: str) -> list[DealTask]:
+        self.company(company_id)
+        return [item for item in self.deal_tasks.values() if item.company_id == company_id]
+
+    def company_activity(self, company_id: str) -> list[DealActivity]:
+        self.company(company_id)
+        return [item for item in self.deal_activity.values() if item.company_id == company_id]
+
+    def company_invitations(self, company_id: str) -> list[DealInvitation]:
+        self.company(company_id)
+        return [item for item in self.deal_invitations.values() if item.company_id == company_id]
+
+    def reload_collaboration(self) -> None:
+        self.deal_members = self._load("deal_members")
+        self.collaboration_notes = self._load("collaboration_notes")
+        self.deal_tasks = self._load("deal_tasks")
+        self.deal_activity = self._load("deal_activity")
+        self.deal_invitations = self._load("deal_invitations")
+
+    def save_collaboration(self, connection) -> None:
+        for collection, rows in (
+            ("deal_members", self.deal_members),
+            ("collaboration_notes", self.collaboration_notes),
+            ("deal_tasks", self.deal_tasks),
+            ("deal_activity", self.deal_activity),
+            ("deal_invitations", self.deal_invitations),
+        ):
+            self.db.upsert_collection(collection, rows, connection)
 
     def company(self, company_id: str) -> Company:
         if company_id not in self.companies:
