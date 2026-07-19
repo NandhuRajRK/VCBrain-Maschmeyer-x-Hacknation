@@ -21,8 +21,13 @@ import {
   type PortfolioItem,
 } from "../lib/assistant";
 
+/* The current width is the ceiling; the panel can only be made narrower. */
+const MAX_PANEL = 380;
+const MIN_PANEL = 300;
+
 export default function AssistantChat() {
   const [open, setOpen] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(MAX_PANEL);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [items, setItems] = useState<PortfolioItem[] | null>(null);
@@ -46,6 +51,8 @@ export default function AssistantChat() {
     loadedRef.current = true;
     setLoadingData(true);
 
+    /* Defer the heavy analysis a beat so the open animation paints first. */
+    const timer = setTimeout(() => {
     (async () => {
       try {
         const companies = await listCompanies();
@@ -67,6 +74,9 @@ export default function AssistantChat() {
         setLoadingData(false);
       }
     })();
+    }, 200);
+
+    return () => clearTimeout(timer);
   }, [open]);
 
   /* Keep the thread pinned to the latest message. */
@@ -80,6 +90,45 @@ export default function AssistantChat() {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  /* Push the content area aside so the dashboard narrows to fit rather
+   * than being covered. Setting the margin directly on the content element
+   * is what reliably fires its transition (a custom property or :has change
+   * does not animate consistently in Chromium). The content rule owns the
+   * transition timing. */
+  useEffect(() => {
+    const content = document.querySelector<HTMLElement>("main");
+    if (!content) return;
+    /* A plain pixel value transitions reliably; a min() expression does
+     * not animate in Chromium and gets stuck. Cap to the viewport here. */
+    const capped = Math.min(panelWidth, Math.round(window.innerWidth * 0.92));
+    content.style.marginRight = open ? `${capped}px` : "0px";
+  }, [open, panelWidth]);
+
+  /* Drag the left edge of the panel to make it narrower. */
+  const startResize = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const root = document.documentElement;
+      const startX = e.clientX;
+      const startW = panelWidth;
+      root.setAttribute("data-resizing", "");
+
+      const onMove = (ev: PointerEvent) => {
+        const next = Math.min(MAX_PANEL, Math.max(MIN_PANEL, startW + (startX - ev.clientX)));
+        setPanelWidth(next);
+      };
+      const onUp = () => {
+        root.removeAttribute("data-resizing");
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [panelWidth]
+  );
 
   const send = useCallback(
     async (text: string) => {
@@ -124,7 +173,19 @@ export default function AssistantChat() {
         </button>
       )}
 
-      <aside className={styles.panel} data-open={open} aria-hidden={!open}>
+      <aside
+        className={styles.panel}
+        data-open={open}
+        aria-hidden={!open}
+        style={{ width: `${panelWidth}px` }}
+      >
+        <div
+          className={styles.resizeHandle}
+          onPointerDown={startResize}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize assistant"
+        />
         <header className={styles.header}>
           <div className={styles.headerTitle}>
             <span className={styles.headerIcon}>&#x2726;</span>

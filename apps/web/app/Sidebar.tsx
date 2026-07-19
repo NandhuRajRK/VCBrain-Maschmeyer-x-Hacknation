@@ -28,12 +28,41 @@ const NAV_ITEMS = [
   },
 ];
 
+/* The current width is the ceiling; the sidebar can only be made narrower. */
+const MAX_WIDTH = 240;
+const MIN_WIDTH = 176;
+
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => !prev);
+  }, []);
+
+  /* Drag the right edge to resize. Drives the shared --sidebar-width
+   * variable, so both the sidebar and the content margin follow. */
+  const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const root = document.documentElement;
+    const startX = e.clientX;
+    const startW =
+      parseInt(getComputedStyle(root).getPropertyValue("--sidebar-width"), 10) || MAX_WIDTH;
+
+    root.setAttribute("data-resizing", "");
+
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startW + (ev.clientX - startX)));
+      root.style.setProperty("--sidebar-width", `${next}px`);
+    };
+    const onUp = () => {
+      root.removeAttribute("data-resizing");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }, []);
 
   return (
@@ -70,6 +99,16 @@ export default function Sidebar() {
           <span className={styles.footerMeta}>Maschmeyer Group</span>
           <span className={styles.footerVersion}>v0.1.0</span>
         </div>
+
+        {!collapsed && (
+          <div
+            className={styles.resizeHandle}
+            onPointerDown={startResize}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+          />
+        )}
       </aside>
 
       {/* Toggle lives outside the clipped <aside> so overflow:hidden

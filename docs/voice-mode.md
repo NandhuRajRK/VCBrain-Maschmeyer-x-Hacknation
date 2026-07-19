@@ -7,7 +7,7 @@ outreach views in the web app or a later mobile client.
 ## Voice Query Flow
 
 ```text
-microphone -> OpenAI transcription -> intent router -> existing VC Brain action
+microphone -> OpenAI transcription -> intent router -> existing Iskra action
                                       -> Julia's target view
                                       -> optional ElevenLabs spoken response
 ```

@@ -1,4 +1,4 @@
-# INTRO — VC Brain Game Plan
+# INTRO — Iskra Game Plan
 
 ---
 
