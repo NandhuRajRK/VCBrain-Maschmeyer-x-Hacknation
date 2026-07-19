@@ -1,123 +1,145 @@
-# VC Brain
+# Iskra: The VC Brain
 
-VC Brain is an AI-first venture operating system for the Maschmeyer Group
-HackNation challenge: make an evidence-backed $100,000 investment decision
-within 24 hours.
+Iskra is an AI-first venture operating system built for HackNation's
+**Maschmeyer Group - The VC Brain** challenge. The goal is to help an investment
+team reach an evidence-backed decision on a **$100,000 investment within 24
+hours**.
 
-It connects founder discovery, source ingestion, document parsing, claim-level
-evidence, founder memory, thesis reasoning, investment memos, decisions, and
-voice input into one workflow.
+The product connects founder discovery, application intake, public-source
+research, document parsing, claim-level evidence, thesis fit, three-axis
+scoring, investment memos, team collaboration, and voice interaction in one
+workspace.
 
-## Documentation
+## Why Iskra
 
-Start with the [documentation hub](docs/README.md).
-
-- [Architecture](docs/architecture.md)
-- [API Reference](docs/api-reference.md)
-- [Person A Contract](docs/person-a-contract.md)
-- [Person B Contract](docs/person-b-contract.md)
-- [Demo Walkthrough](docs/demo-walkthrough.md)
-- [Founder Passport](docs/founder-passport.md)
-- [Decision Flight Recorder](docs/decision-flight-recorder.md)
-- [Voice Mode](docs/voice-mode.md)
-- [Shared Schemas](packages/shared/README.md)
-
-## Current Product Flow
+Traditional early-stage diligence is fragmented across decks, search tabs,
+spreadsheets, CRM notes, and partner conversations. Iskra turns those inputs
+into a traceable decision system:
 
 ```text
-create company -> attach or pull sources -> parse and ingest
-       -> claims + evidence + founder passport
-       -> contradiction checks + Founder Score + readiness
-       -> dossier / search / activation / voice
-       -> Julia's thesis, three-axis scoring, memo, and decision room
+application, deck, public signal, or investor note
+                         |
+                         v
+             normalized sources and evidence
+                         |
+                         v
+       claims, contradictions, founder memory, readiness
+                         |
+                         v
+        thesis fit, three independent scores, memo, decision
+                         |
+                         v
+          collaborative deal workspace and Iskra assistant
 ```
 
-Nandhu's branch contains the data and memory layer. Julia's branch owns the
-intelligence and dashboard layer. The API dossier and `packages/shared/schemas.json`
-are the integration boundary.
+Every material conclusion can be traced back to a source, claim, and confidence
+reason. Missing evidence stays visible instead of being filled with invented
+certainty.
 
-## Features Implemented
+## Hackathon Highlights
 
-- FastAPI company and source intake.
-- Live or fallback connectors for GitHub, Hacker News, Product Hunt, arXiv,
-  websites, Perplexity, Exa, Tavily, OpenCorporates, SEC EDGAR, and PatentsView.
-- `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` parsing into segments.
+- Source ingestion from GitHub, Hacker News, Product Hunt, arXiv, websites,
+  Tavily, Exa, Perplexity, company registries, SEC EDGAR, and patents.
+- PDF, PowerPoint, Word, spreadsheet, Markdown, and text ingestion.
 - Claim-evidence ledger with confidence, freshness, directness, source
-  independence, and explicit status.
-- Source URL/content deduplication and company-field provenance.
-- Founder resolution, cold-start handling, and persistent Founder Scores.
-- Founder Passport with sourced employment, education, prior ventures, skills,
-  confidence, and evidence gaps.
-- Explicit founder-targeted Tavily/Exa enrichment with per-founder result caps.
-- Deterministic contradiction detection with optional capped OpenAI adjudication.
-- Persistent score snapshots, claim transitions, trigger events, readiness, and
-  next-best diligence actions.
-- Natural-language founder search and evidence-aware outbound activation drafts.
-- OpenAI voice query routing and optional ElevenLabs narration.
-- Ten-founder synthetic demo pack with sample decks and staged contradictions.
+  independence, and contradiction states.
+- Persistent Founder Scores and evidence-backed Founder Passports.
+- Explicit cold-start handling for founders with sparse public data.
+- Configurable fund thesis across sector, stage, geography, check size,
+  ownership target, and risk appetite.
+- Founder, Market, and Idea-vs-Market scores kept independent rather than
+  hidden inside an average.
+- Investment memo, red-team analysis, decision-flip conditions, and decision
+  readiness.
+- Natural-language founder discovery and evidence-aware outreach drafting.
+- Iskra text, dictation, and dialogue modes with OpenAI transcription and
+  optional ElevenLabs narration.
+- Organization-scoped workspaces, comments, tasks, invitations, and enterprise
+  SSO through Clerk.
+- Interactive outcome simulator for growth, churn, margin, runway, dilution,
+  valuation, MOIC, and expected return.
+- Synthetic demo portfolio with ten founder profiles, pitch materials, cold
+  starts, and seeded contradictions.
 
-Julia's layer adds thesis filters, Founder/Market/Idea-vs-Market scoring, Trust
-Scores, memos, red-team analysis, decisions, and the React dashboard.
+## Stack
 
-## Quick Start
+- **Web:** Next.js 16, React 19, TypeScript, Three.js, Radix UI
+- **API:** FastAPI, Pydantic, SQLite
+- **AI:** OpenAI structured outputs and transcription; optional ElevenLabs TTS
+- **Identity:** Clerk Organizations with SAML/OIDC enterprise connections
+- **Data:** shared JSON schemas plus typed API adapters
 
-Requirements: Python 3.11+ and `uv`.
+## Run Locally
+
+Requirements: Python 3.11+, `uv`, Node.js 20+, and npm.
 
 ```bash
-uv sync --group dev
 cp .env.example .env
+uv sync --group dev
 uv run uvicorn services.api.app.main:app --reload
 ```
 
-Open the generated API explorer at <http://localhost:8000/docs>.
-
-The backend runs without paid API keys using deterministic parsers and source
-fallbacks. Add keys to `.env` only when testing the corresponding live feature.
-Keep all keys server-side and never commit `.env`.
-
-## Demo
-
-Use an isolated SQLite file for the demo:
+In a second terminal:
 
 ```bash
-VCBRAIN_DB_PATH=/tmp/vcbrain-demo.sqlite3 \
-uv run python scripts/seed_demo.py --reset
-VCBRAIN_DB_PATH=/tmp/vcbrain-demo.sqlite3 \
-uv run uvicorn services.api.app.main:app --reload
+cd apps/web
+npm ci
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 ```
 
-The strongest flow is AetherGrid:
+Open <http://localhost:3000>. The FastAPI explorer is available at
+<http://localhost:8000/docs>.
 
-1. Inspect its Founder Passport and initial timeline.
-2. Ingest the queued public correction.
-3. Show the contradiction, score delta, readiness drop, and next action.
-4. Hand the dossier to Julia's decision room.
+The demo works without paid API keys by using deterministic fallbacks and
+synthetic evidence. Add keys to `.env` only for the live integrations you want
+to demonstrate. Secrets remain server-side and `.env` is ignored by git.
 
-See [Demo Walkthrough](docs/demo-walkthrough.md) for the full five-minute
-narrative.
+## Seed the Demo
 
-## Tests
+Use a separate SQLite file to keep the demo repeatable:
+
+```bash
+VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run python scripts/seed_demo.py --reset
+VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run uvicorn services.api.app.main:app --reload
+```
+
+The primary scenario is AetherGrid: ingest a deck, inspect the founder history,
+add an independent correction, and watch the contradiction alter confidence,
+readiness, score history, and next diligence actions.
+
+See the [demo walkthrough](docs/demo-walkthrough.md) and
+[manual validation guide](docs/demo-fixtures/MANUAL_E2E_TEST.md).
+
+## Test
 
 ```bash
 uv run pytest -q
+cd apps/web
+npx tsc --noEmit
+npm run lint
 ```
 
-Tests use isolated data and mocked OpenAI behavior. They do not consume live
-API credits.
+Automated backend tests use isolated storage and mocked model behavior, so they
+do not consume live API credits.
 
-## Persistence
+## Documentation
 
-The default SQLite database is `data/processed/vcbrain.sqlite3`. Override it
-with `VCBRAIN_DB_PATH`. Local generated data is ignored by git. The current
-store is intentionally thin and suitable for the hackathon demo; production
-authentication, authorization, migrations, background jobs, and multi-user
-tenancy remain future work.
+- [Submission overview](docs/INTRO.md)
+- [Architecture](docs/architecture.md)
+- [API reference](docs/api-reference.md)
+- [Demo walkthrough](docs/demo-walkthrough.md)
+- [LLM and prompt design](docs/llm-prompts.md)
+- [Voice modes](docs/voice-mode.md)
+- [Authentication and enterprise SSO](docs/clerk-integration.md)
+- [Collaboration model](docs/collaboration-api.md)
+- [Shared schemas](packages/shared/README.md)
 
-## Branches
+The complete documentation index is in [docs/README.md](docs/README.md).
 
-- `main`: stable merge target.
-- `nandhu`: sourcing, memory, evidence, persistence, search, and voice backend.
-- `julia`: thesis, intelligence, memo, decision, and web experience.
+## Hackathon Scope
 
-Feature work should land on the owner branch first, then be rebased and merged
-into `main` as a reviewable, demo-safe change.
+Iskra is a working hackathon prototype, not investment advice. The evidence
+model, collaboration boundary, and deterministic fallbacks are designed for a
+reliable live demo. A production deployment would add managed Postgres, durable
+job workers, observability, rate limiting, secret management, and formal model
+evaluation before handling real investment decisions.

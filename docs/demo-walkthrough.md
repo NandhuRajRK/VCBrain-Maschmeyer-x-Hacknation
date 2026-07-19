@@ -1,68 +1,106 @@
-# Demo Walkthrough
+# Five-Minute Demo Walkthrough
 
-Goal: show an evidence-backed investment workflow in under five minutes.
+The demo should tell one coherent story: Iskra turns fragmented startup data
+into a fast decision without hiding uncertainty.
 
 ## Setup
 
 ```bash
-uv sync --group dev
 cp .env.example .env
-VCBRAIN_DB_PATH=/tmp/vcbrain-demo.sqlite3 uv run python scripts/seed_demo.py --reset
-uv run uvicorn services.api.app.main:app --reload
+uv sync --group dev
+VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run python scripts/seed_demo.py --reset
+VCBRAIN_DB_PATH=/tmp/iskra-demo.sqlite3 uv run uvicorn services.api.app.main:app --reload
 ```
 
-## Scenario 1: Inbound Founder
+In a second terminal:
 
-Use `AetherGrid`.
+```bash
+cd apps/web
+npm ci
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
 
-1. Open the company dossier.
-2. Open `GET /companies/{company_id}/founder-passports`. Show Mira's sourced
-   employment, education, prior venture, confidence, and evidence gaps.
-3. Open `GET /companies/{company_id}/timeline` and show the initial score and
-   readiness.
-4. Run `POST /companies/{company_id}/ingest` to process the staged HN signal.
-5. Refresh the timeline. The deck says 20 enterprise customers while the new
-   signal says 5 pilots, so confidence and readiness fall.
-6. Show `Resolve the highest-impact contradiction` as the next diligence
-   action. Julia's layer should reflect the same change in its decision.
+Open <http://localhost:3000> and confirm the dashboard loads before presenting.
 
-## Scenario 2: Cold Start
+## 1. Portfolio Cockpit
 
-Use `KiteBio` or `Brickwise`.
+Start on the dashboard. Show decision candidates, thesis fit, evidence
+confidence, open diligence work, ranked founders, pipeline velocity, and the
+interactive global intelligence map.
 
-1. Show that sparse public data is not treated as a failure.
-2. Founder Score stays low-confidence and `cold_start: true`.
-3. The system recommends evidence gaps rather than pretending certainty.
+The point: the investor sees where attention is needed before opening a deck.
 
-## Scenario 3: Outbound Sourcing
+## 2. Evidence-Backed Company Review
 
-Search:
+Open AetherGrid from Deal Flow.
+
+Show:
+
+- the Founder Passport with sourced employment, education, and prior ventures
+- the three independent investment axes
+- claims grouped by type and linked to readable evidence
+- readiness blockers and next diligence actions
+- the investment memo, red-team view, and decision-flip conditions
+
+The point: Iskra distinguishes investment quality from evidence completeness.
+
+## 3. Contradiction Moment
+
+Ingest the staged independent AetherGrid correction. The pitch material claims
+20 enterprise customers while the new source says there were five pilots.
+
+Refresh the company review and show:
+
+- the disputed traction claim
+- changed confidence and readiness
+- a new score snapshot and timeline event
+- contradiction resolution promoted to the next action
+
+The point: the system reacts causally to new evidence instead of regenerating a
+plausible-looking memo with no audit trail.
+
+## 4. Honest Cold Start
+
+Open KiteBio or Brickwise. Show `cold_start: true`, low evidence confidence,
+explicit Founder Passport gaps, and recommended research actions.
+
+The point: missing public data is uncertainty, not proof of a weak founder.
+
+## 5. Iskra Search and Voice
+
+Open Iskra and ask:
 
 ```text
-technical founder, Berlin, AI infra, no prior VC backing
+Find technical AI infrastructure founders in Berlin.
 ```
 
-1. `POST /founders/search` parses the query into structured filters.
-2. Results are ranked by matched fields plus evidence quality.
-3. Use `POST /founders/activate` to generate an outreach draft tied to evidence.
+Tag one or more existing analyses and ask which has the strongest independent
+traction evidence. Then demonstrate dictation or dialogue mode.
 
-## Scenario 4: Decision Room Hand-Off
+The point: text and voice use the same evidence-backed portfolio context.
 
-Julia consumes:
+## 6. Create an Analysis
+
+Ask Iskra:
 
 ```text
-GET /companies/{company_id}/dossier
+Start a new analysis for Northstar Robotics, a pre-seed industrial automation
+company in Munich.
 ```
 
-Her layer should add thesis filtering, 3-axis scoring, memo generation, and
-decision-flip logic. The data layer remains the evidence source of truth.
+Review the extracted fields, attach a synthetic document, and start diligence.
+The completed flow opens the company analysis directly.
 
-## Optional: Voice Moment
+## 7. Collaboration and Outcomes
 
-If `ELEVENLABS_API_KEY` is set, send the outreach draft or memo text to:
+Add a contextual comment to a claim, mention a teammate, create a verification
+task, and open the outcome simulator. Adjust growth, churn, margin, and dilution
+to show runway, next-round valuation, ownership, and MOIC changing instantly.
 
-```text
-POST /voice/narrate
-```
+The point: the decision becomes a shared operating workflow, not a static memo.
 
-Play the returned MP3 as the investor-friendly "listen to the brief" moment.
+## Closing Line
+
+“Iskra does not promise that AI can know the answer. It helps an investment team
+reach a faster answer while preserving what is known, disputed, and still
+missing.”

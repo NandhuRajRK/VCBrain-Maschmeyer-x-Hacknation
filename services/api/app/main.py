@@ -1063,7 +1063,7 @@ def activate_founder(payload: ActivateRequest, request: Request) -> ActivationDr
             f"{company.name} stood out because of {context}. "
             "If you are open to it, I would love to compare notes and understand "
             "what you are building next.\n\n"
-            "Best,\nNandhu"
+            "Best,\nThe Iskra team"
         ),
         evidence_ids=evidence_ids,
     )

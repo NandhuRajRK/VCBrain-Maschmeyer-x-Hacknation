@@ -13,7 +13,7 @@ type WorkspaceAuth = {
   organizationName: string;
   signOut: () => Promise<void>;
 };
-const AuthContext = createContext<WorkspaceAuth>({ configured: false, ready: true, name: "Nandhu", userId: "demo-user", organizationId: null, organizationName: "Demo workspace", signOut: async () => {} });
+const AuthContext = createContext<WorkspaceAuth>({ configured: false, ready: true, name: "Analyst", userId: "demo-user", organizationId: null, organizationName: "Demo workspace", signOut: async () => {} });
 
 function ClerkBridge({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded: authLoaded, orgId } = useAuth();
@@ -38,7 +38,7 @@ function ClerkBridge({ children }: { children: React.ReactNode }) {
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   if (!key) {
-    return <AuthContext.Provider value={{ configured: false, ready: true, name: process.env.NEXT_PUBLIC_USER_NAME || "Nandhu", userId: "demo-user", organizationId: null, organizationName: "Demo workspace", signOut: async () => {} }}>{children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={{ configured: false, ready: true, name: process.env.NEXT_PUBLIC_USER_NAME || "Analyst", userId: "demo-user", organizationId: null, organizationName: "Demo workspace", signOut: async () => {} }}>{children}</AuthContext.Provider>;
   }
   return <ClerkProvider publishableKey={key}><ClerkBridge>{children}</ClerkBridge></ClerkProvider>;
 }

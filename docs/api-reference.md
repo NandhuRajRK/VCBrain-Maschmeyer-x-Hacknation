@@ -1,12 +1,10 @@
 # API Reference
 
-The backend runs at `http://localhost:8000` by default. FastAPI also exposes
-the generated contract at `/docs`, `/redoc`, and `/openapi.json`.
+The FastAPI service runs at `http://localhost:8000` by default. Interactive,
+schema-generated documentation is available at `/docs`; this page groups the
+routes by product workflow.
 
-Unless noted otherwise, request and response bodies are JSON. The canonical
-response contracts live in [packages/shared/schemas.json](../packages/shared/schemas.json).
-
-## Run the API
+## Start the API
 
 ```bash
 uv sync --group dev
@@ -14,155 +12,148 @@ cp .env.example .env
 uv run uvicorn services.api.app.main:app --reload
 ```
 
-## Health and collections
+## Authentication
 
-### `GET /health`
+When Clerk is configured, send the session token with every request:
 
-Returns `{ "status": "ok" }`.
+```http
+Authorization: Bearer <clerk-session-token>
+```
 
-### `GET /companies`
+The API derives the user and active organization from the verified token. In
+local development without Clerk, the service uses a demo identity; optional
+`X-Actor-Id` and `X-Organization-Id` headers can represent collaborators.
 
-Lists all stored companies.
+## Health and Identity
 
-### `GET /founders`
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Service health check |
+| `GET` | `/auth/me` | Normalized user, session, organization, role, and permissions |
+| `GET` | `/usage` | Organization analysis-credit usage |
 
-Lists all stored founders, including persisted Founder Passport fields.
+## Fund Thesis
 
-## Company intake
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/thesis` | Load the active organization's thesis |
+| `PUT` | `/thesis` | Save thesis filters and investment parameters |
 
-### `POST /companies`
+The thesis includes sectors, stages, geographies, preferred business models,
+exclusions, check-size range, ownership target, and risk appetite.
 
-Creates a company and emits a `new_application` event.
+## Companies and Analysis Jobs
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/companies` | Create an organization-scoped company |
+| `GET` | `/companies` | List visible companies |
+| `POST` | `/analysis-jobs` | Create a persisted analysis job |
+| `GET` | `/analysis-jobs` | List organization analysis jobs |
+| `PATCH` | `/analysis-jobs/{job_id}` | Update job stage, progress, or error |
+| `POST` | `/analysis-jobs/{job_id}/run` | Queue an analysis run |
+| `POST` | `/analysis-jobs/{job_id}/retry` | Retry a failed job within its retry limit |
+
+Create a company:
 
 ```json
 {
-  "name": "DemoCo",
-  "website": "https://demo.example",
+  "name": "AetherGrid",
+  "website": "https://example.com",
   "sector": "AI infrastructure",
   "stage": "seed",
   "geography": "Berlin",
-  "description": "GPU workload routing for AI teams."
+  "description": "Routes inference jobs across available GPU capacity."
 }
 ```
 
-Returns `201 Company`. Profile fields include `field_provenance` and
-`field_confidence`.
+Only `name` is required. Missing company fields can be extracted later from
+documents or sources while retaining field-level provenance.
 
-### `POST /sources`
+## Documents and Sources
 
-Registers a source for an existing company. It does not ingest the source until
-`POST /companies/{company_id}/ingest` is called.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/sources` | Register a normalized source |
+| `POST` | `/companies/{company_id}/documents` | Upload and segment a document |
+| `POST` | `/sources/pull` | Pull selected public/search connectors |
+| `POST` | `/companies/{company_id}/ingest` | Process queued sources |
+
+Document uploads accept `.txt`, `.md`, `.pdf`, `.pptx`, `.docx`, `.csv`, and
+supported spreadsheet/image inputs. The response includes the source,
+segments, warnings, and any follow-up extraction tasks.
+
+Source pull example:
 
 ```json
 {
-  "company_id": "company_...",
-  "source_type": "pitch_deck",
-  "title": "Founder deck",
-  "text": "Sector: AI infrastructure. Stage: seed.",
-  "url": null,
-  "metadata": {
-    "founders": [
-      {
-        "name": "Mira Shah",
-        "role": "CEO",
-        "work_history": [],
-        "education_history": [],
-        "previous_ventures": []
-      }
-    ]
-  }
+  "company_id": "company_123",
+  "connectors": ["github", "hacker_news", "tavily"],
+  "query": "AetherGrid GPU inference Berlin",
+  "github_user": "example-founder",
+  "max_website_pages": 3
 }
 ```
 
-Returns `201 Source`. A duplicate URL or content fingerprint returns `409` with
-the existing source ID. Supported detailed source types include documents,
-public signals, websites, registries, research, and `other`; the normalized
-`source_category` is one of `github`, `hacker_news`, `arxiv`, `product_hunt`,
-`press`, `pitch_deck`, or `founder_doc`.
+Supported connector values are `github`, `hacker_news`, `product_hunt`,
+`arxiv`, `website`, `perplexity`, `exa`, `tavily`, `opencorporates`,
+`sec_edgar`, and `patentsview`.
 
-### `POST /companies/{company_id}/documents`
+Sources are deduplicated per company by normalized URL and content fingerprint.
+Duplicate registration returns `409`.
 
-Uploads a pitch deck or founder document as multipart form data:
+## Dossier, Evidence, and Memory
 
-```bash
-curl -X POST http://localhost:8000/companies/company_123/documents \
-  -F 'file=@pitch-deck.pdf'
-```
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/companies/{company_id}/dossier` | Full company, founder, source, claim, evidence, and score bundle |
+| `GET` | `/companies/{company_id}/claims` | Typed claim ledger |
+| `GET` | `/companies/{company_id}/evidence` | Evidence linked to company claims |
+| `GET` | `/companies/{company_id}/readiness` | Diligence completeness, blockers, and next actions |
+| `GET` | `/companies/{company_id}/timeline` | Score snapshots, claim transitions, and trigger events |
+| `GET` | `/companies/{company_id}/events` | Company trigger events |
+| `GET` | `/internal-memory` | List organization VC memory, optionally filtered by kind |
+| `POST` | `/internal-memory` | Add a prior memo, CRM note, partner note, or related memory |
+| `GET` | `/companies/{company_id}/internal-memory` | Company-scoped VC memory |
 
-Supported formats are `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx`. The response
-contains the created source, parsed segments, and follow-up `llm_tasks`.
-Duplicate content returns `409`; an unknown company returns `404`.
+Claim kinds are `company`, `founder`, `traction`, `market`, `product`, and
+`financial`. Claim states are `extracted`, `supported`, `disputed`, and
+`missing_evidence`.
 
-### `POST /sources/pull`
+Evidence records expose `source_id`, `segment_id`, quote, confidence, source
+reliability, independence, freshness, directness, and a confidence reason.
 
-Runs one or more normalized connectors and queues the returned signals.
+VC memory kinds are `prior_memo`, `rejected_deal`, `portfolio_company`,
+`crm_note`, `email`, `partner_note`, and `investment_committee`. Memory records
+remain separate from public evidence and are deduplicated by content.
+
+## Founders
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/founders` | List visible founders |
+| `GET` | `/founders/ranked` | Rank founders by persistent score and trend |
+| `GET` | `/companies/{company_id}/founders` | List company founders |
+| `GET` | `/companies/{company_id}/founder-passports` | Company Founder Passports |
+| `GET` | `/founders/{founder_id}/passport` | One Founder Passport |
+| `POST` | `/companies/{company_id}/founder-passports/enrich` | Explicit Tavily or Exa founder research |
+| `POST` | `/founders/search` | Natural-language founder discovery |
+| `POST` | `/founders/activate` | Evidence-aware outreach draft |
+
+Founder search example:
 
 ```json
 {
-  "company_id": "company_...",
-  "connectors": ["github", "hacker_news", "arxiv"],
-  "query": "DemoCo AI",
-  "github_user": "demo",
-  "arxiv_query": "DemoCo AI",
-  "website_url": "https://demo.example"
+  "query": "technical AI infrastructure founders in Berlin",
+  "limit": 5
 }
 ```
 
-Returns `SourcePullResult` with `created_sources` and `deduped_sources`.
+Search parses explicit criteria into structured filters and ranks matches using
+profile fit, evidence quality, and Founder Score signals. It is not an
+investment recommendation.
 
-### `POST /companies/{company_id}/ingest`
-
-Processes queued sources. It parses segments, extracts claims and evidence,
-updates company profile provenance, resolves founders, enriches Founder
-Passports, adjudicates claims, refreshes Founder Scores, and persists the
-result.
-
-Returns `IngestionRun` with accepted source count, parsed segment count,
-extracted claim count, and warnings.
-
-## Dossier and memory
-
-### `GET /companies/{company_id}/dossier`
-
-Returns the complete `Dossier`:
-
-```text
-company, founders, sources, segments, claims, evidence,
-founder_scores, trigger_events
-```
-
-Claims reference evidence through `evidence_ids`. Use the claim status and
-verification fields to distinguish supported, disputed, missing, founder-backed,
-and independently supported facts.
-
-### `GET /companies/{company_id}/claims`
-
-Returns the company's claim-evidence ledger.
-
-### `GET /companies/{company_id}/evidence`
-
-Returns evidence reachable from the company's claims, including source
-independence, freshness, directness, reliability, and confidence reason.
-
-### `GET /companies/{company_id}/founders`
-
-Returns the founders attached to a company.
-
-### `GET /companies/{company_id}/founder-passports`
-
-Returns one `FounderPassport` per founder. Each work, education, or previous
-venture fact includes `source_ids` and fact confidence. `gaps` describes what is
-unverified; it does not prove the missing history does not exist.
-
-### `GET /founders/{founder_id}/passport`
-
-Returns one Founder Passport. Unknown founders return `404`.
-
-### `POST /companies/{company_id}/founder-passports/enrich`
-
-Runs explicit founder-specific web enrichment through Tavily or Exa. This is
-the controlled path that may spend a search-provider credit; normal ingestion
-does not silently call these providers.
+Founder enrichment is an explicit, credit-controlled operation:
 
 ```json
 {
@@ -171,122 +162,71 @@ does not silently call these providers.
 }
 ```
 
-The endpoint builds one query per founder, for example:
+## Collaboration
 
-```text
-"Mira Shah" founder AetherGrid career education previous startup work history
-```
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/companies/{company_id}/collaboration` | Members, notes, tasks, and activity |
+| `POST` | `/companies/{company_id}/collaborators` | Add a workspace member |
+| `POST` | `/companies/{company_id}/collaboration/notes` | Create an evidence-linked comment |
+| `PATCH` | `/companies/{company_id}/collaboration/notes/{note_id}` | Reply, edit, or resolve a comment |
+| `POST` | `/companies/{company_id}/collaboration/tasks` | Create a diligence task |
+| `PATCH` | `/companies/{company_id}/collaboration/tasks/{task_id}` | Update task state or assignment |
+| `POST` | `/companies/{company_id}/invitations` | Invite an organization user |
+| `GET` | `/companies/{company_id}/invitations` | List deal invitations |
+| `POST` | `/invitations/{invitation_id}/accept` | Accept an invitation |
 
-It stores each result as a third-party source tagged with `founder_enrichment`,
-ingests the queued sources, and returns the created sources plus the
-`IngestionRun`. Supported connectors are `tavily` and `exa`; the default is one
-Tavily result per founder. Set `max_sources_per_founder` from 1 to 3 to control
-cost and result volume.
+Notes can reference claim and evidence IDs. Version fields provide optimistic
+concurrency; stale updates return `409` rather than replacing a teammate's work.
 
-### `GET /companies/{company_id}/readiness`
+## Outcome Simulation
 
-Returns `DecisionReadiness` with:
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/outcomes/simulate` | Stateless scenario simulation |
+| `POST` | `/companies/{company_id}/outcomes/simulate` | Company-linked scenario simulation |
 
-- a 0-100 diligence-completeness score
-- component scores
-- explicit blockers
-- contradiction count and cold-start state
-- ranked `next_actions` with expected readiness gain
+Inputs cover investment amount, entry valuation, MRR, growth, churn, margin,
+burn, cash, next-round timing and dilution, exit timing, revenue multiple, and
+exit probability. The response includes runway, next-round valuation,
+ownership, expected return, MOIC, and bear/base/bull scenarios.
 
-Readiness is not a fourth investment axis.
+## Iskra Assistant and Voice
 
-### `GET /companies/{company_id}/timeline`
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/assistant/query` | Evidence-grounded portfolio Q&A |
+| `POST` | `/assistant/title` | Generate a short chat title |
+| `POST` | `/assistant/opportunity-intent` | Parse a request to create an analysis |
+| `POST` | `/voice/transcribe` | Transcribe browser/mobile audio |
+| `POST` | `/voice/query` | Transcribe and route a spoken command |
+| `POST` | `/voice/query/text` | Route an existing transcript |
+| `POST` | `/voice/narrate` | Generate optional ElevenLabs MP3 narration |
 
-Returns the decision flight recorder: immutable Founder Score snapshots and
-deltas, claim status changes, trigger events, and current readiness.
+`/voice/query` accepts multipart audio and returns a typed intent. The upload
+limit is 25 MB. `/voice/query/text` follows the same routing contract without
+an audio upload.
 
-### `GET /companies/{company_id}/events`
+Assistant queries receive explicit portfolio context and recent message
+history. Attached files are marked as unverified context until ingested through
+the evidence pipeline.
 
-Returns all trigger events for a company.
+## Demo Data
 
-## Discovery and outreach
+`POST /demo/seed?reset=true` loads ten synthetic companies and founders,
+supporting documents, Founder Passports, claims, evidence, and staged
+contradictions. Reset is intended only for an isolated demo database.
 
-### `POST /founders/search`
-
-Accepts natural-language sourcing criteria and returns ranked `SearchMatch`
-objects.
-
-```json
-{
-  "query": "technical founder, Berlin, AI infrastructure, no prior VC backing",
-  "limit": 5
-}
-```
-
-OpenAI parses the query into structured filters when configured. The fallback
-parser keeps the demo functional without a key. Ranking uses matched company
-fields, founder traits, evidence quality, and persistent Founder Score signals;
-it is not an investment recommendation.
-
-### `POST /founders/activate`
-
-Creates an outbound activation draft for a founder.
-
-```json
-{
-  "founder_id": "founder_...",
-  "context": "Your recent technical and launch signals"
-}
-```
-
-The draft uses supported claims and prioritizes independently supported
-evidence. Disputed evidence is excluded from `evidence_ids`.
-
-## Voice
-
-### `POST /voice/query`
-
-Accepts multipart audio with `audio`, optional `limit`, `speak_response`, and
-`voice_id`. Audio is transcribed by OpenAI, routed into a typed intent, and
-then executed for founder search or returned as a handoff for Julia's dossier,
-memo, decision, or activation views.
-
-The upload limit is 25 MB. Missing OpenAI configuration returns `503`; upstream
-transcription failures return `502`.
-
-### `POST /voice/query/text`
-
-Runs the same routing contract without audio, useful for browser tests and
-mobile clients before microphone integration.
-
-```json
-{
-  "transcript": "Find technical founders in Berlin",
-  "limit": 5,
-  "speak_response": false
-}
-```
-
-### `POST /voice/narrate`
-
-Accepts `{ "text": "...", "voice_id": "optional" }` and returns
-`audio/mpeg` using ElevenLabs. Missing `ELEVENLABS_API_KEY` returns `503`.
-
-## Demo
-
-### `POST /demo/seed?reset=true`
-
-Seeds 10 synthetic companies and founders, sample pitch decks, sourced Founder
-Passport histories, claims, evidence, and staged contradictions. Reset is
-intended for local demo databases only.
-
-The AetherGrid flow begins with one score snapshot. Ingesting the queued HN
-correction creates a contradiction event, a second score snapshot, and a
-readiness drop.
-
-## Common errors
+## Common Errors
 
 | Status | Meaning |
 | --- | --- |
-| `400` | Invalid request or empty audio. |
-| `404` | Company or founder does not exist. |
-| `409` | Duplicate source or document. |
-| `413` | Voice upload exceeds 25 MB. |
-| `422` | FastAPI/Pydantic validation failure. |
-| `502` | Upstream OpenAI or ElevenLabs request failed. |
-| `503` | Required voice API key is not configured. |
+| `400` | Invalid operation or missing organization requirement |
+| `401` | Missing or invalid configured authentication |
+| `403` | Authenticated but not permitted for the organization or resource |
+| `404` | Resource is unavailable in the active organization |
+| `409` | Duplicate content, stale collaboration version, or retry limit |
+| `413` | Audio upload exceeds the configured limit |
+| `422` | Request validation failed |
+| `502` | Upstream model or voice provider failed |
+| `503` | A required live integration is not configured |

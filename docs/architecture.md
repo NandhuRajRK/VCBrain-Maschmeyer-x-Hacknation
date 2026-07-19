@@ -1,165 +1,160 @@
 # Architecture
 
-## Product Shape
+Iskra is a monorepo with a Next.js investor workspace, a FastAPI diligence API,
+shared wire schemas, synthetic demo data, and contract-focused tests.
 
-VC Brain turns an application or public founder signal into a traceable
-decision input:
+## System Map
 
 ```text
-application / source pull / document
-                |
-                v
-        FastAPI intake layer
-                |
-                +--> source deduplication + provenance
-                +--> PDF/PPTX/DOCX/text parsing
-                +--> segments -> claims -> evidence links
-                +--> founder resolution + Founder Passport
-                |
-                v
-        company memory refresh
-                |
-                +--> persistent Founder Score
-                +--> claim verification and contradictions
-                +--> score snapshots and trigger events
-                +--> decision readiness and next actions
-                |
-                v
-        dossier / timeline / readiness / search / activation / voice
-                |
-                v
-        Julia's thesis, three-axis scoring, memo, decision, and UI layer
+Browser
+  Next.js workspace
+  dashboard, analysis queue, company review, thesis, Iskra chat/voice
+        |
+        | typed HTTP + Clerk bearer token
+        v
+FastAPI
+  intake | connectors | parsing | evidence | memory | intelligence
+  collaboration | outcomes | voice | assistant | analysis jobs
+        |
+        +---- OpenAI: structured extraction, reasoning, transcription
+        +---- ElevenLabs: optional spoken responses
+        +---- Public/search APIs: GitHub, HN, arXiv, Tavily, Exa, and others
+        |
+        v
+SQLite
+  organization-scoped companies, sources, claims, evidence, scores,
+  passports, jobs, comments, tasks, theses, and VC memory
 ```
 
 ## Repository Layout
 
 ```text
-services/api/app/       FastAPI routes and data-side domain logic
-packages/shared/        Shared wire schemas for API and web clients
-data/samples/           Safe synthetic founder and pitch-deck fixtures
-docs/                   Product, architecture, contracts, and demo notes
-tests/                  API smoke and contract tests
-scripts/                Small local demo utilities
+apps/web/               Next.js investor workspace
+services/api/app/       FastAPI routes and domain logic
+packages/shared/        Shared JSON wire schemas
+data/samples/           Synthetic founders and pitch materials
+docs/                   Submission and technical documentation
+scripts/                Demo seeding utilities
+tests/                  API, persistence, collaboration, and outcome tests
 ```
 
-The current branch contains the backend and shared contracts. The web client is
-Julia's owned surface and is integrated separately.
-
-## Main Data Flow
+## Diligence Pipeline
 
 ### 1. Intake
 
-`POST /companies` creates a company and emits a `new_application` trigger. The
-company profile records field-level provenance and confidence. Application
-values are authoritative over weaker later source updates.
+`POST /companies` creates an organization-scoped company. Documents uploaded to
+`POST /companies/{id}/documents` become timestamped sources and page-, slide-,
+sheet-, or section-level segments.
 
-`POST /sources` registers a source without processing it. Sources are scoped to
-one company and receive a normalized content fingerprint. A matching URL or
-fingerprint returns `409` instead of creating duplicate evidence.
+Sources are deduplicated by normalized URL and content fingerprint. Duplicate
+content returns `409`, preventing the same evidence from inflating confidence.
 
-`POST /sources/pull` runs selected connectors and stores returned signals as
-queued sources. Pull-time title compatibility deduplication is retained in
-addition to URL and content deduplication.
+### 2. Source enrichment
 
-### 2. Parsing and extraction
+`POST /sources/pull` runs selected connectors. Every connector returns a common
+signal shape, so public APIs, search providers, registry lookups, websites, and
+synthetic fallbacks enter the same ingestion path.
 
-Uploaded `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` files become `Source` plus
-page/slide-like `Segment` records. Each extracted claim gets its own `Evidence`
-record and the claim's `evidence_ids` point back to it.
+Live connectors include GitHub, Hacker News, Product Hunt, arXiv, websites,
+Tavily, Exa, Perplexity, OpenCorporates, SEC EDGAR, and PatentsView. Missing
+credentials produce an explicit fallback or search surface instead of crashing
+the demo.
 
-Claim kinds are `company`, `founder`, `traction`, `market`, `product`, and
-`financial`. Claim confidence combines extraction quality, quote coverage,
-source reliability, independence, freshness, and directness.
+### 3. Claims and evidence
 
-### 3. Founder memory
+Ingestion creates multiple typed claims from each useful segment. Claim kinds
+are `company`, `founder`, `product`, `traction`, `market`, and `financial`.
+Each claim links to one or more evidence records through `evidence_ids`.
 
-Founder entities are resolved by company and normalized name. A generated
-placeholder founder is upgraded in place when a real founder appears later.
+Evidence quality records:
 
-The Founder Passport stores sourced work history, education, previous ventures,
-skills, public profiles, fact confidence, and explicit gaps. Structured founder
-metadata is used first. Unstructured biographies can use the dedicated OpenAI
-passport prompt. `POST /companies/{company_id}/founder-passports/enrich` can
-explicitly fetch founder-targeted Tavily or Exa sources before running the same
-ingestion path. Ordinary ingestion does not silently spend search credits.
+- source reliability and independence
+- direct versus indirect support
+- freshness and observation time
+- extraction confidence and its reason
+- the supporting quote or segment
 
-### 4. Truth layer
+Claims transition between `extracted`, `supported`, `disputed`, and
+`missing_evidence`. Deterministic comparison handles common temporal and unit
+differences; a capped OpenAI referee handles ambiguous pairs when configured.
 
-Claims move through `extracted`, `supported`, `disputed`, and
-`missing_evidence`. Verification distinguishes founder/company-backed claims
-from independently supported claims. Contradiction detection understands
-dates, growth over time, subsets, pilots versus customers, and explicit
-negations. OpenAI adjudication is optional and capped; deterministic logic is
-the fallback.
+### 4. Founder memory
 
-### 5. Memory and decision readiness
+Founder entities are resolved by normalized identity. A Founder Passport stores
+source-linked employment, education, previous ventures, outcomes, skills, and
+explicit gaps. Duplicate facts are merged and corroborating source IDs increase
+confidence.
 
-Ingestion refreshes the persisted Founder Score and records an immutable score
-snapshot only when meaningful values change. Trigger events include:
+The persistent Founder Score updates when new evidence arrives. Cold-start
+founders remain eligible for review, but the API marks their evidence coverage
+and confidence explicitly.
 
-- `new_application`
-- `signal_threshold_crossed`
-- `contradiction_detected`
-- `score_changed`
-- `cold_start_resolved`
-- `decision_ready`
+### 5. Investment intelligence
 
-Decision readiness is separate from Julia's investment score. It measures
-whether the dossier has enough profile coverage, claim coverage, independent
-evidence, resolved claims, and founder memory to support a decision. It returns
-blockers and ranked next evidence actions.
+The web intelligence layer consumes the dossier and applies:
 
-## Connectors
+- configurable thesis hard and soft filters
+- independent Founder, Market, and Idea-vs-Market scores
+- evidence confidence, freshness, and independence adjustments
+- risk detection and trend direction
+- memo, SWOT, red-team reasoning, and decision-flip conditions
 
-The connector layer supports:
+The three axes are never averaged into one hidden score. Decision readiness is
+a separate measure of whether enough evidence exists to decide.
 
-| Connector | Behavior |
-| --- | --- |
-| GitHub | Live public profile lookup when `github_user` is supplied. |
-| Hacker News | Live Algolia story search. |
-| Product Hunt | Live GraphQL search with `PRODUCT_HUNT_TOKEN`; otherwise a search surface fallback. |
-| arXiv | Live Atom API search. |
-| Website | Live HTML fetch and text extraction. |
-| Perplexity | Live web-grounded diligence with `PERPLEXITY_API_KEY`; otherwise a fallback source. |
-| Exa | Live semantic search with `EXA_API_KEY`; otherwise a fallback source. |
-| Tavily | Live web search with `TAVILY_API_KEY`; otherwise a fallback source. |
-| OpenCorporates | Live registry lookup, optionally with `OPENCORPORATES_API_TOKEN`. |
-| SEC EDGAR | Live company ticker lookup. |
-| PatentsView | Search surface URL for patent and inventor research. |
+### 6. Collaboration and memory
 
-Every connector returns the same normalized `Signal` shape. Missing credentials
-do not crash the demo; they create explicit fallback/search-surface sources so
-the evidence gap remains visible.
+Companies, analyses, theses, comments, tasks, invitations, and VC memory are
+scoped by `organization_id`. Contextual comments can link to claims and evidence.
+Optimistic versions and SQLite immediate transactions prevent silent concurrent
+overwrites.
+
+VC memory stores prior memos, rejected-deal history, portfolio context, CRM or
+email notes, partner notes, and investment committee records. These records are
+kept distinct from public evidence so provenance remains clear.
 
 ## Persistence
 
-The default store is SQLite at `data/processed/vcbrain.sqlite3`. It stores
-Pydantic records as JSON payloads in a small collection/key table. Collections
-include companies, founders, sources, segments, claims, evidence, current
-Founder Scores, score history, claim status changes, and trigger events.
+The default database is `data/processed/vcbrain.sqlite3`. Set
+`VCBRAIN_DB_PATH` to isolate local, test, and demo runs. Pydantic records are
+stored as JSON payloads in a compact SQLite collection table, with transactional
+helpers for multi-record collaboration updates.
 
-Set `VCBRAIN_DB_PATH` to isolate local, test, or demo databases. The demo reset
-clears application collections and reseeds synthetic data. This persistence
-layer is intentionally thin for the hackathon; authentication, migrations,
-multi-user tenancy, and background job orchestration are not implemented.
+Analysis jobs are persisted so the UI can recover progress after a refresh.
+The hackathon implementation runs jobs inside the API process; a production
+deployment should move them to a durable queue and worker pool.
 
-## LLM Boundaries
+## AI Boundaries
 
-OpenAI is used only for structured tasks that benefit from language
-understanding: source claims, company profiles, natural-language search,
-contradiction adjudication, founder background extraction, and voice
-transcription/routing. Each task has its own system prompt and JSON schema.
+OpenAI is used for tasks where language understanding materially helps:
+structured claim extraction, company and founder normalization, contradiction
+adjudication, natural-language search, assistant answers, opportunity intake,
+chat titles, and transcription. Every use case has a dedicated system prompt
+and a constrained output contract.
 
-Julia's investment reasoning remains a separate ownership boundary. Her future
-OpenAI prompts should consume the dossier, preserve claim IDs, and never replace
-the source evidence with invented rationale.
+Deterministic paths remain available for core demo workflows, and costly calls
+are capped. Attached files are treated as context until they pass through the
+evidence pipeline.
 
-## Security and Operational Notes
+## Authentication and Isolation
 
-- Keep all API keys in a local `.env`; never expose them to the browser or commit
-  them.
-- Use the small configured OpenAI model during development.
-- Live connector calls have short timeouts and deterministic fallbacks.
-- Voice uploads are capped at 25 MB.
-- This is a hackathon prototype and has no authentication, authorization,
-  request rate limiting, or production secret manager yet.
+Clerk provides user sessions and organization membership. The API verifies the
+token and maps `sub`, `org_id`, role, and permissions into a provider-neutral
+identity context. Cross-organization company access is rejected without
+revealing whether the resource exists.
+
+When Clerk is not configured, development uses an explicit demo identity.
+`APP_ENV=production` fails closed if authentication is missing.
+
+## Hackathon Reliability Choices
+
+- Synthetic fixtures keep the core story deterministic.
+- Connector and model failures become visible evidence gaps.
+- API keys never enter browser code.
+- Voice uploads are size-limited.
+- Organization boundaries are enforced by the API, not only the UI.
+- Tests isolate persistence and mock paid model behavior.
+
+For production, replace local SQLite and in-process jobs with managed storage,
+durable workers, observability, rate limits, secret management, migrations, and
+formal model-quality evaluation.

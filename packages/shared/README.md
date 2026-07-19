@@ -1,20 +1,24 @@
 # Shared Schemas
 
-Contract layer shared by the data API and the intelligence/UI work.
+`schemas.json` is the wire-contract reference shared by the FastAPI service and
+the Next.js workspace.
 
-The source of truth is `schemas.json`. Keep these names aligned with API
-responses so Julia's scoring and memo layer can depend on stable fields.
+It describes companies, founders, claims, evidence, Founder Scores, Founder
+Passports, readiness, timelines, thesis configuration, three-axis scoring,
+investment memos, decisions, voice commands, collaboration, and outcome data.
 
-Nandhu owns the data-side implementations. Julia owns behavior for
-`ThesisConfig`, `AxisScore`, `InvestmentMemo`, and `Decision`; those schemas are
-included here so both sides can wire against the same contract. The reusable
-voice input contract is `VoiceQueryResponse`: Julia can route its typed command
-to the appropriate view without depending on OpenAI or ElevenLabs details.
+API payloads use `snake_case`. TypeScript may use `camelCase` internally, but
+the API adapter must map fields explicitly at the boundary.
 
-`DecisionReadiness` and `CompanyTimeline` power the decision flight recorder.
-Readiness measures whether the dossier is complete enough to decide; it must
-not be presented as a fourth investment score.
+Important distinctions:
 
-`FounderPassport` is the evidence-backed founder-history contract. The API wire
-format is snake_case. TypeScript may use camelCase internally, but its API
-adapter must map to the names in `schemas.json`.
+- Decision readiness measures evidence completeness; it is not a fourth
+  investment score.
+- Founder Score is persistent founder memory; the Founder investment axis is a
+  separate opportunity-level assessment.
+- Claims reference evidence through `evidence_ids`.
+- Model-generated rationale must preserve source and claim identifiers where
+  the schema provides them.
+
+When a shared response changes, update the schema, Pydantic model, TypeScript
+adapter, and contract tests together.

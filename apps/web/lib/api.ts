@@ -1,8 +1,8 @@
 /**
  * API Client
  *
- * Typed fetch wrappers for every endpoint in Nandhu's FastAPI backend.
- * Each function matches the exact request/response shapes from his
+ * Typed fetch wrappers for the Iskra FastAPI backend.
+ * Each function matches the exact request/response shapes from the
  * Pydantic models, so there is zero mismatch at the boundary.
  *
  * The main export is `analyzePipeline()`, which chains:
@@ -26,7 +26,7 @@ import { authToken } from "./auth-token";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// ── API-specific types (match Nandhu's models.py exactly) ─────
+// API-specific types mirrored from models.py.
 
 /** Mirrors models.py Company (extends CompanyCreate) */
 export interface ApiCompany {
@@ -802,7 +802,7 @@ export interface PipelineResult {
  * "company ID" to "investment memo with decision."
  *
  * Steps:
- *   1. GET /companies/{id}/dossier (all data from Nandhu's backend)
+ *   1. GET /companies/{id}/dossier
  *   2. evaluateThesis() (hard gates + soft fit scoring)
  *   3. scoreDossier() (3-axis evidence-adjusted scores)
  *   4. generateMemo() (structured memo with red-team and decision-flip)

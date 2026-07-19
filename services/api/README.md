@@ -1,150 +1,66 @@
-# API Service
+# Iskra API
 
-FastAPI service for Nandhu's slice: company intake, source registration,
-parsing, extraction, entity resolution, evidence-backed claims, and dossier
-readback. Source connectors normalize public signals, search/research APIs,
-registries, filings, patents, websites, and uploaded founder documents into
-the agreed source schema.
+FastAPI backend for the HackNation Maschmeyer Group **The VC Brain** submission.
+It handles company intake, document and source ingestion, evidence resolution,
+founder memory, analysis jobs, collaboration, outcomes, assistant requests, and
+voice transport.
 
-See the complete route-by-route reference in
-[`docs/api-reference.md`](../../docs/api-reference.md) and the system-level
-design in [`docs/architecture.md`](../../docs/architecture.md).
+See the [API reference](../../docs/api-reference.md) and
+[architecture](../../docs/architecture.md) for the full system contract.
 
 ## Run
 
 ```bash
-uv sync --group dev
 cp .env.example .env
+uv sync --group dev
 uv run uvicorn services.api.app.main:app --reload
 ```
 
-## Current Endpoints
+Open <http://localhost:8000/docs> for generated OpenAPI documentation.
 
-- `GET /health`
-- `POST /companies`
-- `POST /sources`
-- `POST /companies/{company_id}/documents`
-- `POST /sources/pull`
-- `POST /companies/{company_id}/ingest`
-- `GET /companies/{company_id}/dossier`
-- `GET /companies/{company_id}/readiness`
-- `GET /companies/{company_id}/timeline`
-- `GET /companies/{company_id}/claims`
-- `GET /companies/{company_id}/evidence`
-- `GET /companies/{company_id}/founders`
-- `GET /companies/{company_id}/founder-passports`
-- `POST /companies/{company_id}/founder-passports/enrich`
-- `GET /founders/{founder_id}/passport`
-- `GET /companies/{company_id}/events`
-- `POST /founders/search`
-- `POST /founders/activate`
-- `POST /voice/narrate`
-- `POST /voice/query`
-- `POST /voice/query/text`
-- `GET /companies`
-- `GET /founders`
-- `POST /demo/seed`
+## Core Route Groups
 
-## Source Connectors
+- identity, usage, and organization thesis
+- companies and persisted analysis jobs
+- source registration, connector pulls, and document parsing
+- dossier, claims, evidence, readiness, and timeline
+- Founder Passports, ranked founders, search, and activation
+- VC memory, comments, tasks, members, and invitations
+- outcome simulation
+- Iskra assistant, opportunity intent, transcription, and narration
+- synthetic demo seeding
 
-`POST /sources/pull` supports:
+## Integrations
 
-- `github`
-- `hacker_news`
-- `product_hunt`
-- `arxiv`
-- `website`
-- `perplexity`
-- `exa`
-- `tavily`
-- `opencorporates`
-- `sec_edgar`
-- `patentsview`
+Optional environment keys enable OpenAI, ElevenLabs, Product Hunt, Tavily, Exa,
+Perplexity, and OpenCorporates. GitHub, Hacker News, arXiv, websites, SEC EDGAR,
+and patent search use public surfaces where available.
 
-Optional API keys:
+Missing credentials do not break the core demo. Connectors return explicit
+fallback/search records, deterministic parsers remain available, and the UI can
+show the resulting evidence gap.
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` defaults to `gpt-4o-mini`
-- `OPENAI_TRANSCRIPTION_MODEL` defaults to `gpt-4o-mini-transcribe`
-- `ELEVENLABS_API_KEY`
-- `ELEVENLABS_VOICE_ID` defaults to `JBFqnCBsd6RMkjVDRZzb`
-- `ELEVENLABS_MODEL_ID` defaults to `eleven_multilingual_v2`
-- `PRODUCT_HUNT_TOKEN`
-- `PERPLEXITY_API_KEY`
-- `EXA_API_KEY`
-- `TAVILY_API_KEY`
-- `OPENCORPORATES_API_TOKEN`
+Founder-specific Tavily or Exa enrichment is an explicit endpoint with a result
+cap. Ordinary ingestion does not silently spend search credits.
 
-Missing keys do not break the demo. The connector records a fallback/search
-surface instead, so the dossier still shows evidence gaps explicitly.
+## Documents
 
-Use the founder enrichment endpoint when a founder-specific Tavily or Exa search
-is desired. It is explicit and credit-controlled; ordinary ingestion does not
-invoke those search providers automatically.
+The parser handles text, Markdown, PDF, PowerPoint, Word, Excel, and common
+image formats. Image OCR is optional and reports a warning when local Tesseract
+is unavailable. Every parsed unit becomes an evidence-addressable segment.
 
-`OPENAI_API_KEY` enables structured company-profile extraction during ingestion
-and structured parsing for `POST /founders/search`.
-Without it, the endpoint uses a deterministic parser for demo stability.
-Company fields prefer explicit source metadata and labels, then use the
-dedicated profile prompt for unstructured text. Prompt text is use-case-specific
-and lives in `services/api/app/prompts.py`.
+## Persistence and Tenancy
 
-Founder Passport enrichment first consumes structured founder metadata, then
-uses the dedicated `founder_passport_extraction` prompt for unstructured
-biographies. Employment, education, and prior-venture facts retain source IDs,
-fact confidence, and explicit gaps. Calls are capped by
-`OPENAI_FOUNDER_PASSPORT_MAX_CALLS`, which defaults to 10 per API process.
+The default SQLite path is `data/processed/vcbrain.sqlite3`; override it with
+`VCBRAIN_DB_PATH`. Organization-scoped routes enforce the Clerk organization
+boundary. Collaboration updates use optimistic versions and immediate
+transactions.
 
-`OPENAI_API_KEY` also enables `POST /voice/query`, which accepts browser/mobile
-audio, transcribes it, routes the command, and returns a reusable typed response.
-`POST /voice/query/text` accepts the same flow after client-side transcription.
-`ELEVENLABS_API_KEY` optionally adds base64 MP3 narration to the same response;
-`POST /voice/narrate` remains available for arbitrary text.
-
-## Person A Scope
-
-- Deduplicates sources per company by normalized URL and content fingerprint,
-  with connector/title matching retained for pulled-signal compatibility.
-- Timestamps signals with `observed_at` and sources with `submitted_at`.
-- Updates founder scores after ingestion and persists them to
-  SQLite at `data/processed/vcbrain.sqlite3`.
-- Marks cold-start founders explicitly when evidence is sparse.
-- Builds sourced Founder Passports covering career, education, prior ventures,
-  skills, confidence, and missing-history gaps.
-- Emits trigger events for new applications and signal threshold crossings.
-- Parses uploaded `.txt`, `.md`, `.pdf`, `.pptx`, and `.docx` files into
-  evidence-ready segments with LLM follow-up tasks attached.
-- Seeds 10 demo founder profiles, 3 decks, and contradictions from
-  `data/samples/`.
-- Supports NL-style founder search and an outbound activation draft.
-
-## Data Contract
-
-Ingestion emits one evidence object per extracted claim and links it through
-`Claim.evidence_ids`. Claim confidence combines extraction quality, source
-reliability, quote coverage, and directness. Claims are then resolved to
-`supported`, `disputed`, or `missing_evidence` when evidence links and
-cross-source comparisons are available.
-
-Founder metadata is resolved from document metadata and text, including name,
-role, LinkedIn, and GitHub. A founder is marked `cold_start` when the pipeline
-has fewer than two founder data points, and that state is returned
-with the persisted Founder Score. Every source has a connector-specific
-`source_type`, one of the seven-value canonical `source_category` values, and a
-`submitted_at` timestamp. The detailed type preserves the independence and
-reliability signals used by scoring.
-
-Readiness is a diligence-completeness score, not an investment score. It
-returns blockers and next-best evidence actions. The timeline preserves claim
-verification changes, Founder Score snapshots, and causal trigger events so a
-new source can explain exactly why confidence changed.
-
-## Demo Seed
+## Test
 
 ```bash
-uv run --with fastapi --with pypdf --with python-docx --with python-pptx python scripts/seed_demo.py --reset
+uv run pytest -q
 ```
 
-Set `VCBRAIN_DB_PATH` to isolate local, test, or deployed SQLite files.
-
-The same seed flow is available through `POST /demo/seed`.
+Tests use isolated databases and mocked paid integrations, so they do not
+consume API credits.

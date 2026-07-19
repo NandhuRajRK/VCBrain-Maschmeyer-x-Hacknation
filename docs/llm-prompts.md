@@ -1,41 +1,59 @@
-# LLM Prompt Policy
+# LLM and Prompt Design
 
-OpenAI is the LLM provider for this project.
+OpenAI is Iskra's language-model provider. The system uses a dedicated prompt
+for every task rather than one universal assistant prompt.
 
-Each LLM use case has a dedicated system prompt in
-`services/api/app/prompts.py`. Do not use one universal prompt for unrelated
-tasks.
+Prompts live in `services/api/app/prompts.py`. Structured tasks use constrained
+Pydantic/JSON outputs, while deterministic fallbacks keep the core demo usable
+without an API key.
 
-## Current Prompts
+## Prompt Responsibilities
 
-- `FOUNDER_SEARCH_SYSTEM_PROMPT`
-  - Parses natural-language sourcing queries into structured filters.
-  - Does not rank founders or make investment judgments.
-- `CLAIM_EXTRACTION_SYSTEM_PROMPT`
-  - Extracts source-backed claims from documents and public signals.
-  - Does not score, memo, or infer beyond source text.
-- `COMPANY_PROFILE_SYSTEM_PROMPT`
-  - Extracts sector, stage, geography, and description from unstructured source
-    text.
-- `CONTRADICTION_SYSTEM_PROMPT`
-  - Distinguishes incompatible claims from temporal growth, subsets, and
-    different units.
-- `FOUNDER_PASSPORT_SYSTEM_PROMPT`
-  - Extracts sourced employment, education, prior ventures, and skills.
-- `VOICE_COMMAND_SYSTEM_PROMPT`
-  - Routes a transcript to search, dossier, memo, decision, activation, or
-    unknown without answering the request.
-- `PERPLEXITY_DILIGENCE_SYSTEM_PROMPT`
-  - Guides Perplexity web-grounded diligence source discovery.
-  - Produces concise evidence signals, not final decisions.
+| Prompt | Responsibility | Explicit boundary |
+| --- | --- | --- |
+| Founder search | Parse sourcing language into filters | Does not rank or recommend |
+| Claim extraction | Extract multiple source-backed diligence claims | Does not score or write a memo |
+| Company profile | Extract sector, stage, geography, and description | Uses null instead of guessing |
+| Founder Passport | Extract employment, education, ventures, and skills | Does not infer missing history |
+| Contradiction referee | Distinguish incompatible claims from dates, subsets, or units | Introduces no outside facts |
+| Voice command router | Convert a transcript into a typed workspace intent | Routes rather than answering |
+| Web diligence scout | Request concise public signals and citations | Does not make a final decision |
+| Portfolio assistant | Answer from supplied portfolio or tagged-analysis context | Refuses unsupported facts |
+| Chat title | Name a conversation from its first request | Does not answer the request |
+| Opportunity intake | Extract fields for an explicitly requested new analysis | Does not create unstated data |
 
-## Ownership Boundary
+## Evidence Discipline
 
-Nandhu owns prompts that create or normalize data for the memory layer.
-Julia owns prompts for thesis reasoning, 3-axis scoring, memo generation,
-Trust Scores, and investment decisions.
+Model output is not automatically treated as verified evidence. Claim
+extraction must preserve source text, numbers, dates, units, and qualifiers.
+Assistant attachments remain contextual until they enter the ingestion pipeline.
+Investment explanations should retain claim IDs and identify missing support.
 
-All structured OpenAI calls use strict JSON schemas and the configured small
-model by default. Contradiction and Founder Passport calls have process-level
-caps controlled by `OPENAI_CONTRADICTION_MAX_CALLS` and
-`OPENAI_FOUNDER_PASSPORT_MAX_CALLS`.
+## Scoring
+
+Language-model reasoning may explain Founder, Market, and Idea-vs-Market
+signals, but the axes remain independent and evidence-adjusted. The product does
+not average them into one opaque score. Deterministic scoring remains available
+for reproducibility and fallback behavior.
+
+## Cost Controls
+
+Development defaults to `gpt-4o-mini`. Chat titles use the separately
+configurable small title model. Contradiction and Founder Passport calls are
+capped with:
+
+```dotenv
+OPENAI_CONTRADICTION_MAX_CALLS=8
+OPENAI_FOUNDER_PASSPORT_MAX_CALLS=10
+```
+
+Founder web enrichment is explicit and result-capped. Automated tests mock
+model behavior and do not consume credits.
+
+## Failure Behavior
+
+- Structured extraction falls back to deterministic parsing where supported.
+- The assistant states when the model is unavailable instead of fabricating an
+  answer.
+- Connector or model failures become visible warnings and evidence gaps.
+- Upstream voice/model errors are converted into user-facing API errors.

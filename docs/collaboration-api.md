@@ -1,16 +1,9 @@
-# Deal Collaboration API
+# Deal Collaboration
 
-Each company has a persistent deal workspace for a VC team. The backend stores
-members, evidence-linked notes, diligence tasks, and an activity feed in the
-same SQLite persistence layer as the dossier.
+Each company has a persistent workspace for comments, replies, evidence links,
+diligence tasks, members, invitations, and activity history.
 
-Companies, members, and invitations are scoped by `organization_id`. With Clerk
-enabled, this is the active `org_id` from the verified session token. A request
-from another organization returns `404` so it does not leak whether a deal
-exists. Legacy deals without an organization are rejected in Clerk mode until
-they are explicitly migrated.
-
-## Endpoints
+## Routes
 
 ```text
 GET   /companies/{company_id}/collaboration
@@ -24,21 +17,29 @@ GET   /companies/{company_id}/invitations
 POST  /invitations/{invitation_id}/accept
 ```
 
-Notes accept `claim_ids` and `evidence_ids`, so a teammate's judgment remains
-attached to the evidence behind it. Tasks support `open`, `in_progress`, and
-`done` states plus assignment to a Clerk user ID.
+## Contextual Comments
 
-The first teammate bootstraps a workspace. Subsequent requests must come from
-one of its members. Notes and tasks use an integer `version`; stale updates
-return `409` and force the client to refresh before overwriting another user's
-work. Invitations can only be accepted by the invited Clerk user while that
-user has the same active organization.
+Comments can link to claim and evidence IDs, allowing a teammate's question or
+judgment to remain attached to the exact diligence context. The web workspace
+supports comments placed beside company-page sections, replies, `@` mentions,
+and resolved threads.
 
-When Clerk is configured, the actor is taken from the verified `sub` claim.
-Without Clerk keys, local development can use `X-Actor-Id` as a temporary demo
-identity. This fallback must not be used in production.
+## Tasks and Invitations
 
-Collaboration writes reload the latest rows and run under SQLite `BEGIN
-IMMEDIATE`, then upsert only collaboration records in one transaction. This
-prevents two API workers from silently overwriting a teammate's update; the
-version check provides the user-facing conflict response.
+Tasks support `open`, `in_progress`, and `done` states and can be assigned to an
+organization user. Invitations can only be accepted by the invited user while
+the matching organization is active.
+
+## Concurrency
+
+Notes and tasks carry an integer `version`. A stale update returns `409` and the
+client must refresh before retrying. Writes use SQLite `BEGIN IMMEDIATE` and
+update only collaboration collections inside one transaction, preventing two
+API workers from silently overwriting each other.
+
+## Tenant Boundary
+
+Companies, members, notes, tasks, and invitations carry `organization_id`.
+Requests from a different organization receive `404`. In configured Clerk mode,
+the actor comes from the verified session; local demo headers are never accepted
+as a production authentication mechanism.

@@ -1,114 +1,135 @@
-# Iskra Manual End-to-End Test
+# Manual End-to-End Validation
 
-Use the files in this folder for a complete demo run. The fixtures describe AetherGrid, an AI infrastructure startup, and intentionally include a few claims that should be flagged for verification.
+This guide validates the HackNation demo without using real company data. The
+files in this directory are synthetic.
 
-## 1. New analysis modal
+## Prerequisites
 
-Open Iskra and click `+`.
+- API running on `http://localhost:8000`
+- web app running on `http://localhost:3000`
+- browser microphone permission enabled for voice checks
+- `OPENAI_API_KEY` set only for live assistant/transcription checks
+- `ELEVENLABS_API_KEY` set only for spoken dialogue checks
 
-Enter:
+## Test Company
+
+Use these fields when creating an analysis manually:
 
 ```text
-Company name: AetherGrid
+Company: AetherGrid
 Website: https://aethergrid.example
 Sector: AI infrastructure
 Stage: Seed
 Geography: Berlin, Germany
-Company context: AetherGrid routes inference jobs across distributed GPU capacity for European enterprises. It is raising a $1.5M seed round to expand its orchestration layer and enterprise sales motion.
+Description: Routes inference jobs across distributed GPU capacity while
+maintaining customer-defined latency and reliability limits.
 ```
 
-Attach these files by drag-and-drop:
+Attach:
 
-1. `aethergrid-pitch-deck.md`
-2. `aethergrid-founder-background.md`
-3. `aethergrid-customer-reference.md`
-4. `aethergrid-financials.csv`
-5. `aethergrid-market-note.md`
+- `aethergrid-pitch-deck.md`
+- `aethergrid-founder-background.md`
+- `aethergrid-customer-reference.md`
+- `aethergrid-market-note.md`
+- `aethergrid-financials.csv`
 
-Click `Run analysis`.
+Expected result: the analysis opens a company page with company fields, founder
+history, typed claims, evidence links, three-axis scores, readiness, and a memo.
 
-Expected result:
+## Deal Flow
 
-- The progress state moves through document reading, sourcing, evidence linking, scoring, and memo creation.
-- The company opens with claims, evidence, founder passport data, three-axis scores, gaps, and contradictions.
-- The memo should not treat every founder-provided claim as independently verified.
-- The financial CSV and customer reference should create traction and financial claims.
+1. Open `/opportunities`.
+2. Confirm the search and per-column filters remain visible when no rows match.
+3. Select multiple values in at least one column filter.
+4. Clear filters and open the new-analysis modal.
+5. Drag the sample files into the upload area.
+6. Start the analysis and confirm progress appears in the table.
+7. Confirm completion navigates directly to the company page.
 
-## 2. Chat text workflow
+## Iskra Text Chat
 
-Start a fresh chat and ask:
+1. Open `/search`.
+2. Confirm a `New chat` entry exists before the first message.
+3. Ask: `Which deal is closest to invest and what evidence is missing?`
+4. Tag two analyses and ask: `Compare only these analyses.`
+5. Confirm the answer names only tagged companies and identifies evidence gaps.
+6. Refresh the page and confirm the chat remains in history.
+
+Expected result: answers use supplied portfolio context, keep the three axes
+separate, and state when the evidence does not support a conclusion.
+
+## Chat-Created Analysis
+
+Ask:
 
 ```text
-What are AetherGrid's three biggest evidence gaps before a seed investment?
+Start a new analysis for Northstar Robotics, a pre-seed industrial automation
+company in Munich focused on computer-vision quality control.
 ```
 
-Then use the tag-analysis icon, select AetherGrid, and ask:
+Expected result: Iskra opens the analysis modal on the same page with extracted
+fields. It must not invent a website or other unstated details. Attach
+`northstar-founder-note.md`, confirm, and verify that completion opens the new
+company page.
 
-```text
-Compare the pitch deck's customer claims with the customer reference and financials. Flag contradictions and say what to verify next.
-```
+## Dictation
 
-Then ask:
+1. Select Dictate and activate the microphone.
+2. Say: `Find technical founders in Berlin building AI infrastructure.`
+3. Stop speaking.
+4. Confirm a loading state appears and the transcript is placed in the normal
+   text composer.
+5. Edit the transcript and send it.
 
-```text
-What would need to be true for this company to move from HOLD to INVEST?
-```
+Expected result: dictation does not switch to the full-screen dialogue state and
+does not submit automatically.
 
-Expected result:
+## Dialogue
 
-- The current chat remains in the chat selector as a named conversation.
-- The greeting disappears after the first turn.
-- User messages appear on the right; Iskra responses include the orb marker.
-- Answers distinguish founder-provided, public, and independent evidence.
+1. Select Dialogue and activate the microphone.
+2. Say: `Compare the biggest evidence gaps in the portfolio.`
+3. Stop speaking and wait for silence detection.
+4. Confirm the transcript submits automatically.
+5. Confirm Iskra answers, speaks when ElevenLabs is configured, and resumes
+   listening after playback.
+6. Cancel and confirm recording, playback, and pending callbacks stop.
 
-## 3. Dictation workflow
+Expected result: the UI moves cleanly through `Listening`, `Thinking`, and
+`Speaking` without flashing back to the text layout between turns.
 
-Select `Dictate`, click the microphone, allow browser microphone access, and say:
+## Evidence and Contradiction
 
-```text
-Find technical founders in Berlin with AI infrastructure experience
-```
+1. Open AetherGrid's evidence review.
+2. Confirm every claim has a kind, status, confidence, and readable evidence
+   card.
+3. Ingest the staged independent correction.
+4. Confirm the customer-count claim becomes disputed rather than duplicated.
+5. Confirm readiness, the timeline, and next actions update.
 
-Stop recording.
+## Collaboration
 
-Expected result:
+1. Add a contextual comment beside a company-page section.
+2. Type `@` and select a teammate from the dropdown.
+3. Reopen the comment marker, add a reply, and resolve the thread.
+4. Refresh and confirm the thread persists.
+5. Attempt a stale update in the API tests and confirm it returns `409`.
 
-- The transcript appears in the normal chat composer.
-- No analysis is submitted automatically.
-- The user can edit the transcript and press Send.
+## Theme and Responsive Checks
 
-## 4. Dialogue workflow
+Check dashboard, Deal Flow, Iskra, Thesis Config, and company review in:
 
-Select `Dialogue`, click the microphone, allow access if prompted, and say:
+- dark mode
+- light mode
+- desktop width
+- tablet width
+- mobile width
 
-```text
-Review AetherGrid and tell me the most important reason to stay on hold
-```
+Confirm text contrast, dropdown dismissal, empty states, modal sizing, and no
+horizontal overflow. Number inputs must keep visible controls in both themes.
 
-Stop recording.
+## Credit Safety
 
-Expected result:
-
-- The voice state changes from listening to processing.
-- The transcript becomes a user message.
-- Iskra returns a grounded response.
-- ElevenLabs reads the response when browser playback is permitted.
-- The text response remains visible even if audio playback is blocked.
-
-## 5. Chat-created analysis
-
-Start another chat and enter:
-
-```text
-Create an analysis for Northstar Compute, a pre-seed AI infrastructure company based in Munich. It builds scheduling software for private GPU clusters and is raising 750000 euros.
-```
-
-Review the extracted fields in the modal, attach `northstar-founder-note.md`, and run the analysis.
-
-## 6. Safety checks
-
-- Use a custom sector such as `industrial AI` and confirm it remains editable.
-- Close a dropdown by clicking outside it.
-- Try a file with no readable text and confirm the error is understandable.
-- Refresh the company page after analysis and confirm sources, claims, and comments persist.
-- Open the same chat again from the selector and confirm its messages remain.
+- Do not repeatedly run founder web enrichment.
+- Keep enrichment to one result per founder.
+- Use text chat for prompt checks before dialogue narration.
+- Automated tests should remain mocked and consume no live credits.

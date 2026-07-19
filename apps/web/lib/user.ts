@@ -1,6 +1,6 @@
 export function workspaceUserName(): string {
   if (typeof window === "undefined") return "there";
-  return localStorage.getItem("iskra-user-name") || process.env.NEXT_PUBLIC_USER_NAME || "Nandhu";
+  return localStorage.getItem("iskra-user-name") || process.env.NEXT_PUBLIC_USER_NAME || "Analyst";
 }
 
 export function timeGreeting(date = new Date()): string {

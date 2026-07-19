@@ -99,7 +99,7 @@ function matchesExclusion(
   return null;
 }
 
-// ── Company shape (mirrors Nandhu's API response) ──────────────
+// Company shape mirrored from the API response.
 
 export interface CompanyData {
   name: string;

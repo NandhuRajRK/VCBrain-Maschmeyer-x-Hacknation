@@ -1,31 +1,34 @@
 # Decision Flight Recorder
 
-The flight recorder explains how new evidence changes diligence rather than
-showing only the latest memo.
+The Decision Flight Recorder explains how diligence changed over time instead
+of showing only the latest score or memo.
 
-## API
+## Readiness
 
-`GET /companies/{company_id}/readiness` returns:
+`GET /companies/{company_id}/readiness` returns a 0-100 diligence-completeness
+score, component coverage, explicit blockers, and ranked next evidence actions.
+Each action includes its expected readiness gain.
 
-- a 0-100 diligence-completeness score
-- explicit blockers
-- ranked next-best evidence actions
-- the expected readiness gain for each action
+Readiness is not a fourth investment score. It answers “can we responsibly make
+a decision with the evidence available?”
+
+## Timeline
 
 `GET /companies/{company_id}/timeline` returns:
 
 - immutable Founder Score snapshots and deltas
 - claim verification transitions
-- contradiction, score-change, cold-start, and decision-ready events
+- contradiction and cold-start events
+- score-change and decision-ready triggers
 - current readiness
 
-## Demo
+## Demo Moment
 
-Seed the demo, find AetherGrid, and load its timeline. The initial dossier has
-one score snapshot and a queued HN correction. Call the ingest endpoint once.
-The correction disputes the 20-customer claim, adds a second score snapshot,
-lowers confidence/readiness, and makes contradiction resolution the top action.
+Seed AetherGrid and inspect its timeline. Ingest the queued independent
+correction. The new source disputes a traction claim, creates a claim-status
+transition and score snapshot, lowers confidence/readiness, and moves
+contradiction resolution to the top of the diligence queue.
 
-This is causal decision support: every change points back to claims and
-evidence IDs. It does not average Julia's three investment axes or replace the
-investment recommendation.
+Every change points back to claim and evidence IDs. The recorder explains the
+decision process without replacing the independent Founder, Market, and
+Idea-vs-Market assessments.

@@ -442,7 +442,7 @@ def _post_json(url: str, body: dict[str, Any], headers: dict[str, str]) -> dict[
             data=json.dumps(body).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "VCBrain/0.1 nandhu@example.local",
+                "User-Agent": "IskraVC/0.1 hacknation@example.local",
                 **headers,
             },
         )
@@ -454,7 +454,7 @@ def _post_json(url: str, body: dict[str, Any], headers: dict[str, str]) -> dict[
 
 def _get_text(url: str) -> str | None:
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "VCBrain/0.1 nandhu@example.local"})
+        request = urllib.request.Request(url, headers={"User-Agent": "IskraVC/0.1 hacknation@example.local"})
         with urllib.request.urlopen(request, timeout=6) as response:
             return response.read().decode("utf-8")
     except Exception:

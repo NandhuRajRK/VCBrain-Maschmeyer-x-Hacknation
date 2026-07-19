@@ -65,7 +65,7 @@ export interface ScoringResult {
   scoredAt: string;
 }
 
-// ── Dossier shape (matches Nandhu's GET /companies/{id}/dossier) ──
+// Dossier shape returned by GET /companies/{id}/dossier.
 
 export interface Claim {
   id: string;
@@ -84,7 +84,7 @@ export interface Evidence {
   quote: string;
   confidence: number;
 
-  /** Fields from Nandhu's evidence pipeline (consumed directly, not re-derived) */
+  /** Evidence-pipeline fields consumed directly rather than re-derived. */
   source_reliability: number;
   source_independence: "third_party" | "company_owned" | "founder_provided" | "unknown";
   freshness_days: number | null;
@@ -145,7 +145,7 @@ export interface DossierInput {
 
 /**
  * How independent are the sources backing this claim?
- * Consumes the source_independence field that Nandhu's evidence pipeline already computed.
+ * Consumes source_independence from the evidence pipeline.
  * Maps the string categories to a 0-1 factor.
  */
 function sourceIndependence(claim: Claim, _sources: Source[], evidence: Evidence[]): number {
@@ -167,7 +167,7 @@ function sourceIndependence(claim: Claim, _sources: Source[], evidence: Evidence
 }
 
 /**
- * How fresh is the evidence? Consumes freshness_days from Nandhu's evidence pipeline.
+ * Measures evidence freshness using the pipeline's freshness_days value.
  * Matches his tiered decay: <=30d = 1.0, <=180d = 0.85, <=365d = 0.7, >365d = 0.55.
  */
 function freshness(claim: Claim, _sources: Source[], evidence: Evidence[]): number {

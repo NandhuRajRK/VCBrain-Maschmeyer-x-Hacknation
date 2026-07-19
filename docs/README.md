@@ -1,41 +1,36 @@
-# VC Brain Documentation
+# Iskra Documentation
 
-VC Brain is an AI-first venture-investing workspace for reaching an
-evidence-backed decision on a $100,000 investment within 24 hours.
+This documentation supports the HackNation submission for the Maschmeyer Group
+**The VC Brain** challenge.
 
-## Start Here
+## Product and Demo
 
-- [Root README](../README.md): project purpose, setup, and branch model.
-- [Architecture](architecture.md): services, data flow, persistence, and
-  ownership boundaries.
-- [API Reference](api-reference.md): every implemented FastAPI route with
-  request examples, response shapes, and error behavior.
-- [Person A Contract](person-a-contract.md): sourcing and memory contract for
-  Julia's layer.
-- [Person B Contract](person-b-contract.md): thesis, scoring, memo, decision,
-  and dashboard contract.
-- [Founder Passport](founder-passport.md): sourced founder career history and
-  cold-start semantics.
-- [Decision Flight Recorder](decision-flight-recorder.md): readiness, timeline,
-  score deltas, and contradiction events.
-- [Demo Walkthrough](demo-walkthrough.md): the five-minute demo narrative.
-- [Voice Mode](voice-mode.md): browser/mobile audio input and ElevenLabs output.
-- [LLM Prompt Policy](llm-prompts.md): prompt ownership and model boundaries.
-- [Shared Schemas](../packages/shared/README.md): wire contract source of truth.
+- [Submission overview](INTRO.md): challenge, product thesis, and judging story.
+- [Demo walkthrough](demo-walkthrough.md): the five-minute presentation flow.
+- [Manual validation](demo-fixtures/MANUAL_E2E_TEST.md): repeatable browser and
+  voice checks using synthetic files.
+- [Current product status](product-status.md): implemented workflows and
+  hackathon boundaries.
 
-## Ownership
+## System Design
 
-Nandhu owns the FastAPI data and memory layer: ingestion, connectors, parsing,
-claims, evidence, Founder Scores, Founder Passports, persistence, search, and
-voice transport.
+- [Architecture](architecture.md): system boundaries, data flow, persistence,
+  and reliability choices.
+- [API reference](api-reference.md): FastAPI routes grouped by workflow.
+- [Shared schemas](../packages/shared/README.md): API and web contract source of
+  truth.
+- [LLM and prompt design](llm-prompts.md): use-case-specific prompts,
+  structured outputs, fallbacks, and credit controls.
 
-Julia owns the intelligence and experience layer: thesis matching, the three
-investment axes, Trust Scores, memo generation, investment decisions, and the
-React dashboard. Her layer consumes the dossier and shared schemas; it should
-not recreate the evidence ledger.
+## Product Capabilities
 
-## Current Status
+- [Founder Passport](founder-passport.md)
+- [Decision Flight Recorder](decision-flight-recorder.md)
+- [Voice Modes](voice-mode.md)
+- [Outcome Simulator](outcome-simulator-api.md)
+- [Deal Collaboration](collaboration-api.md)
+- [Authentication and Clerk](clerk-integration.md)
+- [Enterprise IAM](enterprise-iam.md)
 
-The backend data layer and demo flows are implemented on `nandhu`. The `main`
-branch is the stable merge target. Julia's work belongs on `julia` and should be
-rebased onto the current `main` before integration.
+The root [README](../README.md) contains local setup, demo seeding, testing, and
+the high-level feature list.

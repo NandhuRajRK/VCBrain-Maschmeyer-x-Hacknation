@@ -1,23 +1,30 @@
-# Outcome Simulator API
+# Outcome Simulator
 
-The outcome simulator is deterministic and stateless, so slider changes do not
-consume LLM credits or write noisy intermediate records to the database.
+The outcome simulator turns operating assumptions into an interactive venture
+return scenario. It is deterministic and stateless, so slider changes do not
+consume LLM credits or write noisy intermediate records.
 
 ```text
 POST /outcomes/simulate
 POST /companies/{company_id}/outcomes/simulate
 ```
 
-The request accepts initial investment, pre-money entry valuation, starting MRR,
-monthly growth, monthly churn, gross margin, burn, cash, next-round timing and
-dilution, exit timing, revenue multiple, and exit probability.
+Inputs include initial investment, entry valuation, starting MRR, monthly
+growth, churn, gross margin, burn, cash, next-round timing and dilution, exit
+timing, revenue multiple, and exit probability.
 
-The response returns projected next-round MRR, projected exit MRR and ARR,
-monthly gross profit, estimated runway, required next-round pre-money and
-post-money valuation, ownership after dilution, exit value, expected return,
-expected MOIC, and bear/base/bull scenarios for the UI to chart.
+Outputs include:
 
-All percentage fields are sent as human-readable percentages (`10` means 10%).
-The initial investment is treated as buying ownership at the pre-money entry
-valuation. The expected return is probability-weighted and the simulator is a
-decision aid, not a forecast.
+- projected next-round MRR
+- projected exit MRR and ARR
+- monthly gross profit and estimated runway
+- required next-round pre-money and post-money valuation
+- ownership after dilution
+- exit value, expected return, and expected MOIC
+- bear, base, and bull scenarios
+
+Percentage inputs are human-readable (`10` means 10%). The initial investment
+buys ownership at the pre-money entry valuation. Expected return is
+probability-weighted.
+
+The simulator is a sensitivity tool for investment discussion, not a forecast.
