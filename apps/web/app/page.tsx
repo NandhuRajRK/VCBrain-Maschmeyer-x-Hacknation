@@ -83,9 +83,9 @@ export default function Dashboard() {
     if (!auth.ready) return;
     const loadingTimer = window.setTimeout(() => setShowLoading(true), 280);
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     (async () => {
+      setLoading(true);
+      setError(null);
       try {
         const [companies, founders] = await Promise.all([
           listCompanies(),
