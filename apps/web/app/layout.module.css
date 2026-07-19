@@ -43,6 +43,25 @@
   padding: var(--space-6) var(--space-2);
 }
 
+/* ── Resize handle (right edge of the sidebar) ── */
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 2;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.resizeHandle:hover,
+.resizeHandle:active {
+  background: transparent;
+}
+
 /* The ASCII wave canvas is rendered by <AsciiWave /> inside the sidebar */
 
 /* Sidebar content sits above the canvas */
@@ -277,10 +296,15 @@
 
 .content {
   flex: 1;
+  min-width: 0;
   margin-left: var(--sidebar-width);
+  /* The assistant panel sets margin-right directly on this element when
+   * it opens, so the content narrows to sit beside it. This rule owns the
+   * transition timing below. */
   padding: var(--space-8) var(--space-10);
   min-height: 100vh;
-  transition: margin-left var(--duration-normal, 0.25s) var(--ease-out);
+  transition: margin-left var(--duration-normal, 0.25s) var(--ease-out),
+    margin-right 0.45s var(--ease-out);
 }
 
 /* When the sidebar is collapsed, the content reclaims the space.
