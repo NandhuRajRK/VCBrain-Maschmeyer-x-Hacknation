@@ -1,6 +1,7 @@
 /* ── App Shell ──────────────────────────────────────────────────
- * Sidebar + content area. The sidebar is a light "paper" panel with
- * slowly drifting black film grain; the content area stays dark.
+ * Sidebar + content area. The sidebar is a light "paper" panel
+ * with animated ASCII wave canvas; the content area stays dark.
+ * Sidebar collapses to icon-only rail on toggle.
  */
 
 .shell {
@@ -31,19 +32,28 @@
   background: var(--side-bg);
   border-right: 1px solid var(--side-border);
   z-index: 100;
-  overflow: hidden;      /* clip the oversized grain layers */
-  isolation: isolate;    /* keep the multiply blend inside the sidebar */
+  overflow: hidden;
+  isolation: isolate;
+  transition: width var(--duration-normal, 0.25s) var(--ease-out),
+              padding var(--duration-normal, 0.25s) var(--ease-out);
+}
+
+.sidebar[data-collapsed="true"] {
+  width: 56px;
+  padding: var(--space-6) var(--space-2);
 }
 
 /* The ASCII wave canvas is rendered by <AsciiWave /> inside the sidebar */
 
-/* Sidebar content sits above the grain */
+/* Sidebar content sits above the canvas */
 .brand,
 .nav,
 .sidebarFooter {
   position: relative;
   z-index: 1;
 }
+
+/* ── Brand ── */
 
 .brand {
   display: flex;
@@ -52,11 +62,14 @@
   padding-bottom: var(--space-6);
   border-bottom: none;
   margin-bottom: var(--space-2);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .brandIcon {
   font-size: var(--text-lg);
   color: var(--side-text);
+  flex-shrink: 0;
 }
 
 .brandName {
@@ -64,6 +77,13 @@
   font-weight: var(--weight-semibold);
   color: var(--side-text);
   letter-spacing: -0.02em;
+  opacity: 1;
+  transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
+}
+
+.sidebar[data-collapsed="true"] .brandName {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ── Navigation ── */
@@ -82,10 +102,21 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: var(--space-4) var(--space-3) var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
 }
 
 .navSection:first-child {
   padding-top: 0;
+}
+
+.sidebar[data-collapsed="true"] .navSection {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  pointer-events: none;
 }
 
 .navLink {
@@ -94,20 +125,32 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
+  border: 1px solid transparent;
   font-size: var(--text-sm);
   font-weight: var(--weight-normal);
   color: var(--side-text-2);
+  white-space: nowrap;
+  overflow: hidden;
   transition: background var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out);
+              color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+
+.sidebar[data-collapsed="true"] .navLink {
+  justify-content: center;
+  padding: var(--space-2);
+  gap: 0;
 }
 
 .navLink:hover {
   background: var(--side-hover);
+  border-color: var(--side-border);
   color: var(--side-text);
 }
 
 .navLink[data-active="true"] {
   background: var(--side-active);
+  border-color: rgba(0, 0, 0, 0.12);
   color: var(--side-text);
   font-weight: var(--weight-medium);
 }
@@ -117,10 +160,26 @@
   width: 1rem;
   text-align: center;
   color: var(--side-muted);
+  flex-shrink: 0;
+}
+
+.navLink:hover .navIcon {
+  color: var(--side-text-2);
 }
 
 .navLink[data-active="true"] .navIcon {
   color: var(--side-text);
+}
+
+.navLabel {
+  opacity: 1;
+  transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
+}
+
+.sidebar[data-collapsed="true"] .navLabel {
+  opacity: 0;
+  width: 0;
+  pointer-events: none;
 }
 
 /* ── Footer ── */
@@ -131,18 +190,79 @@
   gap: var(--space-1);
   padding-top: var(--space-6);
   border-top: 1px solid var(--side-border);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .footerMeta {
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--side-text-2);
+  opacity: 1;
+  transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
 }
 
 .footerVersion {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--side-muted);
+  opacity: 1;
+  transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
+}
+
+.sidebar[data-collapsed="true"] .footerMeta,
+.sidebar[data-collapsed="true"] .footerVersion {
+  opacity: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ── Collapse toggle ──
+ * Fixed to the viewport (NOT a child of .sidebar), so the sidebar's
+ * overflow:hidden cannot clip it. Rides the right edge of the sidebar
+ * and slides in when the sidebar collapses. */
+
+.collapseBtn {
+  position: fixed;
+  top: var(--space-6);
+  left: calc(var(--sidebar-width) - 12px);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  color: #8b8b86;
+  cursor: pointer;
+  font-size: var(--text-md);
+  line-height: 1;
+  z-index: 200;
+  transition: left var(--duration-normal, 0.25s) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.collapseBtn[data-collapsed="true"] {
+  left: calc(56px - 12px);
+}
+
+.collapseBtn:hover {
+  color: #0a0a0a;
+  border-color: rgba(0, 0, 0, 0.24);
+  background: #f5f5f5;
+}
+
+.collapseIcon {
+  display: inline-block;
+  transition: transform var(--duration-normal, 0.25s) var(--ease-out);
+}
+
+.collapseIcon[data-collapsed="true"] {
+  transform: rotate(180deg);
 }
 
 /* ── Content ── */
@@ -152,4 +272,11 @@
   margin-left: var(--sidebar-width);
   padding: var(--space-8) var(--space-10);
   min-height: 100vh;
+  transition: margin-left var(--duration-normal, 0.25s) var(--ease-out);
+}
+
+/* When the sidebar is collapsed, the content reclaims the space.
+ * Driven purely by CSS: :has() watches the sidebar's data attribute. */
+.shell:has(.sidebar[data-collapsed="true"]) .content {
+  margin-left: 56px;
 }
