@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { CircleHelp } from "lucide-react";
 import styles from "./page.module.css";
-import type { PipelineResult } from "../../../lib/api";
-import { analyzePipeline } from "../../../lib/api";
+import type { ApiCompanyTimeline, PipelineResult } from "../../../lib/api";
+import { analyzePipeline, fetchTimeline } from "../../../lib/api";
 import { DEFAULT_THESIS } from "../../../lib/thesis";
 import { userError } from "../../../lib/errors";
-import CompanyWorkspace from "./CompanyWorkspace";
+import CompanyWorkspace, { type WorkspaceTab } from "./CompanyWorkspace";
+import CompanyComments from "./CompanyComments";
 
 const DECISION_LABELS: Record<string, string> = {
   invest: "Invest",
@@ -55,10 +57,11 @@ function pct(n: number): string {
 }
 
 function freshnessLabel(days: number | null): string {
-  if (days === null || days === undefined) return "age unknown";
-  if (days <= 30) return `${days}d old`;
-  if (days <= 365) return `${Math.round(days / 30)}mo old`;
-  return `${Math.round(days / 365)}y old`;
+  if (days === null || days === undefined) return "Age unknown";
+  if (days === 0) return "Today";
+  if (days <= 30) return `${days} days ago`;
+  if (days <= 365) return `${Math.round(days / 30)} months ago`;
+  return `${Math.round(days / 365)} years ago`;
 }
 
 function confidenceLevel(c: number): string {
@@ -74,6 +77,8 @@ export default function CompanyDetail() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<ApiCompanyTimeline | null>(null);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("readiness");
 
   useEffect(() => {
     let cancelled = false;
@@ -81,9 +86,10 @@ export default function CompanyDetail() {
 
     (async () => {
       try {
-        const r = await analyzePipeline(id, DEFAULT_THESIS);
+        const [r, history] = await Promise.all([analyzePipeline(id, DEFAULT_THESIS), fetchTimeline(id)]);
         if (!cancelled) {
           setResult(r);
+          setTimeline(history);
           setLoading(false);
         }
       } catch (err) {
@@ -115,6 +121,7 @@ export default function CompanyDetail() {
   const { dossier, thesis, scores, memo } = result;
   const company = dossier.company;
   const evidenceById = new Map(dossier.evidence.map((e) => [e.id, e] as const));
+  const sourceById = new Map(dossier.sources.map((source) => [source.id, source] as const));
 
   const axes = [
     { key: "founder", label: "Founder", axis: scores.founder },
@@ -122,12 +129,17 @@ export default function CompanyDetail() {
     { key: "idea", label: "Idea vs Market", axis: scores.ideaVsMarket },
   ];
 
+  const axisHelp: Record<string, string> = {
+    founder: "Founder score uses founder claims, career and public work signals, founder-score evidence, contradictions, freshness, and a cold-start cap.",
+    market: "Market score uses market and traction claims, external signals, source independence, evidence freshness, and contradiction checks.",
+    idea: "Idea-vs-market score uses product, market, and traction claims to test whether the product solves a real market problem.",
+  };
+
   /* Evidence quality: proportion of claims that are "supported" */
   const supportedClaims = dossier.claims.filter((c) => c.status === "supported").length;
   const thirdPartyEvidence = dossier.evidence.filter((e) => e.source_independence === "third_party").length;
 
   const sections = [
-    memo.sections.companySnapshot,
     memo.sections.investmentHypotheses,
     memo.sections.swot,
     memo.sections.problemAndProduct,
@@ -135,6 +147,7 @@ export default function CompanyDetail() {
   ];
 
   return (
+    <CompanyComments companyId={id!}>
     <div className={styles.page}>
       <Link href="/" className={styles.back}>&#8592; Pipeline</Link>
 
@@ -147,9 +160,6 @@ export default function CompanyDetail() {
               .filter(Boolean)
               .join(" · ") || "No details"}
           </p>
-          {company.description && (
-            <p className={styles.description}>{company.description}</p>
-          )}
           <p className={styles.verdictSummary}>
             {DECISION_SUMMARIES[memo.decision] ?? ""}
           </p>
@@ -174,16 +184,17 @@ export default function CompanyDetail() {
         </div>
       </div>
 
-      <CompanyWorkspace companyId={company.id} />
+      <CompanyWorkspace companyId={company.id} onTabChange={setActiveTab} />
 
       {/* ── Thesis hard failures ── */}
-      {!thesis.pass && (
+      {activeTab === "readiness" && !thesis.pass && (
         <div className={styles.banner}>
           <span className={styles.bannerTitle}>Outside thesis</span>
           <span className={styles.bannerBody}>{thesis.hardFailures.join(" · ")}</span>
         </div>
       )}
 
+      {activeTab === "analysis" && <>
       {/* ── Key risks (VCs need to see red flags immediately) ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Key Risks</h2>
@@ -193,9 +204,9 @@ export default function CompanyDetail() {
               <div key={i} className={styles.riskItem}>{risk}</div>
             ))}
           </div>
-        ) : (
+        ) : !memo.redTeam.headline ? (
           <p className={styles.emptyState}>No quantified risks have been flagged.</p>
-        )}
+        ) : null}
         {memo.redTeam.headline ? (
           <div className={styles.redTeam}>
             <p className={styles.redHead}>{memo.redTeam.headline}</p>
@@ -210,8 +221,10 @@ export default function CompanyDetail() {
         )}
       </section>
 
+      </>}
+
       {/* ── Founders (VCs bet on people) ── */}
-      <section className={styles.section}>
+      {activeTab === "founders" && <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Founders ({dossier.founders.length})
         </h2>
@@ -258,11 +271,11 @@ export default function CompanyDetail() {
         ) : (
           <p className={styles.emptyState}>No founder profiles are linked to this company yet.</p>
         )}
-      </section>
+      </section>}
 
       {/* ── Three-axis score ── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Three-Axis Score</h2>
+      {activeTab === "analysis" && <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Three-Axis Score <span className={styles.infoTip} title="Each axis is scored independently. The final decision does not average them into one hidden number." aria-label="How three-axis scoring works"><CircleHelp size={14} /></span></h2>
         <p className={styles.sectionNote}>
           Never averaged. Each axis stands on its own.
         </p>
@@ -270,14 +283,14 @@ export default function CompanyDetail() {
           {axes.map((a) => (
             <div key={a.key} className={styles.axisCard}>
               <div className={styles.axisHead}>
-                <span className={styles.axisLabel}>{a.label}</span>
+                <span className={styles.axisLabel}>{a.label} <span className={styles.infoTip} title={axisHelp[a.key]} aria-label={`${a.label} score explanation`}><CircleHelp size={13} /></span></span>
                 <span className={styles.axisTrend}>
                   {trendArrow(a.axis.trend)} {trendLabel(a.axis.trend)}
                 </span>
               </div>
               <div className={styles.axisScore}>{a.axis.adjustedScore}</div>
-              <div className={styles.axisRaw}>
-                raw {a.axis.rawScore} · conf {pct(a.axis.confidence)} · {confidenceLevel(a.axis.confidence)}
+              <div className={styles.axisRaw} title="Raw is the signal score before evidence quality adjustment. The displayed score is adjusted using source independence, freshness, directness, and confidence. Confidence measures how strongly the available claims support the axis.">
+                raw {a.axis.rawScore} · conf {pct(a.axis.confidence)} · {confidenceLevel(a.axis.confidence)} <span className={styles.infoTip} aria-hidden="true"><CircleHelp size={12} /></span>
               </div>
               <div className={styles.axisBar}>
                 <div
@@ -296,10 +309,10 @@ export default function CompanyDetail() {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* ── Evidence quality gauge ── */}
-      <section className={styles.section}>
+      {activeTab === "timeline" && <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Evidence Quality</h2>
         <p className={styles.sectionNote}>
           How much should you trust these scores? Based on {dossier.claims.length} claims
@@ -323,11 +336,11 @@ export default function CompanyDetail() {
             <span className={styles.eqLabel}>Overall confidence</span>
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* ── Decision flip ── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Decision Flip</h2>
+      {activeTab === "analysis" && <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Decision Flip <span className={styles.infoTip} title="These are threshold changes that would alter the decision: axis scores, evidence confidence, thesis fit, contradictions, and founder cold-start risk." aria-label="What drives decision flip conditions"><CircleHelp size={14} /></span></h2>
         <p className={styles.sectionNote}>
           What would move this decision in either direction.
         </p>
@@ -351,11 +364,11 @@ export default function CompanyDetail() {
             {memo.decisionFlip.becomesRejectIf.length === 0 && <p className={styles.axisEmpty}>No downside trigger recorded.</p>}
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* ── Memo ── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Investment Memo</h2>
+      {activeTab === "analysis" && <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Investment Memo <span className={styles.infoTip} title="The memo is generated from the dossier claims, evidence quality, founder scores, three-axis analysis, thesis fit, contradictions, and identified gaps." aria-label="What drives the investment memo"><CircleHelp size={14} /></span></h2>
         {sections.map((sec, i) => (
           <div key={i} className={styles.memoBlock}>
             <h3 className={styles.memoTitle}>{sec.title}</h3>
@@ -370,13 +383,13 @@ export default function CompanyDetail() {
             )}
           </div>
         ))}
-      </section>
+      </section>}
 
       {/* ── Claims and evidence trail ── */}
-      <section className={styles.section}>
+      {activeTab === "timeline" && <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Claims &amp; Evidence</h2>
         <p className={styles.sectionNote}>
-          {dossier.claims.length} claim{dossier.claims.length === 1 ? "" : "s"}. Every score traces back here.
+          {dossier.claims.length} claim{dossier.claims.length === 1 ? "" : "s"} linked to {dossier.sources.length} source{dossier.sources.length === 1 ? "" : "s"}.
         </p>
         <div className={styles.claims}>
           {dossier.claims.length === 0 && <p className={styles.emptyState}>No claims have been extracted from the available sources.</p>}
@@ -389,19 +402,23 @@ export default function CompanyDetail() {
                 </span>
                 <span className={styles.claimTrust}>trust {pct(claim.confidence)}</span>
               </div>
+              <div className={styles.claimLabel}>Claim</div>
               <p className={styles.claimText}>{claim.text}</p>
               <div className={styles.evidenceList}>
+                <div className={styles.evidenceHeading}>Supporting evidence <span>{claim.evidence_ids.filter((eid) => evidenceById.has(eid)).length}</span></div>
                 {claim.evidence_ids.map((eid) => {
                   const ev = evidenceById.get(eid);
                   if (!ev) return null;
+                  const source = sourceById.get(ev.source_id);
                   return (
                     <div key={eid} className={styles.evidence}>
+                      <div className={styles.sourceLine}><strong>{source?.title || "Unknown source"}</strong><span>{source?.source_type?.replaceAll("_", " ") || "source"}</span></div>
                       <p className={styles.evQuote}>&ldquo;{ev.quote}&rdquo;</p>
                       <div className={styles.evMeta}>
-                        <span>{INDEPENDENCE_LABELS[ev.source_independence] ?? ev.source_independence}</span>
-                        <span>{freshnessLabel(ev.freshness_days)}</span>
-                        <span>reliability {pct(ev.source_reliability)}</span>
-                        <span>{ev.directness}</span>
+                        <span><b>Independence</b>{INDEPENDENCE_LABELS[ev.source_independence] ?? ev.source_independence}</span>
+                        <span><b>Freshness</b>{freshnessLabel(ev.freshness_days)}</span>
+                        <span><b>Reliability</b>{pct(ev.source_reliability)}</span>
+                        <span><b>Directness</b>{ev.directness}</span>
                       </div>
                       {ev.confidence_reason && (
                         <p className={styles.evReason}>{ev.confidence_reason}</p>
@@ -416,11 +433,19 @@ export default function CompanyDetail() {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
+
+      {activeTab === "timeline" && timeline && <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Evidence history</h2>
+        <p className={styles.sectionNote}>Score changes, claim changes, and trigger events after the evidence review above.</p>
+        {[...timeline.trigger_events.map((item) => ({ at: item.created_at, title: item.kind.replaceAll("_", " "), body: item.message })), ...timeline.claim_changes.map((item) => ({ at: item.created_at, title: `${item.previous_status} → ${item.current_status}`, body: item.reason })), ...timeline.score_snapshots.map((item) => ({ at: item.created_at, title: `Founder score ${item.score}`, body: item.reason }))].sort((a, b) => b.at.localeCompare(a.at)).map((item, index) => <div className={styles.timelineItem} key={`${item.at}-${index}`}><time>{new Date(item.at).toLocaleString()}</time><div><strong>{item.title}</strong><p>{item.body}</p></div></div>)}
+        {timeline.trigger_events.length + timeline.claim_changes.length + timeline.score_snapshots.length === 0 && <p className={styles.emptyState}>No evidence history has been recorded yet.</p>}
+      </section>}
 
       <footer className={styles.footer}>
         Generated {new Date(memo.generatedAt).toLocaleString()} · {scores.coldStart ? "Cold-start founder" : "Standard scoring"} · overall confidence {pct(scores.overallConfidence)}
       </footer>
     </div>
+    </CompanyComments>
   );
 }

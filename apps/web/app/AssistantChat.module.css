@@ -159,7 +159,7 @@
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  gap: var(--space-3);
+  gap: var(--space-6);
   text-align: center;
 }
 
@@ -170,6 +170,9 @@
   text-align: center;
   letter-spacing: -0.01em;
 }
+
+.voiceStage .greeting,
+.voiceStage .hint { margin: 0; }
 
 .hint {
   font-size: var(--text-xs);
@@ -348,6 +351,16 @@
 .toolButton[data-active="true"] { color: var(--text-primary); background: var(--bg-raised); border-color: var(--border-subtle); }
 .toolButton:disabled { opacity: 0.55; cursor: wait; }
 .toolButton:last-child { margin-left: auto; }
+.toolButton b { display: grid; place-items: center; min-width: 15px; height: 15px; padding: 0 3px; color: var(--bg-root); background: var(--text-primary); border-radius: 999px; font-size: 9px; }
+.tagWrap { position: relative; }
+.tagMenu { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; width: 250px; max-height: 260px; padding: var(--space-2); overflow: hidden; background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm); box-shadow: 0 16px 36px rgba(0,0,0,.28); }
+.tagMenu > label { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); }
+.tagMenu input { width: 100%; min-width: 0; color: var(--text-primary); font-size: var(--text-xs); }
+.tagMenu > div { display: flex; flex-direction: column; max-height: 205px; overflow-y: auto; padding-top: var(--space-1); }
+.tagMenu button { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2); color: var(--text-secondary); border-radius: 4px; text-align: left; font-size: var(--text-xs); }
+.tagMenu button > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tagMenu button small { color: var(--text-muted); font-size: 10px; }
+.tagMenu button:hover, .tagMenu button[data-active="true"] { color: var(--text-primary); background: var(--bg-hover); }
 
 .attachment {
   display: flex;

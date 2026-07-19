@@ -4,6 +4,7 @@
 .tab:hover { color: var(--text-primary); background: var(--bg-surface); }
 .tab[aria-selected="true"] { color: var(--text-primary); background: var(--bg-active); }
 .panel { min-height: 310px; padding: var(--space-6) 0 var(--space-8); }
+.panel:empty { min-height: 0; padding: 0; }
 .panelHead { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); }
 .panelHead h2 { font-size: var(--text-lg); color: var(--text-primary); }
 .panelHead p, .passport header p { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--text-xs); }
@@ -24,3 +25,15 @@
 .simulator { display: grid; grid-template-columns: minmax(280px, 1.3fr) minmax(220px, .7fr); gap: var(--space-8); }.sliders { display: grid; gap: var(--space-4); }.sliders label > span { display: flex; justify-content: space-between; color: var(--text-secondary); font-size: var(--text-xs); }.sliders b { color: var(--text-primary); font-family: var(--font-mono); }.sliders input { width: 100%; accent-color: var(--text-primary); }.outputs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; align-content: start; background: var(--border-subtle); border: 1px solid var(--border-subtle); }.outputs > div { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); background: var(--bg-root); }.outputs span { color: var(--text-muted); font-size: var(--text-xs); }.outputs strong { color: var(--text-primary); font-size: var(--text-lg); }
 .dealGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-6); }.dealGrid h3 { margin-bottom: var(--space-3); color: var(--text-secondary); font-size: var(--text-xs); text-transform: uppercase; }.inlineForm { display: flex; margin-bottom: var(--space-3); border: 1px solid var(--border-default); }.inlineForm input { min-width: 0; flex: 1; padding: var(--space-2); color: var(--text-primary); font-size: var(--text-xs); }.inlineForm button { padding: var(--space-2) var(--space-3); color: var(--text-primary); border-left: 1px solid var(--border-default); font-size: var(--text-xs); }.task { display: flex; gap: var(--space-2); width: 100%; padding: var(--space-2) 0; color: var(--text-secondary); font-size: var(--text-xs); text-align: left; }.task span[data-done="true"] { color: var(--text-primary); }.note, .member { padding: var(--space-2) 0; border-top: 1px solid var(--border-subtle); }.note p, .member span { color: var(--text-secondary); font-size: var(--text-xs); }.note span, .member b { color: var(--text-muted); font-size: .68rem; }.member { display: flex; justify-content: space-between; }
 @media (max-width: 760px) { .readiness, .simulator { grid-template-columns: 1fr; }.history, .dealGrid { grid-template-columns: 1fr; }.timelineItem { grid-template-columns: 1fr; gap: var(--space-1); }.panelHead { flex-direction: column; }.tab span { display: none; } }
+.missing { display: block; margin-top: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); font-style: italic; }
+
+/* Keep dense diligence views readable without changing the outcome simulator. */
+.tab { color: var(--text-secondary); font-size: var(--text-sm); }
+.panelHead p, .passport header p { color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-normal); }
+.componentGrid span, .history b { color: var(--text-secondary); font-size: var(--text-sm); }
+.history p, .skills span { color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-normal); }
+.blockers span, .gaps span { font-size: var(--text-sm); }
+.actionList span, .actionList p { color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-normal); }
+.timelineItem time, .timelineItem p { color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-normal); }
+.note p, .member span { color: var(--text-secondary); font-size: var(--text-sm); }
+.note small { display: block; margin-top: var(--space-1); color: var(--text-muted); font-size: .68rem; }

@@ -14,6 +14,7 @@ export interface ChatMessage {
 
 export interface PortfolioItem {
   company: {
+    id: string;
     name: string;
     sector: string | null;
     stage: string | null;

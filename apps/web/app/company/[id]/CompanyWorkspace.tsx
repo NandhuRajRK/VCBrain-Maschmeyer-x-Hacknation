@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, BriefcaseBusiness, Check, FlaskConical, RefreshCw, Send, Users } from "lucide-react";
+import { Activity, BarChart3, BriefcaseBusiness, Check, FlaskConical, RefreshCw, Send, Users } from "lucide-react";
 import {
   activateFounder,
   addDealNote,
@@ -10,14 +10,12 @@ import {
   fetchDealWorkspace,
   fetchFounderPassports,
   fetchReadiness,
-  fetchTimeline,
   inviteDealMember,
   simulateCompanyOutcome,
   updateDealTask,
 } from "../../../lib/api";
 import type {
   ApiActivationDraft,
-  ApiCompanyTimeline,
   ApiDealWorkspace,
   ApiDecisionReadiness,
   ApiFounderPassport,
@@ -28,7 +26,7 @@ import { userError } from "../../../lib/errors";
 import { useUnsavedChanges } from "../../../lib/use-dismissable-layer";
 import styles from "./CompanyWorkspace.module.css";
 
-type Tab = "readiness" | "founders" | "timeline" | "outcomes" | "team";
+export type WorkspaceTab = "readiness" | "analysis" | "founders" | "timeline" | "outcomes" | "team";
 
 const DEFAULT_OUTCOME: ApiOutcomeInput = {
   initial_investment_usd: 100_000,
@@ -48,18 +46,18 @@ const DEFAULT_OUTCOME: ApiOutcomeInput = {
 };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
-const tabs: { id: Tab; label: string; icon: typeof Activity }[] = [
+const tabs: { id: WorkspaceTab; label: string; icon: typeof Activity }[] = [
   { id: "readiness", label: "Readiness", icon: Check },
+  { id: "analysis", label: "Analysis", icon: BarChart3 },
   { id: "founders", label: "Founder passports", icon: BriefcaseBusiness },
-  { id: "timeline", label: "Timeline", icon: Activity },
+  { id: "timeline", label: "Evidence", icon: Activity },
   { id: "outcomes", label: "Outcomes", icon: FlaskConical },
-  { id: "team", label: "Deal room", icon: Users },
+  { id: "team", label: "Comments", icon: Users },
 ];
 
-export default function CompanyWorkspace({ companyId }: { companyId: string }) {
-  const [tab, setTab] = useState<Tab>("readiness");
+export default function CompanyWorkspace({ companyId, onTabChange }: { companyId: string; onTabChange?: (tab: WorkspaceTab) => void }) {
+  const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [readiness, setReadiness] = useState<ApiDecisionReadiness | null>(null);
-  const [timeline, setTimeline] = useState<ApiCompanyTimeline | null>(null);
   const [passports, setPassports] = useState<ApiFounderPassport[]>([]);
   const [workspace, setWorkspace] = useState<ApiDealWorkspace | null>(null);
   const [outcomeInput, setOutcomeInput] = useState(DEFAULT_OUTCOME);
@@ -76,14 +74,13 @@ export default function CompanyWorkspace({ companyId }: { companyId: string }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [ready, history, founders, room] = await Promise.allSettled([
-      fetchReadiness(companyId), fetchTimeline(companyId), fetchFounderPassports(companyId), fetchDealWorkspace(companyId),
+    const [ready, founders, room] = await Promise.allSettled([
+      fetchReadiness(companyId), fetchFounderPassports(companyId), fetchDealWorkspace(companyId),
     ]);
     if (ready.status === "fulfilled") setReadiness(ready.value);
-    if (history.status === "fulfilled") setTimeline(history.value);
     if (founders.status === "fulfilled") setPassports(founders.value);
     if (room.status === "fulfilled") setWorkspace(room.value);
-    if ([ready, history, founders].every((item) => item.status === "rejected")) setError("The diligence workspace could not be loaded.");
+    if ([ready, founders].every((item) => item.status === "rejected")) setError("The diligence workspace could not be loaded.");
     setLoading(false);
   }, [companyId]);
 
@@ -112,7 +109,7 @@ export default function CompanyWorkspace({ companyId }: { companyId: string }) {
     <section className={styles.workspace}>
       <div className={styles.tabs} role="tablist" aria-label="Company intelligence views">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} role="tab" aria-selected={tab === id} className={styles.tab} onClick={() => { setTab(id); setError(null); }}>
+          <button key={id} role="tab" aria-selected={tab === id} className={styles.tab} onClick={() => { setTab(id); onTabChange?.(id); setError(null); }}>
             <Icon size={15} /> <span>{label}</span>
           </button>
         ))}
@@ -128,7 +125,7 @@ export default function CompanyWorkspace({ companyId }: { companyId: string }) {
               <strong>{readiness.score}</strong><span>ready</span>
             </div>
             <div className={styles.readinessBody}>
-              <div className={styles.panelHead}><div><h2>{readiness.status.replaceAll("_", " ")}</h2><p>Updated {new Date(readiness.updated_at).toLocaleString()}</p></div></div>
+              <div className={styles.panelHead}><div><h2>Readiness · {readiness.score}/100</h2><p>{readiness.status.replaceAll("_", " ")} · Updated {new Date(readiness.updated_at).toLocaleString()}</p></div></div>
               <div className={styles.componentGrid}>{Object.entries(readiness.components).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><strong>{Math.round(value)}</strong></div>)}</div>
               {readiness.blockers.length > 0 && <div className={styles.blockers}>{readiness.blockers.map((item) => <span key={item}>{item}</span>)}</div>}
               <div className={styles.actionList}>{readiness.next_actions.map((item) => <div key={`${item.category}-${item.title}`}><span>{item.priority}</span><div><strong>{item.title}</strong><p>{item.reason}</p></div><b>+{item.expected_readiness_gain}</b></div>)}</div>
@@ -142,20 +139,17 @@ export default function CompanyWorkspace({ companyId }: { companyId: string }) {
             {passports.length === 0 ? <div className={styles.empty}>No founder passport is available yet.</div> : <div className={styles.passports}>{passports.map((founder) => (
               <article key={founder.founder_id} className={styles.passport}>
                 <header><div><h3>{founder.name}</h3><p>{founder.headline || founder.current_role || "Role unverified"}</p></div><span>{Math.round(founder.confidence * 100)}% confidence</span></header>
-                <div className={styles.history}><div><b>Career</b>{founder.work_history.map((item) => <p key={`${item.organization}-${item.role}`}>{item.role} · {item.organization}</p>)}</div><div><b>Education</b>{founder.education_history.map((item) => <p key={item.institution}>{item.degree || "Credential"} · {item.institution}</p>)}</div><div><b>Previous ventures</b>{founder.previous_ventures.map((item) => <p key={item.company_name}>{item.company_name}{item.outcome ? ` · ${item.outcome}` : ""}</p>)}</div></div>
+                <div className={styles.history}>
+                  <div><b>Career</b>{founder.work_history.length > 0 ? founder.work_history.map((item) => <p key={`${item.organization}-${item.role}`}>{item.role} · {item.organization}</p>) : <span className={styles.missing}>No verified career history</span>}</div>
+                  <div><b>Education</b>{founder.education_history.length > 0 ? founder.education_history.map((item) => <p key={item.institution}>{item.degree || "Credential"} · {item.institution}</p>) : <span className={styles.missing}>No verified education</span>}</div>
+                  <div><b>Previous ventures</b>{founder.previous_ventures.length > 0 ? founder.previous_ventures.map((item) => <p key={item.company_name}>{item.company_name}{item.outcome ? ` · ${item.outcome}` : ""}</p>) : <span className={styles.missing}>No verified ventures</span>}</div>
+                </div>
                 {founder.skills.length > 0 && <div className={styles.skills}>{founder.skills.map((skill) => <span key={skill}>{skill}</span>)}</div>}
                 {founder.gaps.length > 0 && <div className={styles.gaps}>{founder.gaps.map((gap) => <span key={gap}>{gap}</span>)}</div>}
                 <button className={styles.secondary} onClick={() => void activateFounder({ founder_id: founder.founder_id, context: "Evidence-backed introduction from the active deal review" }).then(setDraft).catch((err) => setError(userError(err, "company")))}><Send size={14} /> Draft outreach</button>
               </article>
             ))}</div>}
             {draft && <div className={styles.draft}><strong>{draft.subject}</strong><p>{draft.message}</p></div>}
-          </div>
-        )}
-
-        {!loading && tab === "timeline" && timeline && (
-          <div><div className={styles.panelHead}><div><h2>Evidence memory</h2><p>Score, claim, and trigger changes in chronological order.</p></div></div>
-            {[...timeline.trigger_events.map((item) => ({ at: item.created_at, title: item.kind.replaceAll("_", " "), body: item.message })), ...timeline.claim_changes.map((item) => ({ at: item.created_at, title: `${item.previous_status} → ${item.current_status}`, body: item.reason })), ...timeline.score_snapshots.map((item) => ({ at: item.created_at, title: `Founder score ${item.score}`, body: item.reason }))].sort((a, b) => b.at.localeCompare(a.at)).map((item, index) => <div className={styles.timelineItem} key={`${item.at}-${index}`}><time>{new Date(item.at).toLocaleString()}</time><div><strong>{item.title}</strong><p>{item.body}</p></div></div>)}
-            {timeline.trigger_events.length + timeline.claim_changes.length + timeline.score_snapshots.length === 0 && <div className={styles.empty}>No evidence changes have been recorded yet.</div>}
           </div>
         )}
 
@@ -171,14 +165,15 @@ export default function CompanyWorkspace({ companyId }: { companyId: string }) {
         )}
 
         {!loading && tab === "team" && (
-          <div><div className={styles.panelHead}><div><h2>Deal room</h2><p>{workspace?.members.length ?? 0} collaborators · organization-isolated workspace</p></div></div>
+          <div><div className={styles.panelHead}><div><h2>Team comments</h2><p>Review every anchored comment and keep the deal team aligned.</p></div></div>
             {!workspace ? <div className={styles.empty}>This deal room is unavailable in the current organization.</div> : <div className={styles.dealGrid}>
               <div><h3>Tasks</h3><form className={styles.inlineForm} onSubmit={(event) => { event.preventDefault(); if (task.trim()) void run(async () => { await addDealTask(companyId, task.trim()); setTask(""); }); }}><input value={task} onChange={(event) => setTask(event.target.value)} placeholder="Add diligence task" /><button disabled={busy || !task.trim()}>Add</button></form>{workspace.tasks.map((item) => <button key={item.id} className={styles.task} onClick={() => void run(() => updateDealTask(companyId, item, item.status === "done" ? "open" : "done"))}><span data-done={item.status === "done"}>{item.status === "done" ? "✓" : "○"}</span>{item.title}</button>)}</div>
-              <div><h3>Notes</h3><form className={styles.inlineForm} onSubmit={(event) => { event.preventDefault(); if (note.trim()) void run(async () => { await addDealNote(companyId, note.trim()); setNote(""); }); }}><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add evidence-backed note" /><button disabled={busy || !note.trim()}>Add</button></form>{workspace.notes.map((item) => <div className={styles.note} key={item.id}><p>{item.body}</p><span>{item.author_id} · {new Date(item.updated_at).toLocaleDateString()}</span></div>)}</div>
+              <div><h3>Comments</h3><form className={styles.inlineForm} onSubmit={(event) => { event.preventDefault(); if (note.trim()) void run(async () => { await addDealNote(companyId, note.trim()); setNote(""); }); }}><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a team comment" /><button disabled={busy || !note.trim()}>Add</button></form>{workspace.notes.length === 0 && <div className={styles.empty}>No comments yet. Right-click any part of the company page to start one.</div>}{workspace.notes.map((item) => <div className={styles.note} key={item.id}><p>{item.body}</p><span>{item.anchor ? `On ${item.anchor} · ` : ""}{item.author_id} · {new Date(item.updated_at).toLocaleDateString()}</span>{(item.mentions ?? []).length > 0 && <small>Tagged: {(item.mentions ?? []).join(", ")}</small>}</div>)}</div>
               <div><h3>Invite</h3><form className={styles.inlineForm} onSubmit={(event) => { event.preventDefault(); if (invite.trim()) void run(async () => { await inviteDealMember(companyId, invite.trim(), "", "analyst"); setInvite(""); }); }}><input value={invite} onChange={(event) => setInvite(event.target.value)} placeholder="Clerk user ID" /><button disabled={busy || !invite.trim()}>Invite</button></form>{workspace.invitations.map((item) => <div className={styles.member} key={item.id}><span>{item.display_name || item.invited_user_id}</span><b>{item.status}</b></div>)}{workspace.members.map((item) => <div className={styles.member} key={item.id}><span>{item.display_name || item.user_id}</span><b>{item.role}</b></div>)}</div>
             </div>}
           </div>
         )}
+
       </div>
     </section>
   );

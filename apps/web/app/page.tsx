@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleAlert, Gauge, ShieldCheck, Target } from "lucide-react";
-import type { ApiCompany, PipelineResult } from "../lib/api";
-import { analyzePipeline, listCompanies } from "../lib/api";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, CircleAlert, Gauge, Minus, ShieldCheck, Target } from "lucide-react";
+import type { ApiCompany, ApiRankedFounder, PipelineResult } from "../lib/api";
+import { analyzePipeline, listCompanies, listRankedFounders } from "../lib/api";
 import { userError } from "../lib/errors";
 import { DEFAULT_THESIS } from "../lib/thesis";
 import { timeGreeting, workspaceUserName } from "../lib/user";
@@ -52,8 +52,27 @@ function PipelineTrend({ rows }: { rows: Row[] }) {
   </section>;
 }
 
+function FounderRanking({ founders }: { founders: ApiRankedFounder[] }) {
+  return <section className={styles.founderRanking}>
+    <div className={styles.sectionHeading}><div><p>Founder intelligence</p><h2>Ranked founders</h2></div><Link href="/iskra" title="Search founders"><ArrowRight size={15} /></Link></div>
+    {founders.length === 0 ? <div className={styles.inlineEmpty}>No scored founders yet.</div> : <div className={styles.founderTable}>
+      <div className={styles.founderHeader}><span>Founder</span><span>Score</span><span>Confidence</span><span>Trend</span></div>
+      {founders.slice(0, 8).map((row) => {
+        const Trend = row.trend === "up" ? ArrowUpRight : row.trend === "down" ? ArrowDownRight : Minus;
+        return <Link href={`/company/${row.company.id}`} className={styles.founderRow} key={row.founder.id}>
+          <div><strong>{row.founder.name}</strong><small>{row.company.name} · {row.founder.role || "Role unverified"}</small></div>
+          <b>{row.score ? Math.round(row.score.score) : "--"}</b>
+          <span>{row.score ? `${Math.round(row.score.confidence * 100)}%` : "--"}</span>
+          <i data-trend={row.trend}><Trend size={14} />{row.score_delta ? `${row.score_delta > 0 ? "+" : ""}${Math.round(row.score_delta)}` : "--"}</i>
+        </Link>;
+      })}
+    </div>}
+  </section>;
+}
+
 export default function Dashboard() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [rankedFounders, setRankedFounders] = useState<ApiRankedFounder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [welcome, setWelcome] = useState("Welcome back");
@@ -65,7 +84,11 @@ export default function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const companies = await listCompanies();
+        const [companies, founders] = await Promise.all([
+          listCompanies(),
+          listRankedFounders().catch(() => []),
+        ]);
+        if (!cancelled) setRankedFounders(founders);
         const results = await Promise.all(companies.map(async (company) => {
           try { return { company, pipeline: await analyzePipeline(company.id, DEFAULT_THESIS) }; }
           catch { return { company, pipeline: null }; }
@@ -113,6 +136,7 @@ export default function Dashboard() {
           </Link>)}</div>
         </section>
       </section>
+      <FounderRanking founders={rankedFounders} />
       <GlobalIntelligenceMap companies={rows.map((row) => row.company)} />
     </>}
   </div>;

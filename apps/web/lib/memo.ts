@@ -347,13 +347,13 @@ function buildSwot(
 
   // Weaknesses: low-scoring axes + disputed claims
   if (scores.founder.adjustedScore < 50) {
-    weaknesses.push(`Weak founder signal (${scores.founder.adjustedScore}/100)`);
+    weaknesses.push(`Weak founder signal (${scores.founder.adjustedScore}/100): ${scores.founder.notes.slice(0, 2).join("; ") || "limited verified founder evidence"}`);
   }
   if (scores.market.adjustedScore < 50) {
-    weaknesses.push(`Unfavorable market conditions (${scores.market.adjustedScore}/100)`);
+    weaknesses.push(`Unfavorable market conditions (${scores.market.adjustedScore}/100): ${scores.market.notes.slice(0, 2).join("; ") || "market claims lack enough independent support"}`);
   }
   if (scores.ideaVsMarket.adjustedScore < 50) {
-    weaknesses.push(`Weak product-market fit (${scores.ideaVsMarket.adjustedScore}/100)`);
+    weaknesses.push(`Weak product-market fit (${scores.ideaVsMarket.adjustedScore}/100): ${scores.ideaVsMarket.notes.slice(0, 2).join("; ") || "product and market claims are not yet sufficiently connected"}`);
   }
 
   const disputed = disputedClaims(claims);

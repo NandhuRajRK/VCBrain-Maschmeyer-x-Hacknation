@@ -22,7 +22,7 @@
 
 .halo {
   inset: 14%;
-  background: conic-gradient(from 120deg, rgba(34, 211, 238, 0.38), rgba(139, 92, 246, 0.4), rgba(236, 72, 153, 0.32), rgba(34, 211, 238, 0.38));
+  background: conic-gradient(from 120deg, rgba(125, 211, 252, 0.34), rgba(96, 165, 250, 0.38), rgba(186, 230, 253, 0.3), rgba(56, 189, 248, 0.36));
   filter: blur(calc(var(--orb-size) * 0.28));
   animation: haloBreathe 3.6s ease-in-out infinite;
 }
@@ -30,41 +30,41 @@
 .outerShell {
   inset: 5%;
   overflow: hidden;
-  border: 1px solid rgba(103, 232, 249, 0.52);
-  background: conic-gradient(from 210deg, rgba(34, 211, 238, 0.6), rgba(59, 130, 246, 0.22) 28%, rgba(236, 72, 153, 0.56) 58%, rgba(139, 92, 246, 0.5) 78%, rgba(34, 211, 238, 0.6));
+  border: 1px solid rgba(186, 230, 253, 0.62);
+  background: conic-gradient(from 210deg, rgba(56, 189, 248, 0.64), rgba(96, 165, 250, 0.28) 28%, rgba(125, 211, 252, 0.56) 58%, rgba(14, 116, 144, 0.56) 78%, rgba(56, 189, 248, 0.64));
   box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.16), 0 10px 24px rgba(0, 0, 0, 0.3);
   animation: outerDrift 8s ease-in-out infinite alternate;
 }
 
 .middleShell {
   inset: 17% 11% 11% 17%;
-  border: 1px solid rgba(216, 180, 254, 0.62);
-  background: radial-gradient(circle at 36% 25%, rgba(255, 255, 255, 0.72), transparent 24%), linear-gradient(145deg, rgba(168, 85, 247, 0.88), rgba(236, 72, 153, 0.55) 48%, rgba(6, 182, 212, 0.74));
-  box-shadow: inset -8px -9px 14px rgba(49, 23, 91, 0.34), inset 6px 5px 10px rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(224, 242, 254, 0.72);
+  background: radial-gradient(circle at 36% 25%, rgba(255, 255, 255, 0.78), transparent 24%), linear-gradient(145deg, rgba(186, 230, 253, 0.92), rgba(96, 165, 250, 0.68) 48%, rgba(14, 165, 233, 0.78));
+  box-shadow: inset -8px -9px 14px rgba(7, 47, 73, 0.34), inset 6px 5px 10px rgba(255, 255, 255, 0.24);
   animation: middleDrift 6.2s ease-in-out infinite alternate;
 }
 
 .core {
   inset: 31% 27% 25% 29%;
   overflow: hidden;
-  background: radial-gradient(circle at 32% 25%, #ecfeff 0 10%, #67e8f9 24%, #14b8a6 58%, #155e75 100%);
-  box-shadow: 0 0 12px rgba(45, 212, 191, 0.64), inset -4px -5px 7px rgba(8, 47, 73, 0.46);
+  background: radial-gradient(circle at 32% 25%, #f0f9ff 0 10%, #bae6fd 24%, #38bdf8 58%, #075985 100%);
+  box-shadow: 0 0 12px rgba(125, 211, 252, 0.72), inset -4px -5px 7px rgba(8, 47, 73, 0.46);
   animation: surfaceMorph 7s ease-in-out infinite alternate;
 }
 
 .flow {
   inset: 3% -2%;
   border: max(1px, calc(var(--orb-size) * 0.035)) solid transparent;
-  border-top-color: rgba(103, 232, 249, 0.78);
-  border-right-color: rgba(236, 72, 153, 0.66);
+  border-top-color: rgba(186, 230, 253, 0.86);
+  border-right-color: rgba(56, 189, 248, 0.72);
   filter: blur(calc(var(--orb-size) * 0.012));
   mix-blend-mode: screen;
   transform: rotate(-24deg) scaleY(0.58);
 }
 
 .flowOne { animation: flowSpin 5.4s linear infinite; }
-.flowTwo { inset: 9% -5%; opacity: 0.78; border-top-color: rgba(196, 181, 253, 0.84); border-right-color: rgba(34, 211, 238, 0.64); animation: flowSpinReverse 7.8s linear infinite; }
-.flowThree { inset: -3% 12%; opacity: 0.64; border-top-color: rgba(244, 114, 182, 0.82); border-right-color: rgba(139, 92, 246, 0.58); animation: flowSpin 9.5s linear infinite reverse; }
+.flowTwo { inset: 9% -5%; opacity: 0.78; border-top-color: rgba(224, 242, 254, 0.88); border-right-color: rgba(96, 165, 250, 0.72); animation: flowSpinReverse 7.8s linear infinite; }
+.flowThree { inset: -3% 12%; opacity: 0.64; border-top-color: rgba(125, 211, 252, 0.8); border-right-color: rgba(14, 116, 144, 0.68); animation: flowSpin 9.5s linear infinite reverse; }
 
 .glint {
   inset: 17% 20% 52% 18%;
@@ -85,15 +85,18 @@
   height: 3px;
   margin: -1.5px;
   border-radius: 50%;
-  background: hsl(calc(178 + var(--particle) * 13) 82% 68%);
+  background: hsl(calc(190 + var(--particle) * 4) 82% 72%);
   opacity: 0;
   transform: rotate(var(--angle)) translateX(calc(var(--orb-size) * 0.42)) scale(0.2);
 }
 
 .orb[data-voice="true"] {
   transform: scale(1.55);
-  filter: saturate(1.2);
+  filter: saturate(1.08) brightness(1.08);
 }
+
+.orb[data-voice="true"] .halo { background: conic-gradient(from 90deg, rgba(186, 230, 253, .7), rgba(56, 189, 248, .55), rgba(224, 242, 254, .62), rgba(14, 116, 144, .5)); }
+.orb[data-voice="true"] .outerShell { border-color: rgba(224, 242, 254, .9); box-shadow: inset 0 0 18px rgba(224, 242, 254, .2), 0 10px 28px rgba(14, 116, 144, .28); }
 
 .orb[data-voice="true"] .outerShell { animation-duration: 2.3s; }
 .orb[data-voice="true"] .middleShell { animation-duration: 1.9s; }

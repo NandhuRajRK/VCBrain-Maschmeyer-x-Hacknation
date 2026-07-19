@@ -217,7 +217,7 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
   const supporting = founderClaims.filter((c) => c.status === "supported");
   const disputed = founderClaims.filter((c) => c.status === "disputed");
 
-  const isColdStart = founders.every((f) => f.cold_start);
+  const isColdStart = founders.length === 0 || founders.some((f) => f.cold_start);
   const hasGithub = founders.some((f) => f.github);
   const hasLinkedin = founders.some((f) => f.linkedin);
 
@@ -449,7 +449,7 @@ export function scoreDossier(dossier: DossierInput): ScoringResult {
   const market = scoreMarketAxis(dossier);
   const ideaVsMarket = scoreIdeaVsMarketAxis(dossier);
 
-  const isColdStart = dossier.founders.every((f) => f.cold_start);
+  const isColdStart = dossier.founders.length === 0 || dossier.founders.some((f) => f.cold_start);
 
   const overallConfidence =
     Math.round(

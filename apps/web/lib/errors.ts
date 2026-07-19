@@ -15,8 +15,15 @@ export function userError(error: unknown, context: ErrorContext): string {
   if (error instanceof DOMException && error.name === "NotAllowedError") {
     return "Microphone access is blocked. Allow microphone access in your browser settings and try again.";
   }
+  if (context === "voice" && error instanceof Error && /no audio captured|empty recording/i.test(error.message)) {
+    return "I did not hear any audio. Check the selected microphone, then try again.";
+  }
+  if (context === "voice" && error instanceof Error && /microphone is unavailable/i.test(error.message)) {
+    return "This browser cannot access a microphone here. Use localhost or HTTPS and try again.";
+  }
   if (error instanceof ApiError) {
     if (error.status === 401 || error.status === 403) return "Your session does not have access to this workspace. Sign in again or ask your firm administrator.";
+    if (context === "voice" && /OpenAI transcription is not authorized/i.test(error.detail)) return "Voice transcription is unavailable. Check the OpenAI transcription key, then try again.";
     if (error.status === 404) return context === "company" ? "This company is no longer available in the current workspace." : "The requested record could not be found.";
     if (error.status === 409) return "That record already exists or was changed by a teammate. Refresh and try again.";
     if (error.status === 413) return "That file is too large. Upload a smaller document and try again.";

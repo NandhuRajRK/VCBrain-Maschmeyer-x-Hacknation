@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, MapPin, Users } from "lucide-react";
+import { Building2, Check, MapPin, Search, Users } from "lucide-react";
 import { geoEquirectangular, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
@@ -11,6 +11,7 @@ import countriesTopology from "world-atlas/countries-110m.json";
 import type { ApiCompany, ApiFounder } from "../lib/api";
 import { listAllFounders } from "../lib/api";
 import styles from "./GlobalIntelligenceMap.module.css";
+import { useDismissableLayer } from "../lib/use-dismissable-layer";
 
 type Mode = "companies" | "founders";
 type Point = { id: string; companyId: string; name: string; detail: string; geography: string; lat: number; lon: number };
@@ -41,8 +42,8 @@ function coordinates(geography: string, seed: string): [number, number] {
 function globeTexture(light: boolean) {
   const cacheKey = light ? "light" : "dark";
   if (textureCache[cacheKey]) return textureCache[cacheKey];
-  const width = 1024;
-  const height = 512;
+  const width = 2048;
+  const height = 1024;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -60,7 +61,7 @@ function globeTexture(light: boolean) {
   context.beginPath();
   path(countries);
   context.clip();
-  context.font = "5px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.font = "7px ui-monospace, SFMono-Regular, Menlo, monospace";
   context.textAlign = "center";
   context.textBaseline = "middle";
   const glyphs = ["·", "·", "·", "·", ":", "+", "×"];
@@ -70,7 +71,7 @@ function globeTexture(light: boolean) {
     const x = random() * width;
     const y = random() * height;
     context.globalAlpha = 0.18 + random() * 0.24;
-    context.font = `${3 + Math.floor(random() * 3)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    context.font = `${4 + Math.floor(random() * 4)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     context.fillStyle = light ? "#285e63" : "#91d0cc";
     context.fillText(glyphs[Math.floor(random() * glyphs.length)], x, y);
   }
@@ -79,7 +80,7 @@ function globeTexture(light: boolean) {
   context.beginPath();
   path(countries);
   context.strokeStyle = light ? "#4d777c" : "#8ec3c1";
-  context.lineWidth = 0.65;
+  context.lineWidth = 1.1;
   context.stroke();
   context.globalAlpha = 1;
 
@@ -95,10 +96,13 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
   const selectedRef = useRef<string | null>(null);
   const [founders, setFounders] = useState<ApiFounder[]>([]);
   const [mode, setMode] = useState<Mode>("companies");
-  const [geography, setGeography] = useState("all");
+  const [geography, setGeography] = useState<string[]>([]);
+  const [geographyOpen, setGeographyOpen] = useState(false);
+  const [geographyQuery, setGeographyQuery] = useState("");
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const geographyRef = useDismissableLayer<HTMLDivElement>(geographyOpen, () => setGeographyOpen(false));
 
   useEffect(() => { listAllFounders().then(setFounders).catch(() => setFounders([])); }, []);
   const companyById = useMemo(() => new Map(companies.map((company) => [company.id, company])), [companies]);
@@ -115,7 +119,8 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
       return { id: founder.id, companyId: company.id, name: founder.name, detail: `${founder.role || "Founder"} · ${company.name}`, geography: company.geography, lat, lon };
     }).filter((point): point is Point => point !== null);
   }, [companies, companyById, founders, mode]);
-  const visible = useMemo(() => points.filter((point) => geography === "all" || point.geography === geography), [geography, points]);
+  const visible = useMemo(() => points.filter((point) => !geography.length || geography.includes(point.geography)), [geography, points]);
+  const matchingGeographies = geographies.filter((value) => value.toLowerCase().includes(geographyQuery.toLowerCase()));
   const active = visible.find((point) => point.id === (hovered ?? selected));
 
   useEffect(() => { hoveredRef.current = hovered; }, [hovered]);
@@ -138,7 +143,7 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
       if (disposed) return;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-      camera.position.z = 4.05;
+      camera.position.z = 3.35;
       const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.4));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -151,8 +156,9 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
       const radius = 1.52;
       const texture = new THREE.CanvasTexture(globeTexture(light));
       texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
-      globe.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 44), new THREE.MeshBasicMaterial({ map: texture })));
+      texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      globe.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 64), new THREE.MeshBasicMaterial({ map: texture })));
 
       const toVector = (lat: number, lon: number, r = radius + 0.012) => {
         const phi = (90 - lat) * Math.PI / 180;
@@ -166,7 +172,7 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
       visible.forEach((point, index) => {
         const normal = toVector(point.lat, point.lon, 1).normalize();
         const root = toVector(point.lat, point.lon, radius + 0.006);
-        const color = index % 2 ? 0xf472b6 : 0x39d9e6;
+        const color = index % 2 ? 0x7dd3fc : 0x38bdf8;
         const marker = new THREE.Group();
         marker.position.copy(root);
         marker.quaternion.setFromUnitVectors(upAxis, normal);
@@ -260,7 +266,7 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
   }, [visible]);
 
   return <section className={styles.section} aria-label="Global intelligence globe">
-    <header className={styles.header}><div><span>Global intelligence</span><strong>{visible.length} {mode}</strong></div><div className={styles.controls}><div className={styles.segment}><button type="button" data-active={mode === "companies"} onClick={() => { setReady(false); setMode("companies"); setSelected(null); }} title="Companies"><Building2 size={14} /></button><button type="button" data-active={mode === "founders"} onClick={() => { setReady(false); setMode("founders"); setSelected(null); }} title="Founders"><Users size={14} /></button></div><label><MapPin size={13} /><select value={geography} onChange={(event) => { setReady(false); setGeography(event.target.value); setSelected(null); }}><option value="all">All geographies</option>{geographies.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></div></header>
+    <header className={styles.header}><div><span>Global intelligence</span><strong>{visible.length} {mode}</strong></div><div className={styles.controls}><div className={styles.segment}><button type="button" data-active={mode === "companies"} onClick={() => { setReady(false); setMode("companies"); setSelected(null); }} title="Companies"><Building2 size={14} /></button><button type="button" data-active={mode === "founders"} onClick={() => { setReady(false); setMode("founders"); setSelected(null); }} title="Founders"><Users size={14} /></button></div><div ref={geographyRef} className={styles.geoFilter}><button type="button" className={styles.geoButton} data-active={geography.length > 0} onClick={() => setGeographyOpen((open) => !open)}><MapPin size={13} />{geography.length ? `${geography.length} geographies` : "All geographies"}</button>{geographyOpen && <div className={styles.geoMenu}><label className={styles.geoSearch}><Search size={13} /><input autoFocus value={geographyQuery} onChange={(event) => setGeographyQuery(event.target.value)} placeholder="Search geography" /></label>{matchingGeographies.map((value) => <button key={value} type="button" data-active={geography.includes(value)} onClick={() => { setGeography((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]); setSelected(null); setReady(false); }}><span>{value}</span>{geography.includes(value) && <Check size={13} />}</button>)}{!matchingGeographies.length && <small className={styles.geoEmpty}>No geographies found</small>}{geography.length > 0 && <button type="button" className={styles.geoClear} onClick={() => { setGeography([]); setSelected(null); }}>Clear selections</button>}</div>}</div></div></header>
     <div className={styles.map} ref={stageRef} data-ready={ready}>
       <canvas ref={canvasRef} aria-label={`Interactive globe showing ${visible.length} ${mode}`} />
       {!ready && visible.length > 0 && <div className={styles.loader}><span /></div>}

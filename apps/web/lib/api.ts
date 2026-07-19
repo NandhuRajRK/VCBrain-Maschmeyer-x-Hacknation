@@ -75,6 +75,10 @@ export interface ApiAnalysisJob {
   updated_at: string;
 }
 
+export interface ApiChatTitleResponse {
+  title: string;
+}
+
 /** Mirrors models.py CompanyCreate */
 export interface ApiCompanyCreate {
   name: string;
@@ -95,6 +99,15 @@ export interface ApiFounder {
   github: string | null;
   cold_start: boolean;
   updated_at: string;
+}
+
+export interface ApiRankedFounder {
+  founder: ApiFounder;
+  company: ApiCompany;
+  score: { founder_id: string; score: number; confidence: number; cold_start: boolean; evidence_count: number; evidence_coverage: number; contradiction_count: number; notes: string[] } | null;
+  score_delta: number;
+  trend: "up" | "down" | "flat";
+  internal_memory_count: number;
 }
 
 export interface ApiFounderPassport {
@@ -183,11 +196,13 @@ export interface ApiOutcomeResult {
 
 export type ApiCollaborationRole = "partner" | "associate" | "analyst" | "observer";
 export interface ApiDealMember { id: string; company_id: string; organization_id: string | null; user_id: string; display_name: string | null; role: ApiCollaborationRole; added_at: string }
-export interface ApiCollaborationNote { id: string; company_id: string; author_id: string; body: string; claim_ids: string[]; evidence_ids: string[]; created_at: string; updated_at: string; version: number }
+export interface ApiCollaborationNote { id: string; company_id: string; author_id: string; body: string; claim_ids: string[]; evidence_ids: string[]; anchor: string | null; mentions: string[]; parent_id: string | null; status: "open" | "resolved"; position_x: number | null; position_y: number | null; created_at: string; updated_at: string; version: number }
 export interface ApiDealTask { id: string; company_id: string; creator_id: string; title: string; assignee_id: string | null; due_at: string | null; status: "open" | "in_progress" | "done"; created_at: string; updated_at: string; version: number }
 export interface ApiDealInvitation { id: string; company_id: string; organization_id: string; invited_user_id: string; display_name: string | null; role: ApiCollaborationRole; invited_by: string; status: "pending" | "accepted" | "revoked"; created_at: string; accepted_at: string | null }
 export interface ApiDealActivity { id: string; company_id: string; actor_id: string; action: string; entity_type: string; entity_id: string; summary: string; created_at: string }
 export interface ApiDealWorkspace { company_id: string; organization_id: string | null; members: ApiDealMember[]; notes: ApiCollaborationNote[]; tasks: ApiDealTask[]; activity: ApiDealActivity[]; invitations: ApiDealInvitation[] }
+export type ApiInternalMemoryKind = "prior_memo" | "rejected_deal" | "portfolio_company" | "crm_note" | "email" | "partner_note" | "investment_committee";
+export interface ApiInternalMemory { id: string; organization_id: string; author_id: string; kind: ApiInternalMemoryKind; title: string; body: string; company_id: string | null; founder_id: string | null; author_name: string | null; tags: string[]; created_at: string; updated_at: string }
 
 /** Mirrors models.py Source (extends SourceCreate) */
 export interface ApiSource {
@@ -546,11 +561,27 @@ export async function simulateCompanyOutcome(companyId: string, payload: ApiOutc
 }
 
 export async function fetchDealWorkspace(companyId: string): Promise<ApiDealWorkspace> {
-  return request(`/companies/${companyId}/collaboration`);
+  const workspace = await request<ApiDealWorkspace>(`/companies/${companyId}/collaboration`);
+  return {
+    ...workspace,
+    notes: workspace.notes.map((note) => ({ ...note, anchor: note.anchor ?? null, mentions: note.mentions ?? [], parent_id: note.parent_id ?? null, status: note.status ?? "open", position_x: note.position_x ?? null, position_y: note.position_y ?? null })),
+  };
 }
 
-export async function addDealNote(companyId: string, body: string): Promise<ApiCollaborationNote> {
-  return request(`/companies/${companyId}/collaboration/notes`, { method: "POST", body: JSON.stringify({ body, claim_ids: [], evidence_ids: [] }) });
+export async function fetchInternalMemory(companyId: string): Promise<ApiInternalMemory[]> {
+  return request(`/companies/${companyId}/internal-memory`);
+}
+
+export async function addInternalMemory(companyId: string, payload: Pick<ApiInternalMemory, "kind" | "title" | "body">): Promise<ApiInternalMemory> {
+  return request("/internal-memory", { method: "POST", body: JSON.stringify({ ...payload, company_id: companyId }) });
+}
+
+export async function addDealNote(companyId: string, body: string, options: { anchor?: string | null; mentions?: string[]; parent_id?: string | null; position_x?: number | null; position_y?: number | null } = {}): Promise<ApiCollaborationNote> {
+  return request(`/companies/${companyId}/collaboration/notes`, { method: "POST", body: JSON.stringify({ body, claim_ids: [], evidence_ids: [], ...options }) });
+}
+
+export async function updateDealNote(companyId: string, note: ApiCollaborationNote, status: ApiCollaborationNote["status"]): Promise<ApiCollaborationNote> {
+  return request(`/companies/${companyId}/collaboration/notes/${note.id}`, { method: "PATCH", body: JSON.stringify({ body: note.body, claim_ids: note.claim_ids, evidence_ids: note.evidence_ids, anchor: note.anchor, mentions: note.mentions, parent_id: note.parent_id, status, position_x: note.position_x, position_y: note.position_y, version: note.version }) });
 }
 
 export async function addDealTask(companyId: string, title: string): Promise<ApiDealTask> {
@@ -583,6 +614,10 @@ export async function fetchFounders(companyId: string): Promise<ApiFounder[]> {
 
 export async function listAllFounders(): Promise<ApiFounder[]> {
   return request("/founders");
+}
+
+export async function listRankedFounders(limit = 50): Promise<ApiRankedFounder[]> {
+  return request(`/founders/ranked?limit=${limit}`);
 }
 
 // Events
@@ -908,4 +943,13 @@ export async function askAssistant(
     body: JSON.stringify({ question, context, history }),
     signal,
   });
+}
+
+export async function generateChatTitle(question: string, signal?: AbortSignal): Promise<string> {
+  const response = await request<ApiChatTitleResponse>("/assistant/title", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+    signal,
+  });
+  return response.title;
 }
