@@ -3,12 +3,16 @@ import os
 from collections.abc import Generator
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 
 from . import config as config
 from .document_parser import LLM_TASKS, parse_document
 from .demo import seed_demo
 from .models import (
     Claim,
+    AnalysisJob,
+    AnalysisJobCreate,
+    AnalysisJobUpdate,
     ClaimStatus,
     CompanyTimeline,
     ConnectorKind,
@@ -33,6 +37,7 @@ from .models import (
     Dossier,
     Evidence,
     Founder,
+    FundThesis,
     FounderEnrichmentRequest,
     FounderEnrichmentResult,
     FounderPassport,
@@ -58,10 +63,12 @@ from .models import (
     now,
     OutcomeSimulationInput,
     OutcomeSimulationResult,
+    OpportunityDraft,
+    OpportunityIntentRequest,
 )
 from .connectors import pull_signals
 from .founder_passport import build_founder_passport, enrich_founder_passports
-from .llm import parse_founder_query, parse_voice_command
+from .llm import parse_founder_query, parse_opportunity_intent, parse_voice_command
 from .memory import build_timeline, calculate_readiness, refresh_company_memory
 from .pipeline import extract_claims, extract_company_update, extract_founders, parse_source
 from .provenance import apply_company_update, find_duplicate_source, initialize_company_provenance
@@ -69,7 +76,7 @@ from .search import search_founders
 from .store import store
 from .outcomes import simulate_outcome
 from .voice import encode_audio, narrate_text, transcribe_audio
-from .auth import actor_id, organization_id, require_user
+from .auth import actor_id, auth_context, organization_id
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Iskra API", version="0.1.0")
@@ -81,6 +88,23 @@ app.add_middleware(
 )
 
 MAX_VOICE_AUDIO_BYTES = 25_000_000
+
+
+@app.middleware("http")
+async def enforce_company_tenant(request: Request, call_next):
+    """Hide company-scoped resources outside the active Clerk organization."""
+    parts = request.url.path.strip("/").split("/")
+    if len(parts) >= 2 and parts[0] == "companies" and parts[1] in store.companies:
+        company = store.companies[parts[1]]
+        try:
+            request_org = organization_id(request)
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        if company.organization_id and company.organization_id != request_org:
+            return JSONResponse(status_code=404, content={"detail": "Company not found"})
+        if os.getenv("CLERK_SECRET_KEY") and not company.organization_id:
+            return JSONResponse(status_code=403, content={"detail": "Company is not assigned to an organization"})
+    return await call_next(request)
 
 
 def collaboration_transaction() -> Generator[None, None, None]:
@@ -97,15 +121,90 @@ def health() -> dict[str, str]:
 
 
 @app.get("/auth/me")
-def current_user(claims: dict = Depends(require_user)) -> dict:
+def current_user(request: Request) -> dict:
     """Stable handoff endpoint for the Clerk-aware frontend."""
+    claims = auth_context(request)
     return {
-        "user_id": claims.get("sub"),
-        "session_id": claims.get("sid"),
-        "organization_id": claims.get("org_id"),
+        "user_id": claims.get("user_id"),
+        "session_id": claims.get("session_id"),
+        "organization_id": claims.get("organization_id"),
         "organization_role": claims.get("org_role"),
         "organization_permissions": claims.get("org_permissions", []),
     }
+
+
+def _thesis_organization(request: Request) -> str:
+    return organization_id(request) or "demo-org"
+
+
+@app.get("/thesis", response_model=FundThesis)
+def get_thesis(request: Request) -> FundThesis:
+    organization = _thesis_organization(request)
+    return store.fund_theses.get(organization) or FundThesis(organization_id=organization)
+
+
+@app.put("/thesis", response_model=FundThesis)
+def save_thesis(payload: FundThesis, request: Request) -> FundThesis:
+    organization = _thesis_organization(request)
+    thesis = payload.model_copy(update={"organization_id": organization, "updated_at": now()})
+    store.fund_theses[organization] = thesis
+    store.save()
+    return thesis
+
+
+@app.get("/analysis-jobs", response_model=list[AnalysisJob])
+def list_analysis_jobs(request: Request) -> list[AnalysisJob]:
+    request_org = organization_id(request)
+    jobs = list(store.analysis_jobs.values())
+    if os.getenv("CLERK_SECRET_KEY"):
+        jobs = [job for job in jobs if job.organization_id == request_org]
+    return sorted(jobs, key=lambda job: job.updated_at, reverse=True)
+
+
+@app.get("/usage")
+def workspace_usage(request: Request) -> dict:
+    request_org = organization_id(request)
+    jobs = list(store.analysis_jobs.values())
+    if os.getenv("CLERK_SECRET_KEY"):
+        jobs = [job for job in jobs if job.organization_id == request_org]
+    limit = max(1, int(os.getenv("VCBRAIN_ANALYSIS_CREDIT_LIMIT", "100")))
+    used = len(jobs)
+    return {"used": used, "limit": limit, "remaining": max(0, limit - used), "label": "Analysis credits"}
+
+
+@app.post("/analysis-jobs", response_model=AnalysisJob, status_code=201)
+def create_analysis_job(payload: AnalysisJobCreate, request: Request) -> AnalysisJob:
+    company = store.company(payload.company_id)
+    request_org = organization_id(request)
+    if company.organization_id and company.organization_id != request_org:
+        raise HTTPException(status_code=404, detail="Company not found")
+    job = AnalysisJob(
+        company_id=company.id,
+        organization_id=company.organization_id,
+        created_by=actor_id(request),
+        stage="creating",
+        progress=8,
+    )
+    store.analysis_jobs[job.id] = job
+    store.save()
+    return job
+
+
+@app.patch("/analysis-jobs/{job_id}", response_model=AnalysisJob)
+def update_analysis_job(job_id: str, payload: AnalysisJobUpdate, request: Request) -> AnalysisJob:
+    job = store.analysis_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    request_org = organization_id(request)
+    if job.organization_id and job.organization_id != request_org:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    job.stage = payload.stage
+    job.progress = payload.progress
+    job.status = payload.status
+    job.error = payload.error
+    job.updated_at = now()
+    store.save()
+    return job
 
 
 @app.post("/outcomes/simulate", response_model=OutcomeSimulationResult)
@@ -385,8 +484,11 @@ def create_company(payload: CompanyCreate, request: Request) -> Company:
 
 
 @app.get("/companies", response_model=list[Company])
-def list_companies() -> list[Company]:
-    return list(store.companies.values())
+def list_companies(request: Request) -> list[Company]:
+    request_org = organization_id(request)
+    if not os.getenv("CLERK_SECRET_KEY"):
+        return list(store.companies.values())
+    return [company for company in store.companies.values() if company.organization_id == request_org]
 
 
 @app.post("/sources", response_model=Source, status_code=201)
@@ -760,6 +862,14 @@ def narrate(payload: VoiceNarrationRequest) -> Response:
     )
 
 
+@app.post("/voice/transcribe")
+async def transcribe(audio: UploadFile = File(...)) -> dict[str, str]:
+    content = await audio.read()
+    if len(content) > MAX_VOICE_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio input exceeds the 25 MB limit")
+    return {"transcript": transcribe_audio(content, audio.filename or "iskra.webm", audio.content_type)}
+
+
 @app.post("/voice/query", response_model=VoiceQueryResponse)
 async def query_by_voice(
     audio: UploadFile = File(...),
@@ -893,6 +1003,11 @@ def assistant_query(payload: AssistantQueryRequest) -> AssistantResponse:
     if answer is None:
         return AssistantResponse(answer=_assistant_fallback(payload.context), grounded=False)
     return AssistantResponse(answer=answer.strip(), grounded=True)
+
+
+@app.post("/assistant/opportunity-intent", response_model=OpportunityDraft)
+def assistant_opportunity_intent(payload: OpportunityIntentRequest) -> OpportunityDraft:
+    return parse_opportunity_intent(payload.request)
 
 
 def _assistant_fallback(context: str) -> str:

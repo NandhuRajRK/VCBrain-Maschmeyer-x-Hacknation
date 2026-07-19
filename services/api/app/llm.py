@@ -11,6 +11,7 @@ from .models import (
     ExtractedClaim,
     FounderBackgroundExtraction,
     ParsedFounderQuery,
+    OpportunityDraft,
     VoiceCommand,
     VoiceIntent,
 )
@@ -21,6 +22,7 @@ from .prompts import (
     FOUNDER_PASSPORT_SYSTEM_PROMPT,
     FOUNDER_SEARCH_SYSTEM_PROMPT,
     VOICE_COMMAND_SYSTEM_PROMPT,
+    OPPORTUNITY_INTENT_SYSTEM_PROMPT,
 )
 
 
@@ -170,6 +172,22 @@ VOICE_COMMAND_SCHEMA = {
     },
 }
 
+OPPORTUNITY_INTENT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["should_create", "name", "website", "sector", "stage", "geography", "description", "confidence"],
+    "properties": {
+        "should_create": {"type": "boolean"},
+        "name": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "website": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "sector": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "stage": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "geography": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    },
+}
+
 
 def parse_founder_query(query: str) -> ParsedFounderQuery:
     if os.getenv("OPENAI_API_KEY"):
@@ -248,6 +266,33 @@ def parse_voice_command(transcript: str) -> VoiceCommand:
         if parsed:
             return parsed
     return _fallback_voice_command(transcript)
+
+
+def parse_opportunity_intent(request: str) -> OpportunityDraft:
+    if os.getenv("OPENAI_API_KEY"):
+        body = _responses_body(
+            [{"role": "system", "content": OPPORTUNITY_INTENT_SYSTEM_PROMPT}, {"role": "user", "content": request[:3000]}],
+            "opportunity_intake",
+            OPPORTUNITY_INTENT_SCHEMA,
+        )
+        try:
+            response_text = _call_openai(body)
+            if response_text:
+                return OpportunityDraft.model_validate_json(response_text)
+        except Exception:
+            pass
+    return _fallback_opportunity_intent(request)
+
+
+def _fallback_opportunity_intent(request: str) -> OpportunityDraft:
+    lowered = request.lower()
+    should_create = bool(re.search(r"\b(add|create|start|submit|diligence|analy[sz]e)\b", lowered)) and bool(re.search(r"\b(company|startup|opportunity|deal|analysis)\b", lowered))
+    name_match = re.search(r"\b(?:company|startup|opportunity|deal)\s+(?:(?:called|named)\s+)?([A-Z][\w.-]*(?:\s+[A-Z][\w.-]*){0,2})", request)
+    website_match = re.search(r"https?://[^\s,]+", request)
+    stage = next((value for value in ["pre-seed", "seed", "series a", "series b", "growth"] if value in lowered), None)
+    sector = next((value for value in ["AI infrastructure", "developer tools", "fintech", "cybersecurity", "climate", "healthtech", "enterprise SaaS", "marketplace"] if value.lower() in lowered), None)
+    geography = next((value for value in ["Berlin", "London", "Paris", "Munich", "DACH", "European Union", "United States"] if value.lower() in lowered), None)
+    return OpportunityDraft(should_create=should_create, name=name_match.group(1).strip() if name_match else None, website=website_match.group(0) if website_match else None, sector=sector, stage=stage, geography=geography, description=request if should_create else None, confidence=0.58 if should_create else 0.35)
 
 
 def _parse_with_openai(query: str) -> ParsedFounderQuery | None:

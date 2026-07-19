@@ -2,6 +2,7 @@ from fastapi import HTTPException
 
 from .models import (
     Claim,
+    AnalysisJob,
     ClaimStatusChange,
     CollaborationNote,
     Company,
@@ -13,6 +14,7 @@ from .models import (
     Founder,
     FounderScore,
     FounderScoreSnapshot,
+    FundThesis,
     Segment,
     Source,
     TriggerEvent,
@@ -38,6 +40,8 @@ class Store:
         self.deal_activity: dict[str, DealActivity] = self._load("deal_activity")
         self.deal_invitations: dict[str, DealInvitation] = self._load("deal_invitations")
         self.trigger_events: dict[str, TriggerEvent] = self._load("trigger_events")
+        self.fund_theses: dict[str, FundThesis] = self._load("fund_theses")
+        self.analysis_jobs: dict[str, AnalysisJob] = self._load("analysis_jobs")
 
     def _load(self, collection: str):
         return self.db.load_collection(collection, MODEL_COLLECTIONS[collection])
@@ -58,6 +62,8 @@ class Store:
         self.db.save_collection("deal_activity", self.deal_activity)
         self.db.save_collection("deal_invitations", self.deal_invitations)
         self.db.save_collection("trigger_events", self.trigger_events)
+        self.db.save_collection("fund_theses", self.fund_theses)
+        self.db.save_collection("analysis_jobs", self.analysis_jobs)
 
     def company_members(self, company_id: str) -> list[DealMember]:
         self.company(company_id)

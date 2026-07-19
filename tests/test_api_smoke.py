@@ -707,3 +707,63 @@ def test_founder_enrichment_targets_external_search_without_live_calls(monkeypat
     assert payload["created_sources"][0]["source_type"] == "tavily"
     assert payload["created_sources"][0]["metadata"]["founder_enrichment"] is True
     assert payload["ingestion"]["accepted_sources"] == 2
+
+
+def test_workspace_configuration_and_analysis_job_lifecycle(monkeypatch):
+    monkeypatch.delenv("CLERK_SECRET_KEY", raising=False)
+    main.store.fund_theses.clear()
+    main.store.analysis_jobs.clear()
+    client = TestClient(main.app)
+
+    identity = client.get("/auth/me")
+    assert identity.status_code == 200
+    assert identity.json()["user_id"] == "demo-user"
+
+    thesis = client.put(
+        "/thesis",
+        json={
+            "organization_id": "ignored-client-org",
+            "sectors": ["ai_infra"],
+            "stages": ["seed"],
+            "geographies": ["DACH"],
+            "preferred_models": ["api"],
+            "exclusions": ["gambling"],
+            "check_size_min_usd": 100000,
+            "check_size_max_usd": 500000,
+            "ownership_target_pct": 8,
+            "risk_appetite": "moderate",
+        },
+    )
+    assert thesis.status_code == 200
+    assert thesis.json()["organization_id"] == "demo-org"
+    assert client.get("/thesis").json()["sectors"] == ["ai_infra"]
+
+    company_id = client.post("/companies", json={"name": "JobCo"}).json()["id"]
+    created = client.post("/analysis-jobs", json={"company_id": company_id})
+    assert created.status_code == 201
+    job_id = created.json()["id"]
+    completed = client.patch(
+        f"/analysis-jobs/{job_id}",
+        json={"stage": "complete", "progress": 100, "status": "complete"},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["progress"] == 100
+    assert client.get("/analysis-jobs").json()[0]["id"] == job_id
+    assert client.get("/usage").json()["used"] == 1
+
+
+def test_opportunity_intent_prefills_analysis_without_live_llm(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    client = TestClient(main.app)
+    response = client.post(
+        "/assistant/opportunity-intent",
+        json={"request": "Analyze a new company called Vector Labs, a seed AI infrastructure startup in Berlin at https://vector.example"},
+    )
+    assert response.status_code == 200
+    draft = response.json()
+    assert draft["should_create"] is True
+    assert draft["name"] == "Vector Labs"
+    assert draft["stage"] == "seed"
+    assert draft["sector"] == "AI infrastructure"
+    assert draft["geography"] == "Berlin"
+    assert draft["website"] == "https://vector.example"

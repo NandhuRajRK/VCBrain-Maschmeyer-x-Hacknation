@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from .models import (
     Claim,
+    AnalysisJob,
     ClaimStatusChange,
     CollaborationNote,
     Company,
@@ -18,6 +19,7 @@ from .models import (
     Founder,
     FounderScore,
     FounderScoreSnapshot,
+    FundThesis,
     Segment,
     Source,
     TriggerEvent,
@@ -108,4 +110,6 @@ MODEL_COLLECTIONS = {
     "deal_activity": DealActivity,
     "deal_invitations": DealInvitation,
     "trigger_events": TriggerEvent,
+    "fund_theses": FundThesis,
+    "analysis_jobs": AnalysisJob,
 }

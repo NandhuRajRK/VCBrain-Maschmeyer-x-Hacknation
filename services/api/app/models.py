@@ -80,6 +80,40 @@ class CompanyUpdate(BaseModel):
     description: str | None = None
 
 
+class FundThesis(BaseModel):
+    organization_id: str
+    sectors: list[str] = Field(default_factory=list)
+    stages: list[str] = Field(default_factory=list)
+    geographies: list[str] = Field(default_factory=list)
+    preferred_models: list[str] = Field(default_factory=list)
+    exclusions: list[str] = Field(default_factory=list)
+    check_size_min_usd: float = Field(default=100_000, ge=0)
+    check_size_max_usd: float = Field(default=1_000_000, ge=0)
+    ownership_target_pct: float = Field(default=10, ge=0, le=100)
+    risk_appetite: str = "moderate"
+    updated_at: datetime = Field(default_factory=now)
+
+
+class AnalysisJobCreate(BaseModel):
+    company_id: str
+
+
+class AnalysisJobUpdate(BaseModel):
+    stage: str
+    progress: int = Field(ge=0, le=100)
+    status: str = "running"
+    error: str | None = None
+
+
+class AnalysisJob(AnalysisJobUpdate):
+    id: str = Field(default_factory=lambda: new_id("analysis_job"))
+    company_id: str
+    organization_id: str | None = None
+    created_by: str
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+
+
 class WorkHistoryEntry(BaseModel):
     organization: str = Field(min_length=1)
     role: str = Field(min_length=1)
@@ -700,3 +734,18 @@ class AssistantQueryRequest(BaseModel):
 class AssistantResponse(BaseModel):
     answer: str
     grounded: bool
+
+
+class OpportunityIntentRequest(BaseModel):
+    request: str = Field(min_length=1, max_length=3000)
+
+
+class OpportunityDraft(BaseModel):
+    should_create: bool = False
+    name: str | None = None
+    website: str | None = None
+    sector: str | None = None
+    stage: str | None = None
+    geography: str | None = None
+    description: str | None = None
+    confidence: float = Field(default=0.5, ge=0, le=1)
