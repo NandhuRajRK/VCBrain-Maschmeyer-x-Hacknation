@@ -14,7 +14,11 @@ ROOT = Path(__file__).resolve().parents[3]
 SAMPLES = ROOT / "data" / "samples"
 
 
-def seed_demo(reset: bool = True, target: Store = store) -> DemoSeedResult:
+def seed_demo(
+    reset: bool = True,
+    target: Store = store,
+    organization_id: str | None = None,
+) -> DemoSeedResult:
     if reset:
         clear_store(target)
 
@@ -22,6 +26,7 @@ def seed_demo(reset: bool = True, target: Store = store) -> DemoSeedResult:
     for profile in profiles:
         company = Company(
             name=profile["company"],
+            organization_id=organization_id,
             website=profile.get("website"),
             sector=profile["sector"],
             stage=profile["stage"],
