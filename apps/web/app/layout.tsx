@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VC Brain",
+  title: "Iskra",
   description: "Maschmeyer Group intelligence layer for startup sourcing and diligence.",
 };
 

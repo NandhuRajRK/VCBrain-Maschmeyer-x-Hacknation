@@ -43,7 +43,7 @@ export default function Sidebar() {
 
         <div className={styles.brand}>
           <span className={styles.brandIcon}>&#x2726;</span>
-          <span className={styles.brandName}>VC Brain</span>
+          <span className={styles.brandName}>Iskra</span>
         </div>
 
         <nav className={styles.nav}>
