@@ -237,6 +237,7 @@ export default function Dashboard() {
           type="button"
           className={styles.stat}
           data-active={filter === "invest"}
+          data-decision="invest"
           onClick={() => handleFilter("invest")}
         >
           <span className={styles.statValue}>{investCount}</span>
@@ -245,20 +246,22 @@ export default function Dashboard() {
         <button
           type="button"
           className={styles.stat}
-          data-active={filter === "conditional_invest"}
-          onClick={() => handleFilter("conditional_invest")}
-        >
-          <span className={styles.statValue}>{conditionalCount}</span>
-          <span className={styles.statLabel}>Conditional</span>
-        </button>
-        <button
-          type="button"
-          className={styles.stat}
           data-active={filter === "hold"}
+          data-decision="hold"
           onClick={() => handleFilter("hold")}
         >
           <span className={styles.statValue}>{holdCount}</span>
           <span className={styles.statLabel}>Hold</span>
+        </button>
+        <button
+          type="button"
+          className={styles.stat}
+          data-active={filter === "conditional_invest"}
+          data-decision="conditional_invest"
+          onClick={() => handleFilter("conditional_invest")}
+        >
+          <span className={styles.statValue}>{conditionalCount}</span>
+          <span className={styles.statLabel}>Conditional</span>
         </button>
         <button
           type="button"
