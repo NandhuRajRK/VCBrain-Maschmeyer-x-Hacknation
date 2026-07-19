@@ -29,6 +29,7 @@ def simulate_outcome(
         company_id=company_id,
         initial_ownership_pct=round(_initial_ownership(assumptions) * 100, 4),
         effective_monthly_growth_pct=round(assumptions.monthly_growth_pct - assumptions.monthly_churn_pct, 4),
+        next_round_projected_mrr_usd=base.next_round_projected_mrr_usd,
         projected_mrr_usd=base.projected_mrr_usd,
         projected_arr_usd=base.projected_arr_usd,
         monthly_gross_profit_usd=round(base.projected_mrr_usd * assumptions.gross_margin_pct / 100, 2),
@@ -47,6 +48,7 @@ def simulate_outcome(
 def _scenario(label: str, assumptions: OutcomeSimulationInput) -> OutcomeScenario:
     growth = (assumptions.monthly_growth_pct - assumptions.monthly_churn_pct) / 100
     projected_mrr = assumptions.starting_mrr_usd * (1 + growth) ** assumptions.exit_months
+    next_round_mrr = assumptions.starting_mrr_usd * (1 + growth) ** assumptions.months_to_next_round
     initial_ownership = _initial_ownership(assumptions)
     dilution = assumptions.target_next_round_dilution_pct / 100
     post_round_ownership = initial_ownership * (1 - dilution)
@@ -55,6 +57,7 @@ def _scenario(label: str, assumptions: OutcomeSimulationInput) -> OutcomeScenari
     expected_return = exit_value * post_round_ownership * assumptions.exit_probability
     return OutcomeScenario(
         label=label,
+        next_round_projected_mrr_usd=round(next_round_mrr, 2),
         projected_mrr_usd=round(projected_mrr, 2),
         projected_arr_usd=round(projected_mrr * 12, 2),
         runway_months=_runway(assumptions),

@@ -17,6 +17,7 @@ def test_outcome_simulator_returns_scenarios_and_validates_sliders():
     assert response.status_code == 200
     body = response.json()
     assert body["effective_monthly_growth_pct"] == 10
+    assert body["next_round_projected_mrr_usd"] > 10_000
     assert body["required_next_round_pre_money_usd"] == 8_000_000
     assert [item["label"] for item in body["scenarios"]] == ["bear", "base", "bull"]
     assert body["scenarios"][2]["expected_return_usd"] > body["scenarios"][0]["expected_return_usd"]

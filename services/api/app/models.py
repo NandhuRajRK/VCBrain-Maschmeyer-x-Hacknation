@@ -626,6 +626,7 @@ class OutcomeSimulationInput(BaseModel):
 
 class OutcomeScenario(BaseModel):
     label: str
+    next_round_projected_mrr_usd: float
     projected_mrr_usd: float
     projected_arr_usd: float
     runway_months: float | None
@@ -640,6 +641,7 @@ class OutcomeSimulationResult(BaseModel):
     company_id: str | None = None
     initial_ownership_pct: float
     effective_monthly_growth_pct: float
+    next_round_projected_mrr_usd: float
     projected_mrr_usd: float
     projected_arr_usd: float
     monthly_gross_profit_usd: float
