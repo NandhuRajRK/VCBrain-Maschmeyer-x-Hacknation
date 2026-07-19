@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HelpCircle, MapPin, X } from "lucide-react";
+import { HelpCircle, MapPin } from "lucide-react";
 import { geoEquirectangular, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
@@ -31,9 +31,8 @@ function seedOffset(seed: string) {
   return [((value % 100) / 100 - .5) * 2.4, (((value >>> 8) % 100) / 100 - .5) * 3.2] as const;
 }
 
-export default function SourcingMap({ candidates }: { candidates: ApiDiscoveryCandidate[] }) {
+export default function SourcingMap({ candidates, onOpenHow }: { candidates: ApiDiscoveryCandidate[]; onOpenHow: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [helpOpen, setHelpOpen] = useState(true);
   const [active, setActive] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -86,7 +85,7 @@ export default function SourcingMap({ candidates }: { candidates: ApiDiscoveryCa
   return <section className={styles.section} aria-label="Sourcing footprint">
     <header className={styles.header}>
       <div><p>Outbound footprint</p><h2>Where leads are surfacing</h2></div>
-      <button type="button" className={styles.helpTrigger} onClick={() => setHelpOpen(true)} aria-label="How sourcing works"><HelpCircle size={15} /></button>
+      <button type="button" className={styles.helpTrigger} onClick={onOpenHow} aria-label="How sourcing works"><HelpCircle size={15} /></button>
     </header>
     <div className={styles.map} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onWheel={(event) => { event.preventDefault(); setZoom((value) => Math.max(.9, Math.min(2.2, value + (event.deltaY < 0 ? .12 : -.12)))); }}>
       <div className={styles.surface} style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
@@ -97,6 +96,5 @@ export default function SourcingMap({ candidates }: { candidates: ApiDiscoveryCa
       <div className={styles.legend}><span><i />{points.length} located</span>{unresolved > 0 && <span>{unresolved} awaiting location evidence</span>}</div>
       <p className={styles.hint}>Drag to pan · scroll to zoom</p>
     </div>
-    {helpOpen && <div className={styles.help} role="dialog" aria-label="How sourcing works"><button type="button" aria-label="Close" onClick={() => setHelpOpen(false)}><X size={14} /></button><p>How this works</p><h3>Signal first. Pipeline next.</h3><ol><li>Iskra scans public launch sources through your thesis.</li><li>Only named people or companies with a concrete source enter this queue.</li><li>Add a lead to the pipeline when you want to pursue it.</li></ol></div>}
   </section>;
 }
