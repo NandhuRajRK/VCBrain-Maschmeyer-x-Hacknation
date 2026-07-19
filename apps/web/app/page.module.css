@@ -18,11 +18,13 @@
 }
 
 .title {
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.03em;
-  line-height: var(--leading-tight);
+  font-family: var(--font-sans);
+  font-size: 2rem;
+  font-weight: var(--weight-normal);
+  letter-spacing: -0.05em;
+  line-height: 1.2;
   color: var(--text-primary);
+  text-box-trim: trim-both;
 }
 
 .subtitle {
