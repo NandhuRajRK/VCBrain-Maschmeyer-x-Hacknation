@@ -5,7 +5,8 @@
  */
 
 .page {
-  max-width: 900px;
+  width: 100%;
+  max-width: none;
 }
 
 .state,
@@ -14,6 +15,17 @@
   font-size: var(--text-md);
   color: var(--text-secondary);
 }
+
+.emptyState,
+.axisEmpty {
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.axisEmpty { margin-top: var(--space-3); padding: var(--space-2) 0; border: 0; }
 
 .stateError {
   font-family: var(--font-mono);

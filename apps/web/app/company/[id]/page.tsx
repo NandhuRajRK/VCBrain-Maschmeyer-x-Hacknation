@@ -7,6 +7,8 @@ import styles from "./page.module.css";
 import type { PipelineResult } from "../../../lib/api";
 import { analyzePipeline } from "../../../lib/api";
 import { DEFAULT_THESIS } from "../../../lib/thesis";
+import { userError } from "../../../lib/errors";
+import CompanyWorkspace from "./CompanyWorkspace";
 
 const DECISION_LABELS: Record<string, string> = {
   invest: "Invest",
@@ -86,7 +88,7 @@ export default function CompanyDetail() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(String(err));
+          setError(userError(err, "company"));
           setLoading(false);
         }
       }
@@ -172,6 +174,8 @@ export default function CompanyDetail() {
         </div>
       </div>
 
+      <CompanyWorkspace companyId={company.id} />
+
       {/* ── Thesis hard failures ── */}
       {!thesis.pass && (
         <div className={styles.banner}>
@@ -181,16 +185,18 @@ export default function CompanyDetail() {
       )}
 
       {/* ── Key risks (VCs need to see red flags immediately) ── */}
-      {(scores.risks.length > 0 || memo.redTeam.headline) && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Key Risks</h2>
-          {scores.risks.length > 0 && (
-            <div className={styles.riskList}>
-              {scores.risks.map((risk, i) => (
-                <div key={i} className={styles.riskItem}>{risk}</div>
-              ))}
-            </div>
-          )}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Key Risks</h2>
+        {scores.risks.length > 0 ? (
+          <div className={styles.riskList}>
+            {scores.risks.map((risk, i) => (
+              <div key={i} className={styles.riskItem}>{risk}</div>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.emptyState}>No quantified risks have been flagged.</p>
+        )}
+        {memo.redTeam.headline ? (
           <div className={styles.redTeam}>
             <p className={styles.redHead}>{memo.redTeam.headline}</p>
             <p className={styles.redBody}>{memo.redTeam.detail}</p>
@@ -199,15 +205,17 @@ export default function CompanyDetail() {
               {memo.redTeam.mitigation}
             </p>
           </div>
-        </section>
-      )}
+        ) : (
+          <p className={styles.emptyState}>Red-team analysis is not available for this dossier.</p>
+        )}
+      </section>
 
       {/* ── Founders (VCs bet on people) ── */}
-      {dossier.founders.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Founders ({dossier.founders.length})
-          </h2>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Founders ({dossier.founders.length})
+        </h2>
+        {dossier.founders.length > 0 ? (
           <div className={styles.founders}>
             {dossier.founders.map((f) => {
               const fScore = dossier.founder_scores.find((fs) => fs.founder_id === f.id);
@@ -247,8 +255,10 @@ export default function CompanyDetail() {
               );
             })}
           </div>
-        </section>
-      )}
+        ) : (
+          <p className={styles.emptyState}>No founder profiles are linked to this company yet.</p>
+        )}
+      </section>
 
       {/* ── Three-axis score ── */}
       <section className={styles.section}>
@@ -282,6 +292,7 @@ export default function CompanyDetail() {
                   ))}
                 </ul>
               )}
+              {a.axis.notes.length === 0 && <p className={styles.axisEmpty}>No supporting notes.</p>}
             </div>
           ))}
         </div>
@@ -328,6 +339,7 @@ export default function CompanyDetail() {
                 <li key={i}>{x}</li>
               ))}
             </ul>
+            {memo.decisionFlip.becomesInvestIf.length === 0 && <p className={styles.axisEmpty}>No positive trigger recorded.</p>}
           </div>
           <div className={styles.flipCol}>
             <span className={styles.flipHead}>Becomes reject if</span>
@@ -336,6 +348,7 @@ export default function CompanyDetail() {
                 <li key={i}>{x}</li>
               ))}
             </ul>
+            {memo.decisionFlip.becomesRejectIf.length === 0 && <p className={styles.axisEmpty}>No downside trigger recorded.</p>}
           </div>
         </div>
       </section>
@@ -346,9 +359,9 @@ export default function CompanyDetail() {
         {sections.map((sec, i) => (
           <div key={i} className={styles.memoBlock}>
             <h3 className={styles.memoTitle}>{sec.title}</h3>
-            {sec.content.split("\n\n").map((para, j) => (
+            {sec.content ? sec.content.split("\n\n").map((para, j) => (
               <p key={j} className={styles.memoPara}>{para}</p>
-            ))}
+            )) : <p className={styles.emptyState}>No memo content is available for this section.</p>}
             {sec.gaps.length > 0 && (
               <div className={styles.gaps}>
                 <span className={styles.gapsLabel}>Gaps</span>
@@ -366,6 +379,7 @@ export default function CompanyDetail() {
           {dossier.claims.length} claim{dossier.claims.length === 1 ? "" : "s"}. Every score traces back here.
         </p>
         <div className={styles.claims}>
+          {dossier.claims.length === 0 && <p className={styles.emptyState}>No claims have been extracted from the available sources.</p>}
           {dossier.claims.map((claim) => (
             <div key={claim.id} className={styles.claim}>
               <div className={styles.claimHead}>
@@ -395,7 +409,7 @@ export default function CompanyDetail() {
                     </div>
                   );
                 })}
-                {claim.evidence_ids.length === 0 && (
+                {(claim.evidence_ids.length === 0 || claim.evidence_ids.every((eid) => !evidenceById.has(eid))) && (
                   <p className={styles.evNone}>No evidence attached to this claim.</p>
                 )}
               </div>

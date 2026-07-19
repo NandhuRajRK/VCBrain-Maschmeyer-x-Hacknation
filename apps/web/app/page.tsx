@@ -1,554 +1,119 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import styles from "./page.module.css";
-import type { PipelineResult } from "../lib/api";
-import { listCompanies, analyzePipeline } from "../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, CircleAlert, Gauge, ShieldCheck, Target } from "lucide-react";
+import type { ApiCompany, PipelineResult } from "../lib/api";
+import { analyzePipeline, listCompanies } from "../lib/api";
+import { userError } from "../lib/errors";
 import { DEFAULT_THESIS } from "../lib/thesis";
+import { timeGreeting, workspaceUserName } from "../lib/user";
+import IskraOrb from "./IskraOrb";
+import GlobalIntelligenceMap from "./GlobalIntelligenceMap";
+import styles from "./page.module.css";
 
-const PAGE_SIZE = 8;
+type Row = { company: ApiCompany; pipeline: PipelineResult | null };
+const ORDER: Record<string, number> = { invest: 0, conditional_invest: 1, hold: 2, reject: 3 };
+const LABELS: Record<string, string> = { invest: "Invest", conditional_invest: "Conditional", hold: "Hold", reject: "Reject" };
 
-interface CompanyRow {
-  company: { id: string; name: string; sector: string | null; stage: string | null; geography: string | null; description: string | null; website: string | null; created_at: string };
-  pipeline: PipelineResult | null;
-  loading: boolean;
-  error: string | null;
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-type SortKey = "name" | "decision" | "founder" | "market" | "idea" | "fit" | "none";
-type SortDir = "asc" | "desc";
-type DecisionFilter = "all" | "invest" | "conditional_invest" | "hold" | "reject";
-
-const DECISION_ORDER: Record<string, number> = {
-  invest: 0,
-  conditional_invest: 1,
-  hold: 2,
-  reject: 3,
-};
-
-function decisionLabel(decision: string): string {
-  const labels: Record<string, string> = {
-    invest: "Invest",
-    conditional_invest: "Conditional",
-    hold: "Hold",
-    reject: "Reject",
-  };
-  return labels[decision] ?? decision;
-}
-
-function trendArrow(trend: string): string {
-  if (trend === "improving") return "↗";
-  if (trend === "declining") return "↘";
-  return "→";
-}
-
-function sortIndicator(active: boolean, dir: SortDir): string {
-  if (!active) return "";
-  return dir === "asc" ? " ▴" : " ▾";
+function PipelineTrend({ rows }: { rows: Row[] }) {
+  const weeks = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - start.getDay() - 35);
+    return Array.from({ length: 6 }, (_, index) => {
+      const from = new Date(start); from.setDate(start.getDate() + index * 7);
+      const to = new Date(from); to.setDate(from.getDate() + 7);
+      return { label: from.toLocaleDateString(undefined, { month: "short", day: "numeric" }), count: rows.filter(({ company }) => { const created = new Date(company.created_at); return created >= from && created < to; }).length };
+    });
+  }, [rows]);
+  const width = 720; const height = 150; const pad = 14;
+  const max = Math.max(1, ...weeks.map((week) => week.count));
+  const points = weeks.map((week, index) => `${pad + index * ((width - pad * 2) / 5)},${height - pad - (week.count / max) * (height - pad * 2)}`).join(" ");
+  const area = `${pad},${height - pad} ${points} ${width - pad},${height - pad}`;
+  return <section className={styles.trend}>
+    <div className={styles.sectionHeading}><div><p>Pipeline velocity</p><h2>New analyses</h2></div><strong>{weeks.at(-1)?.count ?? 0}<small> this week</small></strong></div>
+    <div className={styles.chart}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="New analyses over six weeks" preserveAspectRatio="none">
+        <defs><linearGradient id="pipeline-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--chart-accent)" stopOpacity=".34"/><stop offset="1" stopColor="var(--chart-accent)" stopOpacity="0"/></linearGradient></defs>
+        {[0.25, 0.5, 0.75].map((value) => <line key={value} x1={pad} x2={width - pad} y1={height * value} y2={height * value} className={styles.gridLine} />)}
+        <polygon points={area} fill="url(#pipeline-fill)" />
+        <polyline points={points} className={styles.trendLine} />
+        {weeks.map((week, index) => { const x = pad + index * ((width - pad * 2) / 5); const y = height - pad - (week.count / max) * (height - pad * 2); return <circle key={week.label} cx={x} cy={y} r="4" className={styles.trendPoint}><title>{week.label}: {week.count} analyses</title></circle>; })}
+      </svg>
+      <div className={styles.axis}>{weeks.map((week) => <span key={week.label}>{week.label}</span>)}</div>
+    </div>
+  </section>;
 }
 
 export default function Dashboard() {
-  const [rows, setRows] = useState<CompanyRow[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [sortKey, setSortKey] = useState<SortKey>("none");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [filter, setFilter] = useState<DecisionFilter>("all");
-  const [selectedPriorityId, setSelectedPriorityId] = useState<string | null>(null);
+  const [welcome, setWelcome] = useState("Welcome back");
+  const [showLoading, setShowLoading] = useState(false);
 
   useEffect(() => {
+    const identityTimer = window.setTimeout(() => setWelcome(`${timeGreeting()}, ${workspaceUserName()}`), 0);
+    const loadingTimer = window.setTimeout(() => setShowLoading(true), 280);
     let cancelled = false;
-
-    async function load() {
+    (async () => {
       try {
         const companies = await listCompanies();
-        if (cancelled) return;
-
-        const initial: CompanyRow[] = companies.map((c) => ({
-          company: c,
-          pipeline: null,
-          loading: true,
-          error: null,
+        const results = await Promise.all(companies.map(async (company) => {
+          try { return { company, pipeline: await analyzePipeline(company.id, DEFAULT_THESIS) }; }
+          catch { return { company, pipeline: null }; }
         }));
-        setRows(initial);
-        setLoading(false);
-
-        const queue = [...companies];
-        const running = new Set<Promise<void>>();
-
-        for (const company of queue) {
-          const task = (async () => {
-            try {
-              const result = await analyzePipeline(company.id, DEFAULT_THESIS);
-              if (cancelled) return;
-              setRows((prev) =>
-                prev.map((r) =>
-                  r.company.id === company.id
-                    ? { ...r, pipeline: result, loading: false }
-                    : r
-                )
-              );
-            } catch (err) {
-              if (cancelled) return;
-              setRows((prev) =>
-                prev.map((r) =>
-                  r.company.id === company.id
-                    ? { ...r, loading: false, error: String(err) }
-                    : r
-                )
-              );
-            }
-          })().then(() => {
-            running.delete(task);
-          });
-          running.add(task);
-          if (running.size >= 4) {
-            await Promise.race(running);
-          }
-        }
-        await Promise.all(running);
-      } catch (err) {
-        if (cancelled) return;
-        setError(String(err));
-        setLoading(false);
+        if (!cancelled) setRows(results);
+      } catch (caught) {
+        if (!cancelled) setError(userError(caught, "dashboard"));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    }
-
-    load();
-    return () => { cancelled = true; };
+    })();
+    return () => { cancelled = true; window.clearTimeout(identityTimer); window.clearTimeout(loadingTimer); };
   }, []);
 
-  /* ── Sorting ── */
+  const analyzed = rows.filter((row): row is Row & { pipeline: PipelineResult } => Boolean(row.pipeline));
+  const priority = useMemo(() => [...analyzed].sort((a, b) => {
+    const decision = (ORDER[a.pipeline.memo.decision] ?? 9) - (ORDER[b.pipeline.memo.decision] ?? 9);
+    return decision || b.pipeline.thesis.fitScore - a.pipeline.thesis.fitScore;
+  }).slice(0, 4), [analyzed]);
+  const candidates = analyzed.filter((row) => ["invest", "conditional_invest"].includes(row.pipeline.memo.decision)).length;
+  const thesisFit = Math.round(median(analyzed.map((row) => row.pipeline.thesis.fitScore)));
+  const confidence = Math.round(median(analyzed.map((row) => row.pipeline.scores.overallConfidence * 100)));
+  const risks = analyzed.reduce((total, row) => total + row.pipeline.scores.risks.length, 0);
 
-  const handleSort = useCallback((key: SortKey) => {
-    if (key === sortKey) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-    setPage(1);
-  }, [sortKey]);
-
-  /* ── Filter + sort pipeline ── */
-
-  const analyzed = rows.filter((r) => r.pipeline !== null);
-  const investCount = analyzed.filter((r) => r.pipeline?.memo.decision === "invest").length;
-  const conditionalCount = analyzed.filter((r) => r.pipeline?.memo.decision === "conditional_invest").length;
-  const holdCount = analyzed.filter((r) => r.pipeline?.memo.decision === "hold").length;
-  const rejectCount = analyzed.filter((r) => r.pipeline?.memo.decision === "reject").length;
-
-  const filtered = useMemo(() => {
-    if (filter === "all") return rows;
-    return rows.filter((r) => r.pipeline?.memo.decision === filter);
-  }, [rows, filter]);
-
-  const sorted = useMemo(() => {
-    if (sortKey === "none") return filtered;
-
-    return [...filtered].sort((a, b) => {
-      const ap = a.pipeline;
-      const bp = b.pipeline;
-
-      if (!ap && !bp) return 0;
-      if (!ap) return 1;
-      if (!bp) return -1;
-
-      let cmp = 0;
-
-      switch (sortKey) {
-        case "name":
-          cmp = a.company.name.localeCompare(b.company.name);
-          break;
-        case "decision":
-          cmp = (DECISION_ORDER[ap.memo.decision] ?? 99) - (DECISION_ORDER[bp.memo.decision] ?? 99);
-          break;
-        case "founder":
-          cmp = ap.scores.founder.adjustedScore - bp.scores.founder.adjustedScore;
-          break;
-        case "market":
-          cmp = ap.scores.market.adjustedScore - bp.scores.market.adjustedScore;
-          break;
-        case "idea":
-          cmp = ap.scores.ideaVsMarket.adjustedScore - bp.scores.ideaVsMarket.adjustedScore;
-          break;
-        case "fit":
-          cmp = ap.thesis.fitScore - bp.thesis.fitScore;
-          break;
-      }
-
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortKey, sortDir]);
-
-  /* ── Pagination ── */
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const pageRows = sorted.slice(startIndex, startIndex + PAGE_SIZE);
-
-  /* ── Weekly investment desk ── */
-
-  const priorityRows = useMemo(() => [...analyzed]
-    .sort((a, b) => {
-      const aPipeline = a.pipeline!;
-      const bPipeline = b.pipeline!;
-      const decisionDelta = (DECISION_ORDER[aPipeline.memo.decision] ?? 99) - (DECISION_ORDER[bPipeline.memo.decision] ?? 99);
-      if (decisionDelta !== 0) return decisionDelta;
-      return (bPipeline.thesis.fitScore * 100 + bPipeline.scores.overallConfidence * 20)
-        - (aPipeline.thesis.fitScore * 100 + aPipeline.scores.overallConfidence * 20);
-    })
-    .slice(0, 3), [analyzed]);
-
-  const actionRows = priorityRows
-    .filter((row) => row.pipeline!.memo.decision !== "reject")
-    .slice(0, 3);
-
-  const activePriorityId = priorityRows.some((row) => row.company.id === selectedPriorityId)
-    ? selectedPriorityId
-    : priorityRows[0]?.company.id;
-
-  const handleFilter = useCallback((d: DecisionFilter) => {
-    setFilter((prev) => (prev === d ? "all" : d));
-    setPage(1);
-  }, []);
-
-  return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Welcome back, Julia</h1>
-        </div>
-      </header>
-
-      {analyzed.length > 0 && (
-        <section className={styles.cockpit} aria-label="This week">
-          <div className={styles.cockpitLead}>
-            <div className={styles.sectionHeading}>
-              <div>
-                <p className={styles.sectionKicker}>This week</p>
-                <h2>Review queue</h2>
-              </div>
-              <span className={styles.sectionMeta}>{priorityRows.length} recommendations</span>
-            </div>
-
-            <div className={styles.priorityList}>
-              {priorityRows.map((row, index) => {
-                const pipeline = row.pipeline!;
-                const isActive = row.company.id === activePriorityId;
-                const evidence = pipeline.memo.sections.investmentHypotheses.supportingClaims[0]
-                  ?? pipeline.memo.sections.companySnapshot.supportingClaims[0];
-                const reason = pipeline.memo.decision === "invest"
-                  ? evidence?.text ?? row.company.description ?? "Review the evidence behind this recommendation."
-                  : pipeline.memo.redTeam.headline
-                    || pipeline.memo.decisionFlip.becomesInvestIf[0]
-                    || "Evidence is still being assembled for this opportunity.";
-
-                return (
-                  <article key={row.company.id} className={styles.priorityCard} data-active={isActive}>
-                    <span className={styles.priorityNumber}>0{index + 1}</span>
-                    <div className={styles.priorityBody}>
-                      <button
-                        type="button"
-                        className={styles.prioritySelect}
-                        onClick={() => setSelectedPriorityId(row.company.id)}
-                        aria-expanded={isActive}
-                      >
-                        <div>
-                          <h3>{row.company.name}</h3>
-                          <p>{[row.company.sector, row.company.stage, row.company.geography].filter(Boolean).join(" · ") || "Opportunity profile"}</p>
-                        </div>
-                        <span className={styles.decision} data-decision={pipeline.memo.decision}>{decisionLabel(pipeline.memo.decision)}</span>
-                      </button>
-                      {isActive && (
-                        <div className={styles.priorityDetail}>
-                          <p className={styles.priorityReason}>{reason}</p>
-                          <div className={styles.priorityFooter}>
-                            <span>Trust {Math.round(pipeline.scores.overallConfidence * 100)}%</span>
-                            <span>Founder {pipeline.scores.founder.adjustedScore}</span>
-                            <span>Market {pipeline.scores.market.adjustedScore}</span>
-                            <span>Idea/Mkt {pipeline.scores.ideaVsMarket.adjustedScore}</span>
-                          </div>
-                          <div className={styles.priorityActions}>
-                            <a href={`/company/${row.company.id}`} className={styles.memoLink}>Review memo <span aria-hidden="true">→</span></a>
-                            <span className={styles.evidenceNote}>{pipeline.scores.risks.length > 0 ? `${pipeline.scores.risks.length} evidence item${pipeline.scores.risks.length === 1 ? "" : "s"} to resolve` : "Ready for human review"}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-
-          <aside className={styles.cockpitSide}>
-            <div className={styles.sidePanel}>
-              <div className={styles.sectionHeading}>
-                <div>
-                  <p className={styles.sectionKicker}>Human actions</p>
-                  <h2>Make progress today</h2>
-                </div>
-              </div>
-              <div className={styles.actionList}>
-                {actionRows.map((row) => {
-                  const pipeline = row.pipeline!;
-                  const hasGaps = pipeline.scores.risks.length > 0 || pipeline.scores.coldStart;
-                  return (
-                    <a key={row.company.id} href={`/company/${row.company.id}`} className={styles.actionItem}>
-                      <span className={styles.actionMark} data-decision={pipeline.memo.decision} />
-                      <span><strong>{hasGaps ? "Resolve evidence" : "Review memo"}</strong><small>{row.company.name} · {hasGaps ? `${pipeline.scores.risks.length || 1} item to verify` : "decision-ready"}</small></span>
-                      <span aria-hidden="true">→</span>
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-
-          </aside>
-        </section>
-      )}
-
-      {/* ── Compact queue snapshot (clickable filters) ── */}
-      <section className={styles.snapshot}>
-        <div className={styles.snapshotHeader}>
-          <span>Queue snapshot</span>
-          <span>{analyzed.length} analyzed</span>
-        </div>
-        <div className={styles.stats}>
-        <button
-          type="button"
-          className={styles.stat}
-          data-active={filter === "all"}
-          data-decision="all"
-          onClick={() => handleFilter("all")}
-        >
-          <span className={styles.statValue}>{rows.length}</span>
-          <span className={styles.statLabel}>Total</span>
-        </button>
-        <button
-          type="button"
-          className={styles.stat}
-          data-active={filter === "invest"}
-          data-decision="invest"
-          onClick={() => handleFilter("invest")}
-        >
-          <span className={styles.statValue}>{investCount}</span>
-          <span className={styles.statLabel}>Invest</span>
-        </button>
-        <button
-          type="button"
-          className={styles.stat}
-          data-active={filter === "hold"}
-          data-decision="hold"
-          onClick={() => handleFilter("hold")}
-        >
-          <span className={styles.statValue}>{holdCount}</span>
-          <span className={styles.statLabel}>Hold</span>
-        </button>
-        <button
-          type="button"
-          className={styles.stat}
-          data-active={filter === "conditional_invest"}
-          data-decision="conditional_invest"
-          onClick={() => handleFilter("conditional_invest")}
-        >
-          <span className={styles.statValue}>{conditionalCount}</span>
-          <span className={styles.statLabel}>Conditional</span>
-        </button>
-        <button
-          type="button"
-          className={styles.stat}
-          data-active={filter === "reject"}
-          data-decision="reject"
-          onClick={() => handleFilter("reject")}
-        >
-          <span className={styles.statValue}>{rejectCount}</span>
-          <span className={styles.statLabel}>Reject</span>
-        </button>
-        </div>
+  return <div className={styles.page}>
+    <header className={styles.header}><div><p className={styles.eyebrow}>Investment desk</p><h1>{welcome}</h1></div><Link href="/opportunities" className={styles.dashboardLink}>Deal flow <ArrowRight size={15} /></Link></header>
+    {loading && showLoading && <div className={styles.empty}><IskraOrb size={34} /><p>Preparing the portfolio view...</p></div>}
+    {error && <div className={styles.empty}><p className={styles.emptyError}>{error}</p></div>}
+    {!loading && !error && rows.length === 0 && <div className={styles.empty}><p>No analyses yet.</p><Link href="/opportunities?new=1">Run the first analysis <ArrowRight size={14} /></Link></div>}
+    {!loading && analyzed.length > 0 && <>
+      <section className={styles.metrics} aria-label="Portfolio metrics">
+        <article><Target size={16} /><p>Deployment candidates</p><strong>{candidates}</strong><small>Invest or conditional</small></article>
+        <article><Gauge size={16} /><p>Median thesis fit</p><strong>{thesisFit}<span>/100</span></strong><small>Across analyzed deals</small></article>
+        <article><ShieldCheck size={16} /><p>Evidence confidence</p><strong>{confidence}<span>%</span></strong><small>Median confidence</small></article>
+        <article><CircleAlert size={16} /><p>Open diligence risks</p><strong>{risks}</strong><small>Across the portfolio</small></article>
       </section>
-
-      {/* ── Loading / error states ── */}
-      {loading && (
-        <div className={styles.empty}>
-          <p className={styles.emptyText}>Loading pipeline...</p>
-        </div>
-      )}
-
-      {error && (
-        <div className={styles.empty}>
-          <p className={styles.emptyError}>{error}</p>
-        </div>
-      )}
-
-      {!loading && !error && rows.length === 0 && (
-        <div className={styles.empty}>
-          <p className={styles.emptyText}>No companies in pipeline yet.</p>
-          <p className={styles.emptyHint}>
-            Submit a new application or seed demo data to get started.
-          </p>
-        </div>
-      )}
-
-      {/* ── Company list ── */}
-      {sorted.length > 0 && (
-        <div className={styles.list}>
-          <div className={styles.listTitle}>
-            <h2>All opportunities</h2>
-            <span>Sort, filter, and drill into every decision.</span>
-          </div>
-          <div className={styles.listHeader}>
-            <button type="button" className={styles.colHeaderCompany} onClick={() => handleSort("name")}>
-              Company{sortIndicator(sortKey === "name", sortDir)}
-            </button>
-            <button type="button" className={styles.colHeaderCenter} onClick={() => handleSort("decision")}>
-              Decision{sortIndicator(sortKey === "decision", sortDir)}
-            </button>
-            <button type="button" className={styles.colHeaderCenter} onClick={() => handleSort("founder")}>
-              Founder{sortIndicator(sortKey === "founder", sortDir)}
-            </button>
-            <button type="button" className={styles.colHeaderCenter} onClick={() => handleSort("market")}>
-              Market{sortIndicator(sortKey === "market", sortDir)}
-            </button>
-            <button type="button" className={styles.colHeaderCenter} onClick={() => handleSort("idea")}>
-              Idea / Mkt{sortIndicator(sortKey === "idea", sortDir)}
-            </button>
-            <button type="button" className={styles.colHeaderCenter} onClick={() => handleSort("fit")}>
-              Thesis Fit{sortIndicator(sortKey === "fit", sortDir)}
-            </button>
-            <span className={styles.colHeaderCenter}>Status</span>
-          </div>
-
-          {pageRows.map((row) => (
-            <a
-              key={row.company.id}
-              href={`/company/${row.company.id}`}
-              className={styles.row}
-            >
-              <div className={styles.colCompany}>
-                <span className={styles.companyName}>{row.company.name}</span>
-                <span className={styles.companyMeta}>
-                  {[row.company.sector, row.company.stage, row.company.geography]
-                    .filter(Boolean)
-                    .join(" · ") || "No details"}
-                </span>
-              </div>
-
-              {row.loading ? (
-                <>
-                  <span className={styles.colCenter}><span className={styles.skeleton} /></span>
-                  <span className={styles.colCenter}><span className={styles.skeleton} /></span>
-                  <span className={styles.colCenter}><span className={styles.skeleton} /></span>
-                  <span className={styles.colCenter}><span className={styles.skeleton} /></span>
-                  <span className={styles.colCenter}><span className={styles.skeleton} /></span>
-                  <span className={styles.colCenter}><span className={styles.analyzing}>Analyzing</span></span>
-                </>
-              ) : row.error ? (
-                <span className={styles.rowError}>Failed to analyze</span>
-              ) : row.pipeline ? (
-                <>
-                  <span className={styles.colCenter}>
-                    <span className={styles.decision} data-decision={row.pipeline.memo.decision}>
-                      {decisionLabel(row.pipeline.memo.decision)}
-                    </span>
-                  </span>
-
-                  <span className={styles.colCenter}>
-                    <span className={styles.scoreValue}>
-                      {row.pipeline.scores.founder.adjustedScore}
-                    </span>
-                    <span className={styles.scoreTrend}>
-                      {trendArrow(row.pipeline.scores.founder.trend)}
-                    </span>
-                  </span>
-
-                  <span className={styles.colCenter}>
-                    <span className={styles.scoreValue}>
-                      {row.pipeline.scores.market.adjustedScore}
-                    </span>
-                    <span className={styles.scoreTrend}>
-                      {trendArrow(row.pipeline.scores.market.trend)}
-                    </span>
-                  </span>
-
-                  <span className={styles.colCenter}>
-                    <span className={styles.scoreValue}>
-                      {row.pipeline.scores.ideaVsMarket.adjustedScore}
-                    </span>
-                    <span className={styles.scoreTrend}>
-                      {trendArrow(row.pipeline.scores.ideaVsMarket.trend)}
-                    </span>
-                  </span>
-
-                  <span className={styles.colCenter}>
-                    <span className={styles.fitValue}>
-                      {Math.round(row.pipeline.thesis.fitScore * 100)}%
-                    </span>
-                    {!row.pipeline.thesis.pass && (
-                      <span className={styles.fitFail}>Fail</span>
-                    )}
-                  </span>
-
-                  <span className={styles.colCenter}>
-                    {row.pipeline.scores.coldStart && (
-                      <span className={styles.flag}>Cold start</span>
-                    )}
-                    {row.pipeline.scores.risks.length > 0 && (
-                      <span className={styles.flag}>
-                        {row.pipeline.scores.risks.length} risk{row.pipeline.scores.risks.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </span>
-                </>
-              ) : null}
-            </a>
-          ))}
-        </div>
-      )}
-
-      {/* ── Pager ── */}
-      {totalPages > 1 && (
-        <div className={styles.pager}>
-          <button
-            type="button"
-            className={styles.pagerBtn}
-            onClick={() => setPage(currentPage - 1)}
-            disabled={currentPage <= 1}
-          >
-            Prev
-          </button>
-
-          <div className={styles.pagerPages}>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                type="button"
-                className={styles.pagerPage}
-                data-active={p === currentPage}
-                onClick={() => setPage(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            className={styles.pagerBtn}
-            onClick={() => setPage(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-          >
-            Next
-          </button>
-
-          <span className={styles.pagerMeta}>
-            {startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, sorted.length)} of {sorted.length}
-          </span>
-        </div>
-      )}
-    </div>
-  );
+      <section className={styles.intelligenceRow}>
+        <PipelineTrend rows={rows} />
+        <section className={styles.queue}>
+          <div className={styles.sectionHeading}><div><p>Priority queue</p><h2>Recommendations</h2></div><Link href="/opportunities" title="Open deal flow"><ArrowRight size={15} /></Link></div>
+          <div className={styles.queueList}>{priority.map((row) => <Link href={`/company/${row.company.id}`} key={row.company.id} className={styles.queueRow}>
+            <div><strong>{row.company.name}</strong><small>{[row.company.sector, row.company.stage].filter(Boolean).join(" · ")}</small></div>
+            <span data-decision={row.pipeline.memo.decision}>{LABELS[row.pipeline.memo.decision]}</span>
+            <b>{Math.round(row.pipeline.scores.overallConfidence * 100)}%<small>trust</small></b>
+          </Link>)}</div>
+        </section>
+      </section>
+      <GlobalIntelligenceMap companies={rows.map((row) => row.company)} />
+    </>}
+  </div>;
 }
