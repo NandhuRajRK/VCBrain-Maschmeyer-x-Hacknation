@@ -1,7 +1,7 @@
 /* ── Dashboard / Pipeline View ──────────────────────────────────
  * Table-like list of companies with scores, decisions, and flags.
  * Sortable columns, filterable stat cards, decision breakdown chart.
- * Monochromatic. Status through typography, not color.
+ * Glassmorphism stat cards. Semantic decision colors.
  */
 
 .page {
@@ -63,6 +63,7 @@
 }
 
 .stat {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -74,76 +75,110 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
-              0 1px 3px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.2);
   transition: background 0.35s ease-in-out,
               box-shadow 0.35s ease-in-out;
 }
 
+/* Per-decision glass tints */
+.stat[data-decision="invest"] {
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.stat[data-decision="conditional_invest"] {
+  background: rgba(234, 179, 8, 0.06);
+}
+
+.stat[data-decision="hold"] {
+  background: rgba(100, 116, 139, 0.06);
+}
+
+.stat[data-decision="reject"] {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* Floating grain overlay — visible only when active */
+.stat::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  transition: opacity 0.4s ease-in-out;
+}
+
+.stat[data-active="true"]::before {
+  opacity: 0.07;
+  animation: grainDrift 8s linear infinite;
+}
+
+@keyframes grainDrift {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-30px, 20px); }
+  50%  { transform: translate(15px, -25px); }
+  75%  { transform: translate(-20px, -10px); }
+  100% { transform: translate(0, 0); }
+}
+
 .stat:hover {
   background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
-              0 2px 8px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Per-decision hover tints */
+.stat[data-decision="invest"]:hover {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.stat[data-decision="conditional_invest"]:hover {
+  background: rgba(234, 179, 8, 0.1);
+}
+
+.stat[data-decision="hold"]:hover {
+  background: rgba(100, 116, 139, 0.1);
+}
+
+.stat[data-decision="reject"]:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .stat[data-active="true"] {
-  background: rgba(255, 255, 255, 0.09);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
-              0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-/* Per-decision glass tints */
-.stat[data-decision="invest"] {
-  background: rgba(34, 197, 94, 0.07);
-  box-shadow: inset 0 1px 0 rgba(34, 197, 94, 0.1),
-              0 1px 3px rgba(0, 0, 0, 0.2);
+.stat[data-active="true"][data-decision="invest"] {
+  background: rgba(34, 197, 94, 0.12);
 }
-.stat[data-decision="invest"]:hover {
-  background: rgba(34, 197, 94, 0.11);
-}
-.stat[data-decision="invest"][data-active="true"] {
-  background: rgba(34, 197, 94, 0.15);
-}
-.stat[data-decision="invest"] .statValue { color: #4ade80; }
 
-.stat[data-decision="conditional_invest"] {
-  background: rgba(234, 179, 8, 0.07);
-  box-shadow: inset 0 1px 0 rgba(234, 179, 8, 0.1),
-              0 1px 3px rgba(0, 0, 0, 0.2);
+.stat[data-active="true"][data-decision="conditional_invest"] {
+  background: rgba(234, 179, 8, 0.12);
 }
-.stat[data-decision="conditional_invest"]:hover {
-  background: rgba(234, 179, 8, 0.11);
-}
-.stat[data-decision="conditional_invest"][data-active="true"] {
-  background: rgba(234, 179, 8, 0.15);
-}
-.stat[data-decision="conditional_invest"] .statValue { color: #facc15; }
 
-.stat[data-decision="hold"] {
-  background: rgba(148, 163, 184, 0.07);
-  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.1),
-              0 1px 3px rgba(0, 0, 0, 0.2);
+.stat[data-active="true"][data-decision="hold"] {
+  background: rgba(100, 116, 139, 0.12);
 }
-.stat[data-decision="hold"]:hover {
-  background: rgba(148, 163, 184, 0.11);
-}
-.stat[data-decision="hold"][data-active="true"] {
-  background: rgba(148, 163, 184, 0.15);
-}
-.stat[data-decision="hold"] .statValue { color: #94a3b8; }
 
-.stat[data-decision="reject"] {
-  background: rgba(239, 68, 68, 0.07);
-  box-shadow: inset 0 1px 0 rgba(239, 68, 68, 0.1),
-              0 1px 3px rgba(0, 0, 0, 0.2);
+.stat[data-active="true"][data-decision="reject"] {
+  background: rgba(239, 68, 68, 0.12);
 }
-.stat[data-decision="reject"]:hover {
-  background: rgba(239, 68, 68, 0.11);
+
+/* Keep text above the grain layer */
+.statValue,
+.statLabel {
+  position: relative;
+  z-index: 1;
 }
-.stat[data-decision="reject"][data-active="true"] {
-  background: rgba(239, 68, 68, 0.15);
-}
-.stat[data-decision="reject"] .statValue { color: #f87171; }
 
 .statValue {
   font-family: var(--font-mono);
@@ -151,6 +186,23 @@
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
   letter-spacing: -0.02em;
+}
+
+/* Per-decision stat value colors */
+.stat[data-decision="invest"] .statValue {
+  color: #4ade80;
+}
+
+.stat[data-decision="conditional_invest"] .statValue {
+  color: #facc15;
+}
+
+.stat[data-decision="hold"] .statValue {
+  color: #94a3b8;
+}
+
+.stat[data-decision="reject"] .statValue {
+  color: #f87171;
 }
 
 .statLabel {
@@ -482,7 +534,7 @@
   border-radius: var(--radius-sm);
   border: none;
   background: var(--bg-raised);
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .decision[data-decision="invest"] {
@@ -495,14 +547,14 @@
   background: var(--color-conditional-muted);
 }
 
-.decision[data-decision="reject"] {
-  color: var(--color-reject);
-  background: var(--color-reject-muted);
-}
-
 .decision[data-decision="hold"] {
   color: var(--color-hold);
   background: var(--color-hold-muted);
+}
+
+.decision[data-decision="reject"] {
+  color: var(--color-reject);
+  background: var(--color-reject-muted);
 }
 
 /* ── Score values ── */
