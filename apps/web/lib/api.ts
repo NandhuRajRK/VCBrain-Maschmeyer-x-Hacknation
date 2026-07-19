@@ -615,3 +615,32 @@ export async function uploadAndReanalyze(
   const pipeline = await analyzePipeline(companyId, thesis);
   return { upload, pipeline };
 }
+
+// ── Assistant ─────────────────────────────────────────────────
+
+export interface AssistantMessagePayload {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantAnswer {
+  answer: string;
+  grounded: boolean;
+}
+
+/**
+ * Ask the portfolio assistant a natural language question. The caller
+ * assembles the portfolio context on the client (from the analysed
+ * pipeline data) and passes it in, so the answer is grounded in exactly
+ * what the analyst can see. The API keeps the model key server side.
+ */
+export async function askAssistant(
+  question: string,
+  context: string,
+  history: AssistantMessagePayload[] = []
+): Promise<AssistantAnswer> {
+  return request("/assistant/query", {
+    method: "POST",
+    body: JSON.stringify({ question, context, history }),
+  });
+}

@@ -1,5 +1,6 @@
 /* ── Company Deep-Dive ───────────────────────────────────────────
- * Full memo, 3-axis scores, decision-flip, red-team, evidence trail.
+ * Verdict-first layout: decision and confidence in seconds,
+ * founders prominent, risks unmissable, evidence trail auditable.
  * Monochromatic. Hierarchy through weight and spacing, not color.
  */
 
@@ -21,26 +22,40 @@
 }
 
 .back {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--text-tertiary);
   margin-bottom: var(--space-6);
-  transition: color var(--duration-fast) var(--ease-out);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
 }
 
 .back:hover {
   color: var(--text-primary);
+  border-color: var(--border-subtle);
 }
 
-/* ── Header ── */
+/* ── Verdict card (hero) ── */
 
-.header {
+.verdict {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-8);
-  padding-bottom: var(--space-8);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-8);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.verdictMain {
+  flex: 1;
+  min-width: 0;
 }
 
 .title {
@@ -65,20 +80,31 @@
   max-width: 60ch;
 }
 
-.headerSide {
+.verdictSummary {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-3);
+  font-style: italic;
+}
+
+.verdictSide {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
 .decision {
-  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 10rem;
+  font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-6);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   background: var(--bg-raised);
@@ -104,19 +130,41 @@
   border-color: var(--border-subtle);
 }
 
-.thesisFit {
+.verdictStats {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  gap: var(--space-6);
 }
 
-.thesisFail {
+.verdictStat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.verdictStatValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.verdictStatLabel {
+  font-size: var(--text-xs);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.thesisFail {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
 }
 
 /* ── Thesis banner ── */
@@ -166,6 +214,161 @@
   margin-bottom: var(--space-5);
 }
 
+/* ── Key risks ── */
+
+.riskList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.riskItem {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Founders ── */
+
+.founders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.founderCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.founderInfo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.founderName {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.founderRole {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.founderMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.founderLink {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+
+.founderLink:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.founderColdStart {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.founderScore {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.founderScoreValue {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.founderScoreConf,
+.founderScoreEv {
+  color: var(--text-muted);
+}
+
+.founderContra {
+  color: var(--text-secondary);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.founderNotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.founderNote {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding: 2px var(--space-2);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Evidence quality ── */
+
+.evidenceQuality {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+}
+
+.eqStat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.eqValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.eqLabel {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* ── Axes ── */
 
 .axes {
@@ -198,7 +401,7 @@
 }
 
 .axisTrend {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-tertiary);
 }
 

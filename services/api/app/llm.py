@@ -486,3 +486,44 @@ _KIND_TERMS = {
     ClaimKind.product: ["product", "platform", "workflow", "solution", "technology"],
     ClaimKind.financial: ["mrr", "arr", "revenue", "funding", "raising", "runway", "valuation", "$"],
 }
+
+
+def answer_portfolio_question(
+    question: str,
+    context: str,
+    history: list[dict[str, str]] | None = None,
+) -> str | None:
+    """Free text answer grounded in the portfolio context. None when no key is set."""
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+    from .prompts import ASSISTANT_SYSTEM_PROMPT
+
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": ASSISTANT_SYSTEM_PROMPT},
+        {"role": "system", "content": "Portfolio data the analyst can currently see:\n\n" + context[:12000]},
+    ]
+    for turn in (history or [])[-8:]:
+        role = turn.get("role")
+        content = turn.get("content")
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content[:2000]})
+    messages.append({"role": "user", "content": question[:2000]})
+
+    body = {"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"), "input": messages}
+    try:
+        return _call_openai_text(body)
+    except Exception:
+        return None
+
+
+def _call_openai_text(body: dict[str, Any]) -> str | None:
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return _response_text(json.loads(response.read().decode("utf-8")))
