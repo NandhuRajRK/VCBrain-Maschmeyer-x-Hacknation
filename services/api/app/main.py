@@ -70,8 +70,16 @@ from .store import store
 from .outcomes import simulate_outcome
 from .voice import encode_audio, narrate_text, transcribe_audio
 from .auth import actor_id, organization_id, require_user
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="VC Brain API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 MAX_VOICE_AUDIO_BYTES = 25_000_000
 
 
