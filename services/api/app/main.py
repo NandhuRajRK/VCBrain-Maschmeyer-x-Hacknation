@@ -91,7 +91,15 @@ from .jobs import enqueue_analysis_job
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Iskra API", version="0.1.0")
-_cors_origins = [item.strip() for item in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",") if item.strip()]
+_cors_origins = list(dict.fromkeys([
+    "http://localhost:3000",
+    "https://vc-brain-maschmeyer-x-hacknation.vercel.app",
+    *[
+        item.strip()
+        for item in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    ],
+]))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,

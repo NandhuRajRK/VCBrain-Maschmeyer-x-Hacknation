@@ -9,11 +9,15 @@ from fastapi import HTTPException, Request
 
 
 def _authorized_parties() -> list[str]:
-    return [
-        item.strip()
-        for item in os.getenv("CLERK_AUTHORIZED_PARTIES", "http://localhost:3000").split(",")
-        if item.strip()
-    ]
+    return list(dict.fromkeys([
+        "http://localhost:3000",
+        "https://vc-brain-maschmeyer-x-hacknation.vercel.app",
+        *[
+            item.strip()
+            for item in os.getenv("CLERK_AUTHORIZED_PARTIES", "").split(",")
+            if item.strip()
+        ],
+    ]))
 
 
 def require_user(request: Request) -> dict[str, Any]:
