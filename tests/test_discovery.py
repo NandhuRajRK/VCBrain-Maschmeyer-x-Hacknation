@@ -46,25 +46,19 @@ def test_scan_creates_tenant_scoped_candidates_and_promotes_one(monkeypatch):
                 metadata={"points": 192, "comments": 181, "fetch_status": "live"},
             ),
             Signal(
+                source=ConnectorKind.hacker_news,
+                title="Show HN: I made a tool for AI infrastructure",
+                url="https://example.com/unnamed-tool",
+                text="A project with no usable company or person identity.",
+                metadata={"points": 193, "comments": 12, "fetch_status": "live"},
+            ),
+            Signal(
                 source=ConnectorKind.arxiv,
                 title="Foundations of GenIR",
                 url="https://arxiv.org/abs/2603.28944",
                 text="Research paper.",
                 metadata={"fetch_status": "live"},
             ),
-        ],
-    )
-    monkeypatch.setattr(
-        discovery,
-        "discover_github_repositories",
-        lambda query: [
-            Signal(
-                source=ConnectorKind.github,
-                title="GitHub repository: vectorforge/gpu-orchestrator",
-                url="https://github.com/vectorforge/gpu-orchestrator",
-                text="Active AI infrastructure repository maintained by vectorforge.",
-                metadata={"stars": 41, "forks": 6, "contributors": ["vectorforge"], "homepage": "", "fetch_status": "live"},
-            )
         ],
     )
     main.store.fund_theses["org_alpha"] = main.FundThesis(

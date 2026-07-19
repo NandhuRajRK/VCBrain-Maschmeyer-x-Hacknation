@@ -1,122 +1,60 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ExternalLink, Radar, Sparkles } from "lucide-react";
-import type { ApiDiscoveryCandidate } from "../lib/api";
-import { listDiscoveryCandidates, promoteDiscoveryCandidate, runDiscoveryScan } from "../lib/api";
+import { ArrowRight, CheckCircle2, CircleAlert, ClipboardCheck, ShieldAlert } from "lucide-react";
+import type { ApiCompany, ApiDecisionReadiness } from "../lib/api";
+import { fetchReadiness, listCompanies } from "../lib/api";
 import { userError } from "../lib/errors";
 import { timeGreeting } from "../lib/user";
 import IskraOrb from "./IskraOrb";
+import GlobalIntelligenceMap from "./GlobalIntelligenceMap";
 import { useWorkspaceAuth } from "./AuthProvider";
 import styles from "./page.module.css";
 
-const SOURCE_LABELS: Record<string, string> = {
-  github: "GitHub", hacker_news: "Hacker News", product_hunt: "Product Hunt", arxiv: "arXiv",
-};
-
-function sourceDetail(candidate: ApiDiscoveryCandidate) {
-  const points = Number(candidate.source_metadata.points ?? candidate.source_metadata.votes ?? 0);
-  const comments = Number(candidate.source_metadata.comments ?? 0);
-  if (points) return `${points} point${points === 1 ? "" : "s"}${comments ? ` · ${comments} comments` : ""}`;
-  return new Date(candidate.observed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function candidateContext(candidate: ApiDiscoveryCandidate) {
-  const stripped = candidate.headline.replace(/^show\s+hn\s*:\s*/i, "").trim();
-  const withoutName = stripped.replace(new RegExp(`^${candidate.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "i"), "").trim();
-  return withoutName ? `Observed launch: ${withoutName}` : "Observed public launch";
-}
+type CompanyState = { company: ApiCompany; readiness: ApiDecisionReadiness | null };
+type QueueItem = { company: ApiCompany; title: string; reason: string; gain: number; priority: string };
 
 export default function Dashboard() {
   const auth = useWorkspaceAuth();
-  const [candidates, setCandidates] = useState<ApiDiscoveryCandidate[]>([]);
+  const [companies, setCompanies] = useState<CompanyState[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
-  const [promoting, setPromoting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastQueries, setLastQueries] = useState<string[]>([]);
 
   useEffect(() => {
     if (!auth.ready) return;
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void listDiscoveryCandidates()
-        .then((items) => { if (!cancelled) { setError(null); setCandidates(items); } })
-        .catch((caught) => { if (!cancelled) setError(userError(caught, "dashboard")); })
-        .finally(() => { if (!cancelled) setLoading(false); });
-    }, 0);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    void listCompanies().then(async (items) => {
+      const states = await Promise.all(items.map(async (company) => ({ company, readiness: await fetchReadiness(company.id).catch(() => null) })));
+      if (!cancelled) setCompanies(states);
+    }).catch((caught) => { if (!cancelled) setError(userError(caught, "dashboard")); }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [auth.ready, auth.organizationId]);
 
-  const scan = async () => {
-    setScanning(true);
-    setError(null);
-    try {
-      const result = await runDiscoveryScan();
-      setLastQueries(result.queries);
-      setCandidates((current) => [...result.candidates, ...current]);
-    } catch (caught) {
-      setError(userError(caught, "dashboard"));
-    } finally {
-      setScanning(false);
-    }
-  };
+  const queue = useMemo<QueueItem[]>(() => {
+    const actions = companies.flatMap(({ company, readiness }) => (readiness?.next_actions ?? []).map((action) => ({
+      company, title: action.title, reason: action.reason, gain: action.expected_readiness_gain, priority: action.priority,
+    })));
+    return actions.sort((left, right) => {
+      const priority = Number(right.priority === "high") - Number(left.priority === "high");
+      return priority || right.gain - left.gain;
+    }).slice(0, 5);
+  }, [companies]);
+  const ready = companies.filter(({ readiness }) => readiness?.status === "decision_ready").length;
+  const openActions = companies.reduce((total, item) => total + (item.readiness?.next_actions.length ?? 0), 0);
+  const averageReadiness = companies.length ? Math.round(companies.reduce((total, item) => total + (item.readiness?.score ?? 0), 0) / companies.length) : 0;
 
-  const promote = async (candidate: ApiDiscoveryCandidate) => {
-    setPromoting(candidate.id);
-    try {
-      const result = await promoteDiscoveryCandidate(candidate.id);
-      setCandidates((current) => current.map((item) => item.id === candidate.id ? result.candidate : item));
-      window.location.assign(`/company/${result.company.id}`);
-    } catch (caught) {
-      setError(userError(caught, "dashboard"));
-      setPromoting(null);
-    }
-  };
-
-  const active = candidates.filter((candidate) => candidate.status === "new");
-  const promoted = candidates.filter((candidate) => candidate.status === "promoted");
-
-  return <div className={`${styles.page} ${styles.discoveryPage}`}>
-    <header className={styles.discoveryHeader}>
-      <div>
-        <p className={styles.eyebrow}>{auth.organizationName} · Sourcing inbox</p>
-        <h1>{timeGreeting()}, {auth.name}</h1>
-      </div>
-      <button type="button" className={styles.scanButton} onClick={() => void scan()} disabled={scanning || !auth.ready}>
-        <Radar size={16} />{scanning ? "Scanning public signals…" : "Run sourcing scan"}
-      </button>
-    </header>
-
-    {lastQueries.length > 0 && <div className={styles.scanReceipt}><Sparkles size={14} /><span>Scanned {lastQueries.join(" · ")}</span></div>}
-    {error && <div className={styles.discoveryError}>{error}</div>}
-
-    <section className={styles.discoveryLayout}>
-      <div className={styles.inbox}>
-        <div className={styles.discoverySectionHead}><div><p className={styles.eyebrow}>New leads</p><h2>Potential companies to investigate</h2></div><span>{active.length} lead{active.length === 1 ? "" : "s"}</span></div>
-        {loading ? <div className={styles.discoveryEmpty}><IskraOrb size={30} /><p>Loading your sourcing inbox…</p></div> : active.length ? <div className={styles.candidateList}>
-          {active.map((candidate) => <article key={candidate.id} className={styles.candidateCard}>
-            <div className={styles.candidateTopline}><span>{SOURCE_LABELS[candidate.source_type] ?? candidate.source_type}</span><span>{sourceDetail(candidate)}</span></div>
-            <h3>{candidate.name}</h3>
-            <p className={styles.candidateHeadline}>{candidateContext(candidate)}</p>
-            <div className={styles.whyNow}><strong>Why Iskra noticed this</strong><p>{candidate.why_now}</p></div>
-            <p className={styles.identityNote}><span>{candidate.identity_status === "corroborated" ? "Founder identity corroborated" : "Founder identity not yet verified"}</span>{candidate.identity_reason}</p>
-            <div className={styles.candidateFooter}>
-              <span><b>{candidate.score}</b> signal strength · {Math.round(candidate.confidence * 100)}% confidence</span>
-              <div>
-                {candidate.source_url && <a href={candidate.source_url} target="_blank" rel="noreferrer">Source <ExternalLink size={13} /></a>}
-                <button type="button" onClick={() => void promote(candidate)} disabled={promoting === candidate.id}>{promoting === candidate.id ? "Preparing…" : "Start diligence"} <ArrowRight size={14} /></button>
-              </div>
-            </div>
-          </article>)}
-        </div> : <div className={styles.discoveryEmpty}><IskraOrb size={34} /><h2>No company leads surfaced yet</h2><p>Only named companies and projects enter this queue. Broad commentary and research stay out of it.</p><button type="button" onClick={() => void scan()} disabled={scanning}>{scanning ? "Scanning…" : "Run first scan"}</button></div>}
-      </div>
-
-      <aside className={styles.discoveryAside}>
-        <div className={styles.discoveryPanel}><p className={styles.eyebrow}>How this works</p><h2>Signal first. Deal second.</h2><ol><li>Iskra queries public launch and technical sources using your thesis.</li><li>Only a named company or project with a concrete source enters this inbox.</li><li>Start diligence to move a lead into the evidence-backed Deal Flow.</li></ol></div>
-        <div className={styles.discoveryPanel}><p className={styles.eyebrow}>Deal flow</p><h2>{promoted.length} promoted</h2><p>Inbound applications and reviewed discoveries share one diligence process.</p><Link href="/opportunities">Open Deal Flow <ArrowRight size={14} /></Link></div>
-      </aside>
-    </section>
+  return <div className={`${styles.page} ${styles.dashboardPage}`}>
+    <header className={styles.discoveryHeader}><div><p className={styles.eyebrow}>{auth.organizationName} · Active pipeline</p><h1>{timeGreeting()}, {auth.name}</h1></div><Link href="/sourcing" className={styles.dashboardLink}>Open sourcing <ArrowRight size={15} /></Link></header>
+    {loading && <div className={styles.empty}><IskraOrb size={34} /><p>Preparing your action queue…</p></div>}
+    {error && <div className={styles.empty}><p className={styles.emptyError}>{error}</p></div>}
+    {!loading && !error && !companies.length && <div className={styles.empty}><p>Your active pipeline is empty.</p><Link href="/sourcing">Review discovery leads <ArrowRight size={14} /></Link></div>}
+    {!loading && !error && companies.length > 0 && <>
+      <section className={styles.metrics} aria-label="Pipeline metrics"><article><ClipboardCheck size={16} /><p>Active companies</p><strong>{companies.length}</strong><small>Investor-approved and inbound</small></article><article><CheckCircle2 size={16} /><p>Decision ready</p><strong>{ready}</strong><small>No material blockers</small></article><article><CircleAlert size={16} /><p>Open actions</p><strong>{openActions}</strong><small>Across active companies</small></article><article><ShieldAlert size={16} /><p>Readiness</p><strong>{averageReadiness}<span>/100</span></strong><small>Average evidence coverage</small></article></section>
+      <section className={styles.dashboardLayout}><section className={styles.actionQueue}><div className={styles.sectionHeading}><div><p>Do next</p><h2>Highest-leverage actions</h2></div><span>{queue.length} actions</span></div>{queue.length ? <div className={styles.actionList}>{queue.map((item, index) => <Link href={`/company/${item.company.id}`} key={`${item.company.id}-${item.title}-${index}`} className={styles.actionItem}><span data-priority={item.priority}>{item.priority === "high" ? "Now" : "Next"}</span><div><strong>{item.title}</strong><p>{item.company.name} · {item.reason}</p></div><b>+{item.gain}</b><ArrowRight size={15} /></Link>)}</div> : <p className={styles.queueEmpty}>No diligence blockers are currently recorded.</p>}</section>
+        <section className={styles.companyPulse}><div className={styles.sectionHeading}><div><p>Pipeline pulse</p><h2>Accepted companies</h2></div><Link href="/opportunities"><ArrowRight size={15} /></Link></div>{companies.slice().sort((left, right) => (right.readiness?.score ?? 0) - (left.readiness?.score ?? 0)).slice(0, 5).map(({ company, readiness }) => <Link href={`/company/${company.id}`} key={company.id} className={styles.pulseRow}><div><strong>{company.name}</strong><small>{[company.sector, company.stage, company.geography].filter(Boolean).join(" · ") || "Profile in progress"}</small></div><span>{readiness?.score ?? 0}<small>ready</small></span></Link>)}</section>
+      </section>
+      <GlobalIntelligenceMap companies={companies.map(({ company }) => company)} />
+    </>}
   </div>;
 }

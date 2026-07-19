@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .connectors import discover_github_repositories, pull_signals
+from .connectors import pull_signals
 from .models import (
     ConnectorKind,
     DiscoveryCandidate,
@@ -32,7 +32,6 @@ def run_discovery_scan(store: Store, organization_id: str, thesis: FundThesis) -
     created: list[DiscoveryCandidate] = []
     for query in queries:
         signals = pull_signals(SCAN_CONNECTORS, query)
-        signals.extend(discover_github_repositories(query))
         run.scanned_sources += len(signals)
         for signal in signals:
             if (
@@ -57,16 +56,18 @@ def _is_company_lead(signal: Signal) -> bool:
     trustworthy inbox over broad but misleading topical results.
     """
     title = signal.title.strip()
+    candidate_name = _candidate_name(title)
+    # A project title such as "I made a tool" is not an entity an investor can
+    # act on. Keep the queue for concrete person or company names only.
+    named_entity = bool(candidate_name) and not re.match(
+        r"^(?:i|we|my|our|the|a|an|open[- ]source|project|tool|app|startup)\b",
+        candidate_name,
+        flags=re.IGNORECASE,
+    )
     if signal.source == ConnectorKind.hacker_news:
-        return bool(re.match(r"^show\s+hn\s*:", title, flags=re.IGNORECASE))
+        return bool(re.match(r"^show\s+hn\s*:", title, flags=re.IGNORECASE) and named_entity)
     if signal.source == ConnectorKind.product_hunt:
-        return bool(title and signal.url)
-    if signal.source == ConnectorKind.github:
-        return bool(
-            signal.metadata.get("homepage")
-            and not signal.metadata.get("fork")
-            and signal.metadata.get("full_name")
-        )
+        return bool(signal.url and named_entity)
     # arXiv is valuable technical evidence, never an investable lead by itself.
     return False
 
@@ -84,12 +85,9 @@ def _is_known_signal(store: Store, organization_id: str, signal: Signal) -> bool
 def _candidate_from_signal(organization_id: str, signal: Signal, query: str) -> DiscoveryCandidate:
     points = int(signal.metadata.get("points") or signal.metadata.get("votes") or 0)
     comments = int(signal.metadata.get("comments") or 0)
-    base = {ConnectorKind.github: 64, ConnectorKind.hacker_news: 60, ConnectorKind.product_hunt: 58}.get(signal.source, 50)
+    base = {ConnectorKind.hacker_news: 60, ConnectorKind.product_hunt: 58}.get(signal.source, 50)
     identity_status = DiscoveryIdentityStatus.needs_resolution
     identity_reason = "Confirm the founding team before deciding whether to add this to the pipeline."
-    if signal.source == ConnectorKind.github:
-        maintainers = ", ".join(str(item) for item in signal.metadata.get("contributors") or [])
-        identity_reason = f"Repository maintainers observed: {maintainers or 'not available'}. Confirm which, if any, are founders."
     return DiscoveryCandidate(
         organization_id=organization_id,
         name=_candidate_name(signal.title),
@@ -117,8 +115,6 @@ def _candidate_name(title: str) -> str:
 def _why_now(signal: Signal) -> str:
     if signal.source == ConnectorKind.hacker_news:
         return f"This named project launched publicly and is attracting attention ({signal.metadata.get('points', 0)} points, {signal.metadata.get('comments', 0)} comments)."
-    if signal.source == ConnectorKind.github:
-        return "This project has an active public codebase and a linked product site that fit the fund's technical thesis."
     return "This named product recently launched publicly and fits the fund's thesis."
 
 
