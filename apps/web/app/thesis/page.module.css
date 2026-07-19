@@ -1,11 +1,19 @@
 /* ── Thesis Config ───────────────────────────────────────────── */
 
 .page {
-  max-width: 720px;
+  width: 100%;
+  max-width: none;
 }
 
 .header {
   margin-bottom: var(--space-8);
+}
+
+.titleRow,
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .title {
@@ -15,31 +23,17 @@
   color: var(--text-primary);
 }
 
-.subtitle {
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
-  margin-top: var(--space-2);
-  max-width: 56ch;
-  line-height: var(--leading-normal);
-}
-
 .groups {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  width: min(100%, 760px);
 }
 
 .group {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.groupHead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  flex-wrap: wrap;
 }
 
 .groupLabel {
@@ -50,10 +44,30 @@
   color: var(--text-secondary);
 }
 
-.groupHint {
+.help { position: relative; display: inline-flex; color: var(--text-muted); }
+.help:hover { color: var(--text-primary); }
+.help::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + var(--space-2));
+  z-index: 30;
+  width: 220px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+  line-height: var(--leading-normal);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
+.help:hover::after, .help:focus-visible::after { opacity: 1; transform: translateY(0); }
 
 /* ── Tags ── */
 
@@ -63,6 +77,45 @@
   gap: var(--space-2);
   align-items: center;
 }
+
+.multiSelect { position: relative; z-index: 2; width: 100%; }
+.searchField {
+  position: relative;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  width: min(100%, 540px);
+}
+.searchField:focus-within { border-color: var(--border-strong); }
+.searchField input { flex: 1; min-width: 110px; color: var(--text-primary); font-size: var(--text-sm); }
+.searchField input::placeholder { color: var(--text-muted); }
+.selectIcon { flex-shrink: 0; color: var(--text-muted); }
+.selectedList { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: 34px; padding: var(--space-2) 0; }
+.selectedEmpty { color: var(--text-muted); font-size: var(--text-xs); }
+.options {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  width: min(100%, 540px);
+  z-index: 10;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+}
+.options button { display: flex; justify-content: space-between; width: 100%; padding: var(--space-2) var(--space-3); color: var(--text-secondary); font-size: var(--text-sm); text-align: left; border-radius: 4px; }
+.options button:hover, .options button[data-selected="true"] { color: var(--text-primary); background: var(--bg-active); }
+.options .customOption { color: var(--text-primary); border-top: 1px solid var(--border-subtle); border-radius: 0; }
+.noOptions { display: block; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--text-xs); }
 
 .tag {
   display: inline-flex;
@@ -86,6 +139,8 @@
 .tagRemove:hover {
   color: var(--text-primary);
 }
+
+.tagRemove { display: inline-flex; align-items: center; justify-content: center; }
 
 .tagInput {
   padding: var(--space-1) var(--space-2);
@@ -136,8 +191,15 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-primary);
+  color-scheme: dark;
   width: 100%;
 }
+
+:global(html[data-theme="light"]) .numberInput { color-scheme: light; }
+.numberInput::-webkit-inner-spin-button,
+.numberInput::-webkit-outer-spin-button { opacity: 1; filter: invert(1); }
+:global(html[data-theme="light"]) .numberInput::-webkit-inner-spin-button,
+:global(html[data-theme="light"]) .numberInput::-webkit-outer-spin-button { filter: none; }
 
 /* ── Segment ── */
 

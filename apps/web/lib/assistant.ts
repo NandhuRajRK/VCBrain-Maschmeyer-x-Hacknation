@@ -23,9 +23,6 @@ export interface PortfolioItem {
   pipeline: PipelineResult;
 }
 
-/** The analyst this workspace belongs to. Swap for a real user later. */
-export const VC_NAME = "Julia";
-
 export const SUGGESTED_QUESTIONS: string[] = [
   "Which companies are closest to an invest decision?",
   "What are the biggest risks across the pipeline?",

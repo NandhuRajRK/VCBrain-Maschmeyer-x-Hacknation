@@ -20,6 +20,7 @@ import { scoreDossier } from "./scoring";
 import type { DossierInput, ScoringResult, Claim, Evidence, Source, FounderData, FounderScoreData } from "./scoring";
 import { generateMemo } from "./memo";
 import type { InvestmentMemo } from "./memo";
+import { authToken } from "./auth-token";
 
 // ── Configuration ─────────────────────────────────────────────
 
@@ -37,6 +38,41 @@ export interface ApiCompany {
   geography: string | null;
   description: string | null;
   created_at: string;
+}
+
+export interface ApiCurrentUser {
+  user_id: string;
+  session_id: string | null;
+  organization_id: string | null;
+  organization_role: string | null;
+  organization_permissions: string[];
+}
+
+export interface ApiFundThesis {
+  organization_id: string;
+  sectors: string[];
+  stages: string[];
+  geographies: string[];
+  preferred_models: string[];
+  exclusions: string[];
+  check_size_min_usd: number;
+  check_size_max_usd: number;
+  ownership_target_pct: number;
+  risk_appetite: "conservative" | "moderate" | "aggressive";
+  updated_at: string;
+}
+
+export interface ApiAnalysisJob {
+  id: string;
+  company_id: string;
+  organization_id: string | null;
+  created_by: string;
+  stage: string;
+  progress: number;
+  status: "running" | "complete" | "failed";
+  error: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /** Mirrors models.py CompanyCreate */
@@ -60,6 +96,98 @@ export interface ApiFounder {
   cold_start: boolean;
   updated_at: string;
 }
+
+export interface ApiFounderPassport {
+  founder_id: string;
+  company_id: string;
+  name: string;
+  current_role: string | null;
+  headline: string | null;
+  work_history: { organization: string; role: string; start_year: number | null; end_year: number | null; source_ids: string[]; confidence: number }[];
+  education_history: { institution: string; degree: string | null; field_of_study: string | null; graduation_year: number | null; source_ids: string[]; confidence: number }[];
+  previous_ventures: { company_name: string; role: string; founded_year: number | null; ended_year: number | null; outcome: string | null; source_ids: string[]; confidence: number }[];
+  skills: string[];
+  source_ids: string[];
+  confidence: number;
+  coverage: number;
+  cold_start: boolean;
+  gaps: string[];
+  updated_at: string;
+}
+
+export interface ApiDiligenceAction {
+  priority: string;
+  category: string;
+  title: string;
+  reason: string;
+  suggested_source_type: string | null;
+  claim_ids: string[];
+  expected_readiness_gain: number;
+}
+
+export interface ApiDecisionReadiness {
+  company_id: string;
+  score: number;
+  status: string;
+  components: Record<string, number>;
+  blockers: string[];
+  next_actions: ApiDiligenceAction[];
+  contradiction_count: number;
+  cold_start: boolean;
+  updated_at: string;
+}
+
+export interface ApiCompanyTimeline {
+  company_id: string;
+  score_snapshots: { id: string; founder_id: string; score: number; confidence: number; cold_start: boolean; evidence_count: number; contradiction_count: number; score_delta: number; confidence_delta: number; reason: string; created_at: string }[];
+  claim_changes: { id: string; claim_id: string; previous_status: string; current_status: string; previous_verification: string; current_verification: string; confidence: number; reason: string; created_at: string }[];
+  trigger_events: ApiTriggerEvent[];
+  readiness: ApiDecisionReadiness;
+}
+
+export interface ApiOutcomeInput {
+  initial_investment_usd: number;
+  entry_valuation_usd: number;
+  starting_mrr_usd: number;
+  monthly_growth_pct: number;
+  monthly_churn_pct: number;
+  gross_margin_pct: number;
+  monthly_burn_usd: number;
+  cash_on_hand_usd: number;
+  months_to_next_round: number;
+  next_round_raise_usd: number;
+  target_next_round_dilution_pct: number;
+  exit_months: number;
+  exit_revenue_multiple: number;
+  exit_probability: number;
+}
+
+export interface ApiOutcomeResult {
+  company_id: string | null;
+  initial_ownership_pct: number;
+  effective_monthly_growth_pct: number;
+  next_round_projected_mrr_usd: number;
+  projected_mrr_usd: number;
+  projected_arr_usd: number;
+  monthly_gross_profit_usd: number;
+  runway_months: number | null;
+  cash_flow_positive: boolean;
+  required_next_round_pre_money_usd: number;
+  next_round_post_money_usd: number;
+  post_round_ownership_pct: number;
+  exit_value_usd: number;
+  expected_return_usd: number;
+  expected_moic: number;
+  scenarios: { label: string; expected_moic: number; expected_return_usd: number; runway_months: number | null; required_next_round_pre_money_usd: number; post_round_ownership_pct: number; exit_value_usd: number; projected_arr_usd: number; projected_mrr_usd: number; next_round_projected_mrr_usd: number }[];
+}
+
+export type ApiCollaborationRole = "partner" | "associate" | "analyst" | "observer";
+export interface ApiDealMember { id: string; company_id: string; organization_id: string | null; user_id: string; display_name: string | null; role: ApiCollaborationRole; added_at: string }
+export interface ApiCollaborationNote { id: string; company_id: string; author_id: string; body: string; claim_ids: string[]; evidence_ids: string[]; created_at: string; updated_at: string; version: number }
+export interface ApiDealTask { id: string; company_id: string; creator_id: string; title: string; assignee_id: string | null; due_at: string | null; status: "open" | "in_progress" | "done"; created_at: string; updated_at: string; version: number }
+export interface ApiDealInvitation { id: string; company_id: string; organization_id: string; invited_user_id: string; display_name: string | null; role: ApiCollaborationRole; invited_by: string; status: "pending" | "accepted" | "revoked"; created_at: string; accepted_at: string | null }
+export interface ApiDealActivity { id: string; company_id: string; actor_id: string; action: string; entity_type: string; entity_id: string; summary: string; created_at: string }
+export interface ApiDealWorkspace { company_id: string; organization_id: string | null; members: ApiDealMember[]; notes: ApiCollaborationNote[]; tasks: ApiDealTask[]; activity: ApiDealActivity[]; invitations: ApiDealInvitation[] }
 
 /** Mirrors models.py Source (extends SourceCreate) */
 export interface ApiSource {
@@ -276,7 +404,9 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const token = await authToken();
   const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -307,6 +437,34 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export async function checkHealth(): Promise<{ status: string }> {
   return request("/health");
+}
+
+export async function fetchCurrentUser(): Promise<ApiCurrentUser> {
+  return request("/auth/me");
+}
+
+export async function fetchThesis(): Promise<ApiFundThesis> {
+  return request("/thesis");
+}
+
+export async function saveThesis(payload: ApiFundThesis): Promise<ApiFundThesis> {
+  return request("/thesis", { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function listAnalysisJobs(): Promise<ApiAnalysisJob[]> {
+  return request("/analysis-jobs");
+}
+
+export async function fetchUsage(): Promise<{ used: number; limit: number; remaining: number; label: string }> {
+  return request("/usage");
+}
+
+export async function createAnalysisJob(companyId: string): Promise<ApiAnalysisJob> {
+  return request("/analysis-jobs", { method: "POST", body: JSON.stringify({ company_id: companyId }) });
+}
+
+export async function updateAnalysisJob(jobId: string, stage: string, progress: number, status: ApiAnalysisJob["status"] = "running", error: string | null = null): Promise<ApiAnalysisJob> {
+  return request(`/analysis-jobs/${jobId}`, { method: "PATCH", body: JSON.stringify({ stage, progress, status, error }) });
 }
 
 // Companies
@@ -364,6 +522,49 @@ export async function fetchDossier(companyId: string): Promise<ApiDossier> {
   return request(`/companies/${companyId}/dossier`);
 }
 
+export async function fetchReadiness(companyId: string): Promise<ApiDecisionReadiness> {
+  return request(`/companies/${companyId}/readiness`);
+}
+
+export async function fetchTimeline(companyId: string): Promise<ApiCompanyTimeline> {
+  return request(`/companies/${companyId}/timeline`);
+}
+
+export async function fetchFounderPassports(companyId: string): Promise<ApiFounderPassport[]> {
+  return request(`/companies/${companyId}/founder-passports`);
+}
+
+export async function enrichFounderPassports(companyId: string, connectors: ("tavily" | "exa")[] = ["tavily"]): Promise<{ created_sources: ApiSource[]; deduped_sources: number }> {
+  return request(`/companies/${companyId}/founder-passports/enrich`, {
+    method: "POST",
+    body: JSON.stringify({ connectors, max_sources_per_founder: 1 }),
+  });
+}
+
+export async function simulateCompanyOutcome(companyId: string, payload: ApiOutcomeInput): Promise<ApiOutcomeResult> {
+  return request(`/companies/${companyId}/outcomes/simulate`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function fetchDealWorkspace(companyId: string): Promise<ApiDealWorkspace> {
+  return request(`/companies/${companyId}/collaboration`);
+}
+
+export async function addDealNote(companyId: string, body: string): Promise<ApiCollaborationNote> {
+  return request(`/companies/${companyId}/collaboration/notes`, { method: "POST", body: JSON.stringify({ body, claim_ids: [], evidence_ids: [] }) });
+}
+
+export async function addDealTask(companyId: string, title: string): Promise<ApiDealTask> {
+  return request(`/companies/${companyId}/collaboration/tasks`, { method: "POST", body: JSON.stringify({ title }) });
+}
+
+export async function updateDealTask(companyId: string, task: ApiDealTask, status: ApiDealTask["status"]): Promise<ApiDealTask> {
+  return request(`/companies/${companyId}/collaboration/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify({ status, version: task.version }) });
+}
+
+export async function inviteDealMember(companyId: string, invited_user_id: string, display_name: string, role: ApiCollaborationRole): Promise<ApiDealInvitation> {
+  return request(`/companies/${companyId}/invitations`, { method: "POST", body: JSON.stringify({ invited_user_id, display_name: display_name || null, role }) });
+}
+
 // Claims and Evidence (individual endpoints)
 
 export async function fetchClaims(companyId: string): Promise<ApiClaim[]> {
@@ -394,11 +595,13 @@ export async function fetchEvents(companyId: string): Promise<ApiTriggerEvent[]>
 
 export async function searchFounders(
   query: string,
-  limit: number = 10
+  limit: number = 10,
+  signal?: AbortSignal,
 ): Promise<ApiSearchMatch[]> {
   return request("/founders/search", {
     method: "POST",
     body: JSON.stringify({ query, limit }),
+    signal,
   });
 }
 
@@ -437,15 +640,25 @@ export async function voiceQueryAudio(
   });
 }
 
+export async function transcribeAudio(audioFile: File, signal?: AbortSignal): Promise<string> {
+  const form = new FormData();
+  form.append("audio", audioFile);
+  const response = await request<{ transcript: string }>("/voice/transcribe", { method: "POST", body: form, signal });
+  return response.transcript;
+}
+
 export async function narrateText(
   text: string,
-  voiceId?: string
+  voiceId?: string,
+  signal?: AbortSignal,
 ): Promise<Blob> {
   const url = `${API_BASE}/voice/narrate`;
+  const token = await authToken();
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ text, voice_id: voiceId ?? null }),
+    signal,
   });
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText);
@@ -592,6 +805,7 @@ export async function onboardAndAnalyze(
 
   await pullSources({
     company_id: company.id,
+    connectors: ["website", "hacker_news", "arxiv"],
     ...pullOptions,
   });
 
@@ -599,6 +813,40 @@ export async function onboardAndAnalyze(
 
   const pipeline = await analyzePipeline(company.id, thesis);
   return { company, pipeline };
+}
+
+export type AnalysisStage = "creating" | "documents" | "sourcing" | "ingesting" | "scoring" | "complete";
+
+export async function createOpportunityAnalysis(
+  payload: ApiCompanyCreate,
+  documents: File[] = [],
+  onProgress?: (stage: AnalysisStage, percent: number, company?: ApiCompany) => void,
+): Promise<{ company: ApiCompany; pipeline: PipelineResult }> {
+  onProgress?.("creating", 8);
+  const company = await createCompany(payload);
+  const job = await createAnalysisJob(company.id);
+  const progress = async (stage: AnalysisStage, percent: number) => {
+    onProgress?.(stage, percent, company);
+    await updateAnalysisJob(job.id, stage, percent, stage === "complete" ? "complete" : "running");
+  };
+  try {
+    await progress("documents", 18);
+    for (let index = 0; index < documents.length; index += 1) {
+      await uploadDocument(company.id, documents[index]);
+      await progress("documents", 18 + Math.round(((index + 1) / documents.length) * 30));
+    }
+    await progress("sourcing", 52);
+    await pullSources({ company_id: company.id, connectors: ["website", "hacker_news", "arxiv"] });
+    await progress("ingesting", 70);
+    await ingestCompany(company.id);
+    await progress("scoring", 88);
+    const pipeline = await analyzePipeline(company.id, DEFAULT_THESIS);
+    await progress("complete", 100);
+    return { company, pipeline };
+  } catch (error) {
+    await updateAnalysisJob(job.id, "failed", job.progress, "failed", error instanceof Error ? error.message : "Analysis failed").catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
@@ -628,6 +876,21 @@ export interface AssistantAnswer {
   grounded: boolean;
 }
 
+export interface ApiOpportunityDraft {
+  should_create: boolean;
+  name: string | null;
+  website: string | null;
+  sector: string | null;
+  stage: string | null;
+  geography: string | null;
+  description: string | null;
+  confidence: number;
+}
+
+export async function parseOpportunityIntent(requestText: string, signal?: AbortSignal): Promise<ApiOpportunityDraft> {
+  return request("/assistant/opportunity-intent", { method: "POST", body: JSON.stringify({ request: requestText }), signal });
+}
+
 /**
  * Ask the portfolio assistant a natural language question. The caller
  * assembles the portfolio context on the client (from the analysed
@@ -637,10 +900,12 @@ export interface AssistantAnswer {
 export async function askAssistant(
   question: string,
   context: string,
-  history: AssistantMessagePayload[] = []
+  history: AssistantMessagePayload[] = [],
+  signal?: AbortSignal,
 ): Promise<AssistantAnswer> {
   return request("/assistant/query", {
     method: "POST",
     body: JSON.stringify({ question, context, history }),
+    signal,
   });
 }

@@ -7,7 +7,7 @@
 
 .fab {
   position: fixed;
-  right: var(--space-6);
+  right: clamp(var(--space-4), 3vw, var(--space-6));
   bottom: var(--space-6);
   z-index: 300;
   display: flex;
@@ -32,8 +32,9 @@
 }
 
 .fabIcon {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Panel ── */
@@ -46,6 +47,7 @@
   z-index: 300;
   width: 380px;
   max-width: 92vw;
+  min-width: min(300px, 100vw);
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
@@ -78,6 +80,9 @@
   background: rgba(255, 255, 255, 0.14);
 }
 
+:global(html[data-theme="light"]) .resizeHandle:hover,
+:global(html[data-theme="light"]) .resizeHandle:active { background: rgba(0, 0, 0, 0.12); }
+
 /* ── Header ── */
 
 .header {
@@ -100,6 +105,12 @@
 }
 
 .headerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  line-height: 0;
   color: var(--text-secondary);
 }
 
@@ -142,40 +153,14 @@
   padding-top: var(--space-8);
 }
 
-.orb {
-  position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, #a1a1aa 0%, #71717a 50%, #3f3f46 100%);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  margin-bottom: var(--space-2);
-  overflow: hidden;
-}
-
-/* Rotating highlight — a bright spot that orbits around the sphere */
-.orb::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.25) 28%, transparent 55%);
-  animation: orbSweep 6s ease-in-out infinite;
-}
-
-/* Adds depth — a subtle dark shadow on the opposite side */
-.orb::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(0,0,0,0.3) 100%);
-  pointer-events: none;
-}
-
-@keyframes orbSweep {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.voiceStage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  gap: var(--space-3);
+  text-align: center;
 }
 
 .greeting {
@@ -269,14 +254,29 @@
   50% { opacity: 1; }
 }
 
+@media (max-width: 760px) {
+  .fab { right: var(--space-4); bottom: var(--space-4); }
+  .panel { width: 100vw !important; max-width: 100vw; min-width: 0; }
+  .resizeHandle { display: none; }
+  .header { padding-inline: var(--space-4); }
+  .body { padding: var(--space-4); }
+  .composer { padding-inline: var(--space-4); }
+}
+
 /* ── Input ── */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
 
 .inputRow {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--border-subtle);
 }
 
 .input {
@@ -323,3 +323,44 @@
   opacity: 0.3;
   cursor: default;
 }
+
+.composerTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fileInput { display: none; }
+
+.toolButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.toolButton:hover,
+.toolButton[data-active="true"] { color: var(--text-primary); background: var(--bg-raised); border-color: var(--border-subtle); }
+.toolButton:disabled { opacity: 0.55; cursor: wait; }
+.toolButton:last-child { margin-left: auto; }
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 145px;
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+}
+
+.attachment > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment button { display: inline-flex; flex-shrink: 0; color: var(--text-muted); }
