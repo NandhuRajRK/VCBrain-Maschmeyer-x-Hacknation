@@ -1,0 +1,9 @@
+period,metric,value,currency,source_note
+2026-04,annual_recurring_revenue,120000,EUR,finance export
+2026-05,annual_recurring_revenue,150000,EUR,finance export
+2026-06,annual_recurring_revenue,180000,EUR,finance export
+2026-06,gross_margin,42,percent,management estimate
+2026-06,monthly_burn,85000,EUR,finance export
+2026-06,runway,14,months,management estimate
+2026-06,paid_customers,5,count,finance export
+2026-06,design_partners,15,count,commercial pipeline
