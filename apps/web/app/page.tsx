@@ -45,7 +45,7 @@ export default function Dashboard() {
   const averageReadiness = companies.length ? Math.round(companies.reduce((total, item) => total + (item.readiness?.score ?? 0), 0) / companies.length) : 0;
 
   return <div className={`${styles.page} ${styles.dashboardPage}`}>
-    <header className={styles.discoveryHeader}><div><p className={styles.eyebrow}>{auth.organizationName} · Active pipeline</p><h1>{timeGreeting()}, {auth.name}</h1></div><Link href="/sourcing" className={styles.dashboardLink}>Open sourcing <ArrowRight size={15} /></Link></header>
+    <header className={styles.discoveryHeader}><div><h1>{timeGreeting()}, {auth.name}</h1></div><Link href="/sourcing" className={styles.dashboardLink}>Open sourcing <ArrowRight size={15} /></Link></header>
     {loading && <div className={styles.empty}><IskraOrb size={34} /><p>Preparing your action queue…</p></div>}
     {error && <div className={styles.empty}><p className={styles.emptyError}>{error}</p></div>}
     {!loading && !error && !companies.length && <div className={styles.empty}><p>Your active pipeline is empty.</p><Link href="/sourcing">Review discovery leads <ArrowRight size={14} /></Link></div>}
