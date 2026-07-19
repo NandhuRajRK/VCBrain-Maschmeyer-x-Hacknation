@@ -27,6 +27,7 @@ import { useUnsavedChanges } from "../../../lib/use-dismissable-layer";
 import styles from "./CompanyWorkspace.module.css";
 
 export type WorkspaceTab = "readiness" | "analysis" | "founders" | "timeline" | "outcomes" | "team";
+type DecisionContext = { risks: string[]; redTeam: { headline: string; mitigation: string } | null; advanceSignals: string[] };
 
 const DEFAULT_OUTCOME: ApiOutcomeInput = {
   initial_investment_usd: 100_000,
@@ -47,7 +48,7 @@ const DEFAULT_OUTCOME: ApiOutcomeInput = {
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
 const tabs: { id: WorkspaceTab; label: string; icon: typeof Activity }[] = [
-  { id: "readiness", label: "Readiness", icon: Check },
+  { id: "readiness", label: "Decision", icon: Check },
   { id: "analysis", label: "Analysis", icon: BarChart3 },
   { id: "founders", label: "Founder passports", icon: BriefcaseBusiness },
   { id: "timeline", label: "Evidence", icon: Activity },
@@ -55,7 +56,7 @@ const tabs: { id: WorkspaceTab; label: string; icon: typeof Activity }[] = [
   { id: "team", label: "Comments", icon: Users },
 ];
 
-export default function CompanyWorkspace({ companyId, onTabChange }: { companyId: string; onTabChange?: (tab: WorkspaceTab) => void }) {
+export default function CompanyWorkspace({ companyId, decisionContext, onTabChange }: { companyId: string; decisionContext?: DecisionContext; onTabChange?: (tab: WorkspaceTab) => void }) {
   const [tab, setTab] = useState<WorkspaceTab>("readiness");
   const [readiness, setReadiness] = useState<ApiDecisionReadiness | null>(null);
   const [passports, setPassports] = useState<ApiFounderPassport[]>([]);
@@ -115,7 +116,7 @@ export default function CompanyWorkspace({ companyId, onTabChange }: { companyId
         ))}
       </div>
 
-      <div className={styles.panel} role="tabpanel">
+      {tab !== "analysis" && tab !== "timeline" && <div className={styles.panel} role="tabpanel">
         {loading && <div className={styles.state}><span className={styles.spinner} /> Loading intelligence</div>}
         {error && <div className={styles.error}>{error}</div>}
 
@@ -125,10 +126,15 @@ export default function CompanyWorkspace({ companyId, onTabChange }: { companyId
               <strong>{readiness.score}</strong><span>ready</span>
             </div>
             <div className={styles.readinessBody}>
-              <div className={styles.panelHead}><div><h2>Readiness · {readiness.score}/100</h2><p>{readiness.status.replaceAll("_", " ")} · Updated {new Date(readiness.updated_at).toLocaleString()}</p></div></div>
+              <div className={styles.panelHead}><div><h2>Decision readiness</h2><p>{readiness.status.replaceAll("_", " ")} · updated {new Date(readiness.updated_at).toLocaleString()}</p></div></div>
               <div className={styles.componentGrid}>{Object.entries(readiness.components).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><strong>{Math.round(value)}</strong></div>)}</div>
               {readiness.blockers.length > 0 && <div className={styles.blockers}>{readiness.blockers.map((item) => <span key={item}>{item}</span>)}</div>}
-              <div className={styles.actionList}>{readiness.next_actions.map((item) => <div key={`${item.category}-${item.title}`}><span>{item.priority}</span><div><strong>{item.title}</strong><p>{item.reason}</p></div><b>+{item.expected_readiness_gain}</b></div>)}</div>
+              {readiness.next_actions.length > 0 && <div className={styles.actionList}>{readiness.next_actions.map((item) => <div key={`${item.category}-${item.title}`}><span>{item.priority}</span><div><strong>{item.title}</strong><p>{item.reason}</p></div><b>+{item.expected_readiness_gain}</b></div>)}</div>}
+              {decisionContext && (decisionContext.risks.length > 0 || decisionContext.redTeam || decisionContext.advanceSignals.length > 0) && <div className={styles.decisionBrief}>
+                {decisionContext.risks.length > 0 && <div><b>Key concerns</b>{decisionContext.risks.map((risk) => <p key={risk}>{risk}</p>)}</div>}
+                {decisionContext.redTeam && <div><b>Bear case</b><p>{decisionContext.redTeam.headline}</p>{decisionContext.redTeam.mitigation && <small>Mitigation: {decisionContext.redTeam.mitigation}</small>}</div>}
+                {decisionContext.advanceSignals.length > 0 && <div><b>To advance</b>{decisionContext.advanceSignals.map((signal) => <p key={signal}>{signal}</p>)}</div>}
+              </div>}
             </div>
           </div>
         )}
@@ -174,7 +180,7 @@ export default function CompanyWorkspace({ companyId, onTabChange }: { companyId
           </div>
         )}
 
-      </div>
+      </div>}
     </section>
   );
 }

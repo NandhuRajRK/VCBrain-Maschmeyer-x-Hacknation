@@ -14,16 +14,16 @@ import CompanyComments from "./CompanyComments";
 
 const DECISION_LABELS: Record<string, string> = {
   invest: "Invest",
-  conditional_invest: "Conditional Invest",
+  conditional_invest: "Conditional invest",
   hold: "Hold",
   reject: "Reject",
 };
 
 const DECISION_SUMMARIES: Record<string, string> = {
-  invest: "Strong enough across all three axes to proceed.",
-  conditional_invest: "Promising but needs additional data before committing.",
-  hold: "Interesting thesis fit but scores fall short on one or more axes.",
-  reject: "Does not meet the bar on scoring or thesis fit.",
+  invest: "The evidence clears the current underwriting bar.",
+  conditional_invest: "Promising, with specific evidence still needed before committing.",
+  hold: "Worth tracking, but not yet strong enough to advance.",
+  reject: "The current evidence does not meet the investment bar.",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -73,7 +73,6 @@ function confidenceLevel(c: number): string {
 export default function CompanyDetail() {
   const params = useParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
-
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +82,6 @@ export default function CompanyDetail() {
   useEffect(() => {
     let cancelled = false;
     if (!id) return;
-
     (async () => {
       try {
         const [r, history] = await Promise.all([analyzePipeline(id, DEFAULT_THESIS), fetchTimeline(id)]);
@@ -99,24 +97,12 @@ export default function CompanyDetail() {
         }
       }
     })();
-
     return () => { cancelled = true; };
   }, [id]);
 
-  if (loading) {
-    return <div className={styles.state}>Analyzing company...</div>;
-  }
-  if (error) {
-    return (
-      <div className={styles.page}>
-        <Link href="/" className={styles.back}>&#8592; Pipeline</Link>
-        <div className={styles.stateError}>{error}</div>
-      </div>
-    );
-  }
-  if (!result) {
-    return <div className={styles.state}>No data available.</div>;
-  }
+  if (loading) return <div className={styles.state}>Preparing the decision workspace…</div>;
+  if (error) return <div className={styles.page}><Link href="/" className={styles.back}>← Dashboard</Link><div className={styles.stateError}>{error}</div></div>;
+  if (!result) return <div className={styles.state}>No data available.</div>;
 
   const { dossier, thesis, scores, memo } = result;
   const company = dossier.company;
@@ -145,48 +131,40 @@ export default function CompanyDetail() {
     memo.sections.problemAndProduct,
     memo.sections.tractionAndKpis,
   ];
+  const advanceSignals = memo.decisionFlip.becomesInvestIf.slice(0, 2);
 
   return (
     <CompanyComments companyId={id!}>
     <div className={styles.page}>
-      <Link href="/" className={styles.back}>&#8592; Pipeline</Link>
-
-      {/* ── Verdict card (the first thing a VC reads) ── */}
-      <div className={styles.verdict}>
+      <Link href="/" className={styles.back}>← Dashboard</Link>
+      <header className={styles.verdict}>
         <div className={styles.verdictMain}>
+          <p className={styles.decisionEyebrow}>Investment decision</p>
           <h1 className={styles.title}>{company.name}</h1>
-          <p className={styles.meta}>
-            {[company.sector, company.stage, company.geography]
-              .filter(Boolean)
-              .join(" · ") || "No details"}
-          </p>
-          <p className={styles.verdictSummary}>
-            {DECISION_SUMMARIES[memo.decision] ?? ""}
-          </p>
+          <p className={styles.meta}>{[company.sector, company.stage, company.geography].filter(Boolean).join(" · ") || "Profile in progress"}</p>
+          <p className={styles.verdictSummary}>{DECISION_SUMMARIES[memo.decision] ?? "Review the evidence before advancing."}</p>
+          {advanceSignals.length > 0 && <p className={styles.advanceCue}><span>To advance</span>{advanceSignals.join(" · ")}</p>}
         </div>
         <div className={styles.verdictSide}>
-          <span className={styles.decision} data-decision={memo.decision}>
-            {DECISION_LABELS[memo.decision] ?? memo.decision}
-          </span>
+          <span className={styles.decision} data-decision={memo.decision}>{DECISION_LABELS[memo.decision] ?? memo.decision}</span>
           <div className={styles.verdictStats}>
-            <div className={styles.verdictStat}>
-              <span className={styles.verdictStatValue}>{pct(thesis.fitScore)}</span>
-              <span className={styles.verdictStatLabel}>Thesis fit</span>
-            </div>
-            <div className={styles.verdictStat}>
-              <span className={styles.verdictStatValue}>{pct(scores.overallConfidence)}</span>
-              <span className={styles.verdictStatLabel}>Confidence</span>
-            </div>
+            <div className={styles.verdictStat}><span className={styles.verdictStatValue}>{pct(thesis.fitScore)}</span><span className={styles.verdictStatLabel}>Thesis fit</span></div>
+            <div className={styles.verdictStat}><span className={styles.verdictStatValue}>{pct(scores.overallConfidence)}</span><span className={styles.verdictStatLabel}>Confidence</span></div>
           </div>
-          {!thesis.pass && (
-            <span className={styles.thesisFail}>Fails thesis filter</span>
-          )}
+          {!thesis.pass && <span className={styles.thesisFail}>Outside current thesis</span>}
         </div>
-      </div>
+      </header>
 
-      <CompanyWorkspace companyId={company.id} onTabChange={setActiveTab} />
+      <CompanyWorkspace
+        companyId={company.id}
+        onTabChange={setActiveTab}
+        decisionContext={{
+          risks: scores.risks.slice(0, 3),
+          redTeam: memo.redTeam.headline ? { headline: memo.redTeam.headline, mitigation: memo.redTeam.mitigation } : null,
+          advanceSignals,
+        }}
+      />
 
-      {/* ── Thesis hard failures ── */}
       {activeTab === "readiness" && !thesis.pass && (
         <div className={styles.banner}>
           <span className={styles.bannerTitle}>Outside thesis</span>
@@ -222,56 +200,6 @@ export default function CompanyDetail() {
       </section>
 
       </>}
-
-      {/* ── Founders (VCs bet on people) ── */}
-      {activeTab === "founders" && <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>
-          Founders ({dossier.founders.length})
-        </h2>
-        {dossier.founders.length > 0 ? (
-          <div className={styles.founders}>
-            {dossier.founders.map((f) => {
-              const fScore = dossier.founder_scores.find((fs) => fs.founder_id === f.id);
-              return (
-                <div key={f.id} className={styles.founderCard}>
-                  <div className={styles.founderInfo}>
-                    <span className={styles.founderName}>{f.name}</span>
-                    {f.role && <span className={styles.founderRole}>{f.role}</span>}
-                  </div>
-                  <div className={styles.founderMeta}>
-                    {f.linkedin && (
-                      <a href={f.linkedin} target="_blank" rel="noopener noreferrer" className={styles.founderLink}>LinkedIn</a>
-                    )}
-                    {f.github && (
-                      <a href={`https://github.com/${f.github}`} target="_blank" rel="noopener noreferrer" className={styles.founderLink}>GitHub</a>
-                    )}
-                    {f.cold_start && <span className={styles.founderColdStart}>Cold start</span>}
-                  </div>
-                  {fScore && (
-                    <div className={styles.founderScore}>
-                      <span className={styles.founderScoreValue}>{fScore.score}</span>
-                      <span className={styles.founderScoreConf}>conf {pct(fScore.confidence)}</span>
-                      <span className={styles.founderScoreEv}>{fScore.evidence_count} evidence</span>
-                      {fScore.contradiction_count > 0 && (
-                        <span className={styles.founderContra}>{fScore.contradiction_count} contradiction{fScore.contradiction_count !== 1 ? "s" : ""}</span>
-                      )}
-                    </div>
-                  )}
-                  {fScore && fScore.notes.length > 0 && (
-                    <div className={styles.founderNotes}>
-                      {fScore.notes.map((n, i) => (
-                        <span key={i} className={styles.founderNote}>{n}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className={styles.emptyState}>No founder profiles are linked to this company yet.</p>
-        )}
-      </section>}
 
       {/* ── Three-axis score ── */}
       {activeTab === "analysis" && <section className={styles.section}>
@@ -445,7 +373,7 @@ export default function CompanyDetail() {
       <footer className={styles.footer}>
         Generated {new Date(memo.generatedAt).toLocaleString()} · {scores.coldStart ? "Cold-start founder" : "Standard scoring"} · overall confidence {pct(scores.overallConfidence)}
       </footer>
-    </div>
-    </CompanyComments>
+  </div>
+  </CompanyComments>
   );
 }

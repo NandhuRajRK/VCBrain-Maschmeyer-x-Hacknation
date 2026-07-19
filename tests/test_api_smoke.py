@@ -15,6 +15,7 @@ from services.api.app.models import (
     ClaimKind,
     ClaimStatus,
     ClaimVerification,
+    Company,
     ConnectorKind,
     Source,
     SourceType,
@@ -24,6 +25,53 @@ from services.api.app.models import (
     VoiceIntent,
 )
 from services.api.app.pipeline import resolve_claim_statuses
+from services.api.app.memory import calculate_readiness
+from services.api.app.demo import seed_demo
+
+
+def _clear_pipeline_store():
+    for collection in (
+        main.store.companies,
+        main.store.founders,
+        main.store.sources,
+        main.store.segments,
+        main.store.claims,
+        main.store.evidence,
+        main.store.founder_scores,
+        main.store.founder_score_history,
+        main.store.claim_status_changes,
+        main.store.trigger_events,
+    ):
+        collection.clear()
+
+
+def test_company_preflight_skips_clerk_tenant_auth(monkeypatch):
+    _clear_pipeline_store()
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_preflight")
+    company = Company(name="PreflightCo", organization_id="org_test")
+    main.store.companies[company.id] = company
+
+    response = TestClient(main.app).options(
+        f"/companies/{company.id}/dossier",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_demo_seed_includes_actionable_diligence_gaps():
+    _clear_pipeline_store()
+    seed_demo(reset=False, target=main.store, organization_id="org_demo")
+
+    readiness = [calculate_readiness(main.store, company.id) for company in main.store.companies.values()]
+
+    assert any(item.next_actions for item in readiness)
+    assert any(item.contradiction_count for item in readiness)
+    assert any(item.cold_start for item in readiness)
 
 
 def test_create_pull_ingest_dossier(monkeypatch):
