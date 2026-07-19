@@ -99,6 +99,8 @@ MAX_VOICE_AUDIO_BYTES = 25_000_000
 @app.middleware("http")
 async def enforce_company_tenant(request: Request, call_next):
     """Hide company-scoped resources outside the active Clerk organization."""
+    if request.method == "OPTIONS":
+        return await call_next(request)
     parts = request.url.path.strip("/").split("/")
     if len(parts) >= 2 and parts[0] == "companies" and parts[1] in store.companies:
         company = store.companies[parts[1]]
