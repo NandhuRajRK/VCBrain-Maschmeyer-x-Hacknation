@@ -35,57 +35,7 @@
   isolation: isolate;    /* keep the multiply blend inside the sidebar */
 }
 
-/* ── Animated grain ──
- * Two noise layers drifting slowly in opposite directions. multiply
- * blend drops the light noise and leaves black speckle on white.
- */
-.sidebar::before,
-.sidebar::after {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  pointer-events: none;
-  z-index: 0;
-  background-repeat: repeat;
-  mix-blend-mode: multiply;
-  will-change: transform;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-.sidebar::before {
-  background-size: 200px 200px;
-  opacity: 0.5;
-  animation: sideGrainA 14s ease-in-out infinite;
-}
-
-.sidebar::after {
-  background-size: 130px 130px;
-  opacity: 0.3;
-  animation: sideGrainB 11s ease-in-out infinite;
-}
-
-@keyframes sideGrainA {
-  0%   { transform: translate3d(0, 0, 0); }
-  25%  { transform: translate3d(-7%, -5%, 0); }
-  50%  { transform: translate3d(5%, -9%, 0); }
-  75%  { transform: translate3d(-4%, 7%, 0); }
-  100% { transform: translate3d(0, 0, 0); }
-}
-
-@keyframes sideGrainB {
-  0%   { transform: translate3d(0, 0, 0); }
-  25%  { transform: translate3d(6%, 4%, 0); }
-  50%  { transform: translate3d(-5%, 8%, 0); }
-  75%  { transform: translate3d(7%, -6%, 0); }
-  100% { transform: translate3d(0, 0, 0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebar::before,
-  .sidebar::after {
-    animation: none;
-  }
-}
+/* The ASCII wave canvas is rendered by <AsciiWave /> inside the sidebar */
 
 /* Sidebar content sits above the grain */
 .brand,
@@ -100,8 +50,8 @@
   align-items: center;
   gap: var(--space-3);
   padding-bottom: var(--space-6);
-  border-bottom: 1px solid var(--side-border);
-  margin-bottom: var(--space-6);
+  border-bottom: none;
+  margin-bottom: var(--space-2);
 }
 
 .brandIcon {

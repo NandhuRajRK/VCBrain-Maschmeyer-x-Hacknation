@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import styles from "./layout.module.css";
+import AsciiWave from "./AsciiWave";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,6 +29,8 @@ export default function RootLayout({
       <body className="grain" suppressHydrationWarning>
         <div className={styles.shell}>
           <aside className={styles.sidebar}>
+            <AsciiWave />
+
             <div className={styles.brand}>
               <span className={styles.brandIcon}>&#x2726;</span>
               <span className={styles.brandName}>VC Brain</span>
