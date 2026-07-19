@@ -519,3 +519,89 @@ class FounderEnrichmentResult(BaseModel):
     created_sources: list[Source]
     deduped_sources: int
     ingestion: IngestionRun
+
+
+class CollaborationRole(str, Enum):
+    partner = "partner"
+    associate = "associate"
+    analyst = "analyst"
+    observer = "observer"
+
+
+class CollaborationStatus(str, Enum):
+    open = "open"
+    in_progress = "in_progress"
+    done = "done"
+
+
+class DealMemberCreate(BaseModel):
+    user_id: str = Field(min_length=1)
+    display_name: str | None = None
+    role: CollaborationRole = CollaborationRole.analyst
+
+
+class DealMember(DealMemberCreate):
+    id: str = Field(default_factory=lambda: new_id("member"))
+    company_id: str
+    added_at: datetime = Field(default_factory=now)
+
+
+class CollaborationNoteCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=12000)
+    claim_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class CollaborationNoteUpdate(CollaborationNoteCreate):
+    version: int = Field(ge=1)
+
+
+class CollaborationNote(CollaborationNoteCreate):
+    id: str = Field(default_factory=lambda: new_id("note"))
+    company_id: str
+    author_id: str
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+    version: int = 1
+
+
+class DealTaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    assignee_id: str | None = None
+    due_at: datetime | None = None
+
+
+class DealTaskUpdate(BaseModel):
+    status: CollaborationStatus | None = None
+    assignee_id: str | None = None
+    due_at: datetime | None = None
+    version: int = Field(ge=1)
+
+
+class DealTask(DealTaskCreate):
+    id: str = Field(default_factory=lambda: new_id("task"))
+    company_id: str
+    creator_id: str
+    status: CollaborationStatus = CollaborationStatus.open
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+    version: int = 1
+
+
+class DealActivity(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("activity"))
+    company_id: str
+    actor_id: str
+    action: str
+    entity_type: str
+    entity_id: str
+    summary: str
+    created_at: datetime = Field(default_factory=now)
+
+
+class DealWorkspace(BaseModel):
+    company_id: str
+    members: list[DealMember] = Field(default_factory=list)
+    notes: list[CollaborationNote] = Field(default_factory=list)
+    tasks: list[DealTask] = Field(default_factory=list)
+    activity: list[DealActivity] = Field(default_factory=list)

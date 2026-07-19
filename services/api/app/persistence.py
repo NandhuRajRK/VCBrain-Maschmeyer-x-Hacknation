@@ -7,7 +7,11 @@ from pydantic import BaseModel
 from .models import (
     Claim,
     ClaimStatusChange,
+    CollaborationNote,
     Company,
+    DealActivity,
+    DealMember,
+    DealTask,
     Evidence,
     Founder,
     FounderScore,
@@ -73,5 +77,9 @@ MODEL_COLLECTIONS = {
     "founder_scores": FounderScore,
     "founder_score_history": FounderScoreSnapshot,
     "claim_status_changes": ClaimStatusChange,
+    "deal_members": DealMember,
+    "collaboration_notes": CollaborationNote,
+    "deal_tasks": DealTask,
+    "deal_activity": DealActivity,
     "trigger_events": TriggerEvent,
 }

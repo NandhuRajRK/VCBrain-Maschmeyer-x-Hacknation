@@ -43,3 +43,10 @@ def require_user(request: Request) -> dict[str, Any]:
         reason = getattr(getattr(state, "reason", None), "name", None)
         raise HTTPException(status_code=401, detail=reason or "Authentication required")
     return dict(state.payload)
+
+
+def actor_id(request: Request) -> str:
+    """Return the Clerk user ID, with an explicit local demo fallback."""
+    if os.getenv("CLERK_SECRET_KEY"):
+        return str(require_user(request)["sub"])
+    return request.headers.get("X-Actor-Id", "demo-user")
