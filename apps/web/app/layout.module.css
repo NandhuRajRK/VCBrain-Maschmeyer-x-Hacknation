@@ -81,8 +81,16 @@
   transition: opacity var(--duration-fast, 0.15s) var(--ease-out);
 }
 
+.sidebar[data-collapsed="true"] .brand {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .sidebar[data-collapsed="true"] .brandName {
   opacity: 0;
+  width: 0;
   pointer-events: none;
 }
 
