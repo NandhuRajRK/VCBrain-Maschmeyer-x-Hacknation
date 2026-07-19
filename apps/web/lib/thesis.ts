@@ -55,7 +55,9 @@ export interface ThesisResult {
 // ── Matching logic (case-insensitive, substring-aware) ─────────
 
 function normalize(value: string): string {
-  return value.toLowerCase().trim();
+  // Collapse separators so "developer tools", "developer_tools" and
+  // "developer-tools" compare equal (data uses spaces/hyphens, thesis uses underscores).
+  return value.toLowerCase().trim().replace(/[\s_-]+/g, "");
 }
 
 /**

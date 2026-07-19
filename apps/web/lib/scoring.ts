@@ -221,19 +221,29 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
   const hasGithub = founders.some((f) => f.github);
   const hasLinkedin = founders.some((f) => f.linkedin);
 
-  // Start from founder scores computed by Nandhu's backend
-  let rawScore = 30; // baseline
+  // Neutral baseline for an unknown founder. The backend founder score pulls
+  // it up or down IN PROPORTION TO ITS OWN CONFIDENCE, so thin founder data
+  // (low confidence) stays near neutral instead of collapsing to ~15 and
+  // auto-rejecting. Thin data shows up as low confidence, not a hard reject.
+  let rawScore = 50;
+  let founderConfidence = 0.35;
   if (founder_scores.length > 0) {
     const avg =
       founder_scores.reduce((sum, fs) => sum + fs.score, 0) / founder_scores.length;
-    rawScore = avg;
+    const backendConfidence =
+      founder_scores.reduce((sum, fs) => sum + fs.confidence, 0) / founder_scores.length;
+    rawScore = 50 * (1 - backendConfidence) + avg * backendConfidence;
+    founderConfidence = backendConfidence;
   }
 
   // Boost for multiple founders (team > solo)
   if (founders.length >= 2) rawScore = Math.min(100, rawScore + 8);
 
   // Boost for public presence
-  if (hasGithub) rawScore = Math.min(100, rawScore + 5);
+  if (hasGithub) {
+    rawScore = Math.min(100, rawScore + 6);
+    founderConfidence = Math.max(founderConfidence, 0.5);
+  }
   if (hasLinkedin) rawScore = Math.min(100, rawScore + 3);
 
   // Penalize disputes
@@ -260,7 +270,10 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
         founderClaims.length
       : 0.5;
 
-  const evidenceQuality = (avgConfidence + avgIndependence + avgFreshness) / 3;
+  const evidenceQuality =
+    founderClaims.length > 0
+      ? (avgConfidence + avgIndependence + avgFreshness) / 3
+      : Math.max(0.5, founderConfidence);
   const adjustedScore = Math.round(rawScore * (0.55 + 0.45 * evidenceQuality));
 
   // Notes
@@ -276,7 +289,7 @@ function scoreFounderAxis(dossier: DossierInput): AxisScore {
     axis: "founder",
     rawScore: Math.round(rawScore),
     adjustedScore,
-    confidence: Math.round(avgConfidence * 100) / 100,
+    confidence: Math.round((founderClaims.length > 0 ? avgConfidence : founderConfidence) * 100) / 100,
     trend: isColdStart ? "stable" : supporting.length > disputed.length ? "improving" : "stable",
     supportingClaimIds: supporting.map((c) => c.id),
     contradictingClaimIds: disputed.map((c) => c.id),
