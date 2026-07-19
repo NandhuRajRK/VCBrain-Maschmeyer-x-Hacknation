@@ -10,8 +10,9 @@ import { analyzePipeline, askAssistant, listCompanies, narrateText, parseOpportu
 import { buildPortfolioContext, type PortfolioItem } from "../../lib/assistant";
 import { userError } from "../../lib/errors";
 import { DEFAULT_THESIS } from "../../lib/thesis";
-import { timeGreeting, workspaceUserName } from "../../lib/user";
+import { timeGreeting } from "../../lib/user";
 import { useDismissableLayer, useUnsavedChanges } from "../../lib/use-dismissable-layer";
+import { useWorkspaceAuth } from "../AuthProvider";
 import IskraOrb from "../IskraOrb";
 import OpportunityModal from "../OpportunityModal";
 import styles from "./page.module.css";
@@ -24,6 +25,7 @@ const EXAMPLES = ["Which deal is closest to invest?", "Find technical AI founder
 const newMessage = (role: Message["role"], content: string, matches?: ApiSearchMatch[]): Message => ({ id: crypto.randomUUID(), role, content, matches, createdAt: new Date().toISOString() });
 
 export default function IskraPage() {
+  const auth = useWorkspaceAuth();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -36,7 +38,7 @@ export default function IskraPage() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceInteraction, setVoiceInteraction] = useState<VoiceInteraction>("dictation");
   const [greeting, setGreeting] = useState("Good afternoon");
-  const [userName, setUserName] = useState("there");
+  const userName = auth.name;
   const [showJump, setShowJump] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -63,7 +65,7 @@ export default function IskraPage() {
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) { try { setMessages(JSON.parse(saved) as Message[]); } catch { localStorage.removeItem(STORAGE_KEY); } }
-    setGreeting(timeGreeting()); setUserName(workspaceUserName()); hydratedRef.current = true;
+    setGreeting(timeGreeting()); hydratedRef.current = true;
     listCompanies().then(setCompanies).catch(() => setCompanies([]));
     return () => { streamRef.current?.getTracks().forEach((track) => track.stop()); audioRef.current?.pause(); abortRef.current?.abort(); if (revealTimerRef.current) window.clearInterval(revealTimerRef.current); };
   }, []);

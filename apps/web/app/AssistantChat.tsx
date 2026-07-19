@@ -23,14 +23,15 @@ import {
   type ChatMessage,
   type PortfolioItem,
 } from "../lib/assistant";
-import { workspaceUserName } from "../lib/user";
 import { useUnsavedChanges } from "../lib/use-dismissable-layer";
+import { useWorkspaceAuth } from "./AuthProvider";
 
 /* The current width is the ceiling; the panel can only be made narrower. */
 const MAX_PANEL = 380;
 const MIN_PANEL = 300;
 
 export default function AssistantChat() {
+  const auth = useWorkspaceAuth();
   const pathname = usePathname();
   const hidden = pathname === "/search";
   const [open, setOpen] = useState(false);
@@ -43,7 +44,7 @@ export default function AssistantChat() {
   const [voiceMode, setVoiceMode] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "processing">("idle");
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [userName, setUserName] = useState("there");
+  const userName = auth.name;
   useUnsavedChanges(Boolean(input.trim() || attachment), "Leave without sending this Iskra draft?");
 
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -62,11 +63,6 @@ export default function AssistantChat() {
   /* Load and analyse the whole portfolio once, on first open. A ref
    * gates it so state updates inside the load cannot re-trigger and
    * cancel the effect. */
-  useEffect(() => {
-    const timer = window.setTimeout(() => setUserName(workspaceUserName()), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
   useEffect(() => {
     if (!open || loadedRef.current) return;
     loadedRef.current = true;
