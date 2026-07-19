@@ -94,6 +94,85 @@ The demo works without paid API keys by using deterministic fallbacks and
 synthetic evidence. Add keys to `.env` only for the live integrations you want
 to demonstrate. Secrets remain server-side and `.env` is ignored by git.
 
+## Use Live API Integrations
+
+The live path adds model-assisted extraction, real web signals, and optional
+spoken responses. It is separate from the deterministic test path, so you can
+choose exactly which providers to enable.
+
+| Environment key | Enables |
+| --- | --- |
+| `OPENAI_API_KEY` | Structured company/profile extraction, claim extraction, founder search parsing, assistant answers, chat titles, opportunity intake, contradiction adjudication, and voice transcription |
+| `OPENAI_MODEL` | Main structured model; default `gpt-4o-mini` |
+| `OPENAI_TRANSCRIPTION_MODEL` | Speech-to-text model; default `gpt-4o-mini-transcribe` |
+| `ELEVENLABS_API_KEY` | Optional spoken responses and memo narration; it is not required for dictation |
+| `TAVILY_API_KEY` | Public search and explicit Founder Passport enrichment |
+| `EXA_API_KEY` | Semantic public search and explicit Founder Passport enrichment |
+| `PERPLEXITY_API_KEY` | Web-grounded diligence source pulls |
+| `PRODUCT_HUNT_TOKEN` | Product Hunt connector |
+| `OPENCORPORATES_API_TOKEN` | Optional company-registry lookup |
+| Clerk keys | Sign-in, organization membership, tenant isolation, and enterprise SSO |
+
+### Configure
+
+1. Copy `.env.example` to `.env`.
+2. Add only the provider keys needed for the demo. Keep all keys in the API
+   environment; never add them to `NEXT_PUBLIC_*` variables.
+3. Restart the FastAPI process after changing `.env`.
+4. Start the web app with only `NEXT_PUBLIC_API_URL` configured.
+
+For the strongest low-credit demo, use `OPENAI_API_KEY` and optionally
+`ELEVENLABS_API_KEY`. Add one search provider only when you want to demonstrate
+live enrichment. Provider calls are explicit; normal ingestion does not
+silently fan out across every configured search API.
+
+### Run a live-key demo
+
+```bash
+cp .env.example .env
+# Edit .env and add OPENAI_API_KEY plus any optional provider keys.
+
+VCBRAIN_DB_PATH=/tmp/iskra-live-demo.sqlite3 \
+uv run python scripts/seed_demo.py --reset
+
+VCBRAIN_DB_PATH=/tmp/iskra-live-demo.sqlite3 \
+uv run uvicorn services.api.app.main:app --reload
+```
+
+Then start the web app in another terminal:
+
+```bash
+cd apps/web
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
+With OpenAI enabled, use Iskra to ask a portfolio question, create an analysis
+from natural language, or ingest an attached document for structured extraction.
+With ElevenLabs enabled, switch Iskra to dialogue mode or use the memo narration
+action. With Tavily or Exa enabled, open a Founder Passport and run explicit
+enrichment with one result per founder.
+
+For a live source pull, first create or select a company and send one connector
+at a time through `POST /sources/pull` in the API explorer. For example:
+
+```json
+{
+  "company_id": "company_...",
+  "connectors": ["tavily"],
+  "query": "AetherGrid AI infrastructure Berlin customers",
+  "max_website_pages": 1
+}
+```
+
+Run `POST /companies/{company_id}/ingest` afterward to convert the returned
+signals into claims and evidence. Keep enrichment capped at one or two results
+while presenting to avoid unnecessary provider usage. If a key is absent, Iskra
+records a visible fallback/search surface and continues the demo.
+
+Clerk is configured separately: add the publishable key to the web environment,
+the secret/JWT keys to the API environment, and configure the organization in
+Clerk Dashboard. See [Clerk integration](docs/clerk-integration.md).
+
 ## Seed the Demo
 
 Use a separate SQLite file to keep the demo repeatable:

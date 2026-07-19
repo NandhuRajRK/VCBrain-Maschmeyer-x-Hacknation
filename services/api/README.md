@@ -40,6 +40,10 @@ Missing credentials do not break the core demo. Connectors return explicit
 fallback/search records, deterministic parsers remain available, and the UI can
 show the resulting evidence gap.
 
+For a live-key walkthrough, see the root README's
+[live integrations section](../../README.md#use-live-api-integrations). Restart
+the API after changing `.env`; the web client only needs `NEXT_PUBLIC_API_URL`.
+
 Founder-specific Tavily or Exa enrichment is an explicit endpoint with a result
 cap. Ordinary ingestion does not silently spend search credits.
 
