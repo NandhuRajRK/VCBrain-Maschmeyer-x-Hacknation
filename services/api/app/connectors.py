@@ -46,6 +46,46 @@ def pull_signals(
     return signals
 
 
+def discover_github_repositories(query: str) -> list[Signal]:
+    """Find recently active public repositories for a thesis query.
+
+    Repository activity is an early signal, not proof of company or founder identity.
+    """
+    params = urllib.parse.urlencode({"q": query, "sort": "updated", "order": "desc", "per_page": 5})
+    data = _get_json(f"https://api.github.com/search/repositories?{params}") or {}
+    repositories = data.get("items") or []
+    signals: list[Signal] = []
+    for repository in repositories[:5]:
+        full_name = str(repository.get("full_name") or "repository")
+        contributors = _github_contributors(full_name)
+        signals.append(
+            Signal(
+                source=ConnectorKind.github,
+                title=f"GitHub repository: {full_name}",
+                url=repository.get("html_url"),
+                text=(repository.get("description") or f"Recently active public repository: {full_name}.")[:800],
+                metadata={
+                    "full_name": full_name,
+                    "stars": int(repository.get("stargazers_count") or 0),
+                    "forks": int(repository.get("forks_count") or 0),
+                    "updated_at": repository.get("updated_at"),
+                    "contributors": contributors,
+                    "homepage": repository.get("homepage") or "",
+                    "fork": bool(repository.get("fork")),
+                    "owner": (repository.get("owner") or {}).get("login"),
+                    "owner_type": (repository.get("owner") or {}).get("type"),
+                    "fetch_status": "live",
+                },
+            )
+        )
+    return signals
+
+
+def _github_contributors(full_name: str) -> list[str]:
+    data = _get_json(f"https://api.github.com/repos/{urllib.parse.quote(full_name, safe='/')}/contributors?per_page=3")
+    return [str(item.get("login")) for item in (data or [])[:3] if item.get("login")]
+
+
 def _github_signal(user: str) -> Signal:
     data = _get_json(f"https://api.github.com/users/{urllib.parse.quote(user)}")
     if not data:

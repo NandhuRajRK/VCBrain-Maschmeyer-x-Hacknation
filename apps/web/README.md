@@ -15,6 +15,7 @@ Open <http://localhost:3000>.
 ## Main Routes
 
 - `/` - portfolio dashboard and global intelligence
+- `/sourcing` - thesis-driven public-signal discovery and lead promotion
 - `/opportunities` - deal flow and analysis jobs
 - `/search` - Iskra chat, founder discovery, dictation, and dialogue
 - `/thesis` - organization investment thesis

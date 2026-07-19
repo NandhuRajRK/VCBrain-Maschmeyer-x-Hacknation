@@ -79,6 +79,34 @@ export interface ApiChatTitleResponse {
   title: string;
 }
 
+export type ApiDiscoverySource = "github" | "hacker_news" | "product_hunt" | "arxiv" | "website" | "perplexity" | "exa" | "tavily" | "opencorporates" | "sec_edgar" | "patentsview";
+export type ApiDiscoveryCandidateStatus = "new" | "promoted" | "dismissed";
+export type ApiDiscoveryCandidateKind = "company" | "research";
+export interface ApiDiscoveryCandidate {
+  id: string;
+  organization_id: string;
+  name: string;
+  headline: string;
+  source_type: ApiDiscoverySource;
+  source_url: string | null;
+  observed_at: string;
+  score: number;
+  confidence: number;
+  candidate_kind: ApiDiscoveryCandidateKind;
+  identity_status: "needs_resolution" | "corroborated";
+  identity_reason: string;
+  why_now: string;
+  thesis_terms: string[];
+  source_metadata: Record<string, unknown>;
+  status: ApiDiscoveryCandidateStatus;
+  company_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ApiDiscoveryRun { id: string; organization_id: string; queries: string[]; scanned_sources: number; new_candidates: number; created_at: string }
+export interface ApiDiscoveryScanResult { run: ApiDiscoveryRun; candidates: ApiDiscoveryCandidate[]; queries: string[] }
+export interface ApiDiscoveryPromotionResult { candidate: ApiDiscoveryCandidate; company: ApiCompany }
+
 /** Mirrors models.py CompanyCreate */
 export interface ApiCompanyCreate {
   name: string;
@@ -493,6 +521,18 @@ export async function createCompany(payload: ApiCompanyCreate): Promise<ApiCompa
 
 export async function listCompanies(): Promise<ApiCompany[]> {
   return request("/companies");
+}
+
+export async function listDiscoveryCandidates(): Promise<ApiDiscoveryCandidate[]> {
+  return request("/discovery/candidates");
+}
+
+export async function runDiscoveryScan(): Promise<ApiDiscoveryScanResult> {
+  return request("/discovery/scan", { method: "POST" });
+}
+
+export async function promoteDiscoveryCandidate(candidateId: string): Promise<ApiDiscoveryPromotionResult> {
+  return request(`/discovery/candidates/${candidateId}/promote`, { method: "POST" });
 }
 
 // Sources

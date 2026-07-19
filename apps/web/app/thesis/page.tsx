@@ -40,7 +40,7 @@ function MultiSelect({ values, options, onChange }: { values: string[]; options:
   }
 
   return (
-    <div ref={selectRef} className={styles.multiSelect}>
+    <div ref={selectRef} className={styles.multiSelect} data-open={open}>
       <label className={styles.searchField}>
         <Search size={14} className={styles.selectIcon} aria-hidden="true" />
         <input

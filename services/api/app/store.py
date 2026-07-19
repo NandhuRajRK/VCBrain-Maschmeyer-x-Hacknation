@@ -10,6 +10,8 @@ from .models import (
     DealInvitation,
     DealMember,
     DealTask,
+    DiscoveryCandidate,
+    DiscoveryRun,
     Evidence,
     Founder,
     FounderScore,
@@ -44,6 +46,8 @@ class Store:
         self.fund_theses: dict[str, FundThesis] = self._load("fund_theses")
         self.analysis_jobs: dict[str, AnalysisJob] = self._load("analysis_jobs")
         self.internal_memories: dict[str, InternalMemory] = self._load("internal_memories")
+        self.discovery_candidates: dict[str, DiscoveryCandidate] = self._load("discovery_candidates")
+        self.discovery_runs: dict[str, DiscoveryRun] = self._load("discovery_runs")
 
     def _load(self, collection: str):
         return self.db.load_collection(collection, MODEL_COLLECTIONS[collection])
@@ -66,6 +70,8 @@ class Store:
             ("fund_theses", self.fund_theses),
             ("analysis_jobs", self.analysis_jobs),
             ("internal_memories", self.internal_memories),
+            ("discovery_candidates", self.discovery_candidates),
+            ("discovery_runs", self.discovery_runs),
         )
         with self.db.immediate_transaction() as connection:
             for collection, rows in collections:

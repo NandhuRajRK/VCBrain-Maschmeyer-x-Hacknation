@@ -9,6 +9,7 @@ the product, not team ownership or branch history.
 | --- | --- | --- |
 | Company intake and documents | Analysis modal with drag and drop | Companies and document upload routes |
 | Public signal research | Analysis pipeline | Source pull and ingestion routes |
+| Thesis-driven sourcing | Sourcing inbox and signal map | Discovery scan, candidate list, and promotion routes |
 | Claims and evidence | Company evidence review | Dossier, claims, evidence, and timeline routes |
 | Founder history | Founder Passport | Passport and enrichment routes |
 | Investment intelligence | Three-axis score and memo | Dossier consumed by web scoring and memo logic |

@@ -8,6 +8,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   Plus,
+  Radar,
   Search,
   Settings2,
   Sparkles,
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
     section: "Pipeline",
     links: [
       { href: "/", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/sourcing", icon: Radar, label: "Sourcing" },
       { href: "/opportunities", icon: Plus, label: "Deal Flow" },
     ],
   },

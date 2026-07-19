@@ -42,6 +42,18 @@ local development without Clerk, the service uses a demo identity; optional
 The thesis includes sectors, stages, geographies, preferred business models,
 exclusions, check-size range, ownership target, and risk appetite.
 
+## Sourcing Discovery
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/discovery/scan` | Scan public signals using the active thesis |
+| `GET` | `/discovery/candidates` | List organization-scoped company leads |
+| `POST` | `/discovery/candidates/{candidate_id}/promote` | Promote a lead into the diligence pipeline |
+
+Discovery candidates retain source identity, confidence, thesis terms, and a
+time-sensitive reason for review. Research-only signals are kept out of the
+company inbox, and promotion immediately creates and ingests a traceable source.
+
 ## Companies and Analysis Jobs
 
 | Method | Route | Purpose |

@@ -2,11 +2,13 @@
 
 .page {
   width: 100%;
-  max-width: none;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: var(--space-4) 0 var(--space-10);
 }
 
 .header {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-9);
 }
 
 .titleRow,
@@ -26,14 +28,17 @@
 .groups {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  width: min(100%, 760px);
+  gap: 0;
+  width: 100%;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .groupLabel {
@@ -78,10 +83,10 @@
   align-items: center;
 }
 
-.multiSelect { position: relative; z-index: 2; width: 100%; }
+.multiSelect { position: relative; z-index: 0; width: 100%; }
+.multiSelect[data-open="true"] { z-index: 20; }
 .searchField {
   position: relative;
-  z-index: 8;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -90,7 +95,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
-  width: min(100%, 540px);
+  width: 100%;
 }
 .searchField:focus-within { border-color: var(--border-strong); }
 .searchField input { flex: 1; min-width: 110px; color: var(--text-primary); font-size: var(--text-sm); }
@@ -102,8 +107,8 @@
   position: absolute;
   top: calc(100% + var(--space-2));
   left: 0;
-  width: min(100%, 540px);
-  z-index: 10;
+  width: 100%;
+  z-index: 2;
   max-height: 220px;
   overflow-y: auto;
   padding: var(--space-1);
@@ -162,6 +167,8 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-4);
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .numberField {
@@ -204,16 +211,17 @@
 /* ── Segment ── */
 
 .segment {
-  display: inline-flex;
+  display: flex;
   gap: 2px;
   padding: 2px;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  width: fit-content;
+  width: 100%;
 }
 
 .segmentBtn {
+  flex: 1;
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
   color: var(--text-tertiary);
@@ -233,10 +241,10 @@
 .footer {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
-  margin-top: var(--space-10);
+  margin-top: var(--space-7);
   padding-top: var(--space-6);
-  border-top: 1px solid var(--border-subtle);
 }
 
 .save {
@@ -258,4 +266,11 @@
   color: var(--text-muted);
   max-width: 40ch;
   line-height: var(--leading-normal);
+}
+
+@media (max-width: 720px) {
+  .page { max-width: 100%; padding-top: 0; }
+  .numberRow { grid-template-columns: 1fr; gap: var(--space-4); }
+  .footer { align-items: flex-start; flex-direction: column-reverse; }
+  .save { width: 100%; }
 }

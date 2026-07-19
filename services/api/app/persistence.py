@@ -16,6 +16,8 @@ from .models import (
     DealInvitation,
     DealMember,
     DealTask,
+    DiscoveryCandidate,
+    DiscoveryRun,
     Evidence,
     Founder,
     FounderScore,
@@ -127,4 +129,6 @@ MODEL_COLLECTIONS = {
     "fund_theses": FundThesis,
     "analysis_jobs": AnalysisJob,
     "internal_memories": InternalMemory,
+    "discovery_candidates": DiscoveryCandidate,
+    "discovery_runs": DiscoveryRun,
 }

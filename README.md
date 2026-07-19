@@ -52,6 +52,8 @@ certainty.
 - Investment memo, red-team analysis, decision-flip conditions, and decision
   readiness.
 - Natural-language founder discovery and evidence-aware outreach drafting.
+- Thesis-driven public-signal scanning with an identity-aware sourcing inbox
+  that promotes approved leads into the diligence pipeline.
 - Iskra text, dictation, and dialogue modes with OpenAI transcription and
   optional ElevenLabs narration.
 - Organization-scoped workspaces, comments, tasks, invitations, and enterprise

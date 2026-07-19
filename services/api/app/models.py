@@ -228,6 +228,68 @@ class SourcePullResult(BaseModel):
     deduped_sources: int
 
 
+class DiscoveryCandidateStatus(str, Enum):
+    new = "new"
+    promoted = "promoted"
+    dismissed = "dismissed"
+
+
+class DiscoveryIdentityStatus(str, Enum):
+    needs_resolution = "needs_resolution"
+    corroborated = "corroborated"
+
+
+class DiscoveryCandidateKind(str, Enum):
+    """The maturity of a public item before it reaches the investor inbox."""
+
+    company = "company"
+    research = "research"
+
+
+class DiscoveryCandidate(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("candidate"))
+    organization_id: str
+    name: str = Field(min_length=1)
+    headline: str = Field(min_length=1)
+    source_type: ConnectorKind
+    source_url: HttpUrl | None = None
+    observed_at: datetime = Field(default_factory=now)
+    score: int = Field(ge=0, le=100)
+    confidence: float = Field(ge=0, le=1)
+    # Older rows did not prove a company identity. Defaulting them to research
+    # keeps noisy historical scans out of the company-investigation inbox.
+    candidate_kind: DiscoveryCandidateKind = DiscoveryCandidateKind.research
+    identity_status: DiscoveryIdentityStatus = DiscoveryIdentityStatus.needs_resolution
+    identity_reason: str = "Public signal requires identity resolution."
+    why_now: str = Field(min_length=1)
+    thesis_terms: list[str] = Field(default_factory=list)
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
+    status: DiscoveryCandidateStatus = DiscoveryCandidateStatus.new
+    company_id: str | None = None
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+
+
+class DiscoveryRun(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("discovery_run"))
+    organization_id: str
+    queries: list[str] = Field(default_factory=list)
+    scanned_sources: int = Field(default=0, ge=0)
+    new_candidates: int = Field(default=0, ge=0)
+    created_at: datetime = Field(default_factory=now)
+
+
+class DiscoveryScanResult(BaseModel):
+    run: DiscoveryRun
+    candidates: list[DiscoveryCandidate] = Field(default_factory=list)
+    queries: list[str] = Field(default_factory=list)
+
+
+class DiscoveryPromotionResult(BaseModel):
+    candidate: DiscoveryCandidate
+    company: Company
+
+
 class FounderEnrichmentRequest(BaseModel):
     connectors: list[ConnectorKind] = Field(default_factory=list)
     max_sources_per_founder: int = Field(default=1, ge=1, le=3)
