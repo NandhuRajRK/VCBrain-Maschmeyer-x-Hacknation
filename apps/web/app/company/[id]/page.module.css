@@ -70,6 +70,14 @@
   min-width: 0;
 }
 
+.decisionEyebrow {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 .title {
   font-size: var(--text-3xl);
   font-weight: var(--weight-semibold);
@@ -98,6 +106,8 @@
   margin-top: var(--space-3);
   font-style: italic;
 }
+
+.advanceCue { max-width: 62ch; margin-top: var(--space-5); padding-left: var(--space-3); color: var(--text-secondary); border-left: 1px solid var(--border-default); font-size: var(--text-sm); line-height: var(--leading-relaxed); }.advanceCue span { display: block; margin-bottom: 3px; color: var(--text-muted); font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 
 .verdictSide {
   display: flex;

@@ -29,6 +29,7 @@ import { useUnsavedChanges } from "../../../lib/use-dismissable-layer";
 import styles from "./CompanyWorkspace.module.css";
 
 type Tab = "readiness" | "founders" | "timeline" | "outcomes" | "team";
+type DecisionContext = { risks: string[]; redTeam: { headline: string; mitigation: string } | null; advanceSignals: string[] };
 
 const DEFAULT_OUTCOME: ApiOutcomeInput = {
   initial_investment_usd: 100_000,
@@ -49,14 +50,14 @@ const DEFAULT_OUTCOME: ApiOutcomeInput = {
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
 const tabs: { id: Tab; label: string; icon: typeof Activity }[] = [
-  { id: "readiness", label: "Readiness", icon: Check },
+  { id: "readiness", label: "Decision", icon: Check },
   { id: "founders", label: "Founder passports", icon: BriefcaseBusiness },
   { id: "timeline", label: "Timeline", icon: Activity },
   { id: "outcomes", label: "Outcomes", icon: FlaskConical },
   { id: "team", label: "Deal room", icon: Users },
 ];
 
-export default function CompanyWorkspace({ companyId }: { companyId: string }) {
+export default function CompanyWorkspace({ companyId, decisionContext }: { companyId: string; decisionContext?: DecisionContext }) {
   const [tab, setTab] = useState<Tab>("readiness");
   const [readiness, setReadiness] = useState<ApiDecisionReadiness | null>(null);
   const [timeline, setTimeline] = useState<ApiCompanyTimeline | null>(null);
@@ -128,10 +129,15 @@ export default function CompanyWorkspace({ companyId }: { companyId: string }) {
               <strong>{readiness.score}</strong><span>ready</span>
             </div>
             <div className={styles.readinessBody}>
-              <div className={styles.panelHead}><div><h2>{readiness.status.replaceAll("_", " ")}</h2><p>Updated {new Date(readiness.updated_at).toLocaleString()}</p></div></div>
+              <div className={styles.panelHead}><div><h2>Decision readiness</h2><p>{readiness.status.replaceAll("_", " ")} · updated {new Date(readiness.updated_at).toLocaleString()}</p></div></div>
               <div className={styles.componentGrid}>{Object.entries(readiness.components).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><strong>{Math.round(value)}</strong></div>)}</div>
               {readiness.blockers.length > 0 && <div className={styles.blockers}>{readiness.blockers.map((item) => <span key={item}>{item}</span>)}</div>}
-              <div className={styles.actionList}>{readiness.next_actions.map((item) => <div key={`${item.category}-${item.title}`}><span>{item.priority}</span><div><strong>{item.title}</strong><p>{item.reason}</p></div><b>+{item.expected_readiness_gain}</b></div>)}</div>
+              {readiness.next_actions.length > 0 && <div className={styles.actionList}>{readiness.next_actions.map((item) => <div key={`${item.category}-${item.title}`}><span>{item.priority}</span><div><strong>{item.title}</strong><p>{item.reason}</p></div><b>+{item.expected_readiness_gain}</b></div>)}</div>}
+              {decisionContext && (decisionContext.risks.length > 0 || decisionContext.redTeam || decisionContext.advanceSignals.length > 0) && <div className={styles.decisionBrief}>
+                {decisionContext.risks.length > 0 && <div><b>Key concerns</b>{decisionContext.risks.map((risk) => <p key={risk}>{risk}</p>)}</div>}
+                {decisionContext.redTeam && <div><b>Bear case</b><p>{decisionContext.redTeam.headline}</p>{decisionContext.redTeam.mitigation && <small>Mitigation: {decisionContext.redTeam.mitigation}</small>}</div>}
+                {decisionContext.advanceSignals.length > 0 && <div><b>To advance</b>{decisionContext.advanceSignals.map((signal) => <p key={signal}>{signal}</p>)}</div>}
+              </div>}
             </div>
           </div>
         )}

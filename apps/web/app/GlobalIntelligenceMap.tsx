@@ -50,11 +50,11 @@ function globeTexture(light: boolean) {
   const projection = geoEquirectangular().translate([width / 2, height / 2]).scale(width / (2 * Math.PI));
   const path = geoPath(projection, context);
 
-  context.fillStyle = light ? "#d6e3ea" : "#07121b";
+  context.fillStyle = light ? "#e1e9ea" : "#aebfc6";
   context.fillRect(0, 0, width, height);
   context.beginPath();
   path(countries);
-  context.fillStyle = light ? "#bfd2dc" : "#102634";
+  context.fillStyle = light ? "#c7d4d7" : "#c8d4d7";
   context.fill();
   context.save();
   context.beginPath();
@@ -71,14 +71,14 @@ function globeTexture(light: boolean) {
     const y = random() * height;
     context.globalAlpha = 0.18 + random() * 0.24;
     context.font = `${3 + Math.floor(random() * 3)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-    context.fillStyle = light ? "#547488" : "#6d94ad";
+    context.fillStyle = light ? "#667f8a" : "#708894";
     context.fillText(glyphs[Math.floor(random() * glyphs.length)], x, y);
   }
   context.restore();
   context.globalAlpha = 0.56;
   context.beginPath();
   path(countries);
-  context.strokeStyle = light ? "#6f8fa3" : "#6e8da3";
+  context.strokeStyle = light ? "#78909a" : "#748b96";
   context.lineWidth = 0.65;
   context.stroke();
   context.globalAlpha = 1;
@@ -163,7 +163,7 @@ export default function GlobalIntelligenceMap({ companies }: { companies: ApiCom
       const markerMeshes: import("three").Object3D[] = [];
       const markerById = new Map<string, import("three").Object3D>();
       const upAxis = new THREE.Vector3(0, 1, 0);
-      visible.forEach((point, index) => {
+      visible.forEach((point) => {
         const normal = toVector(point.lat, point.lon, 1).normalize();
         const root = toVector(point.lat, point.lon, radius + 0.006);
         const color = 0xe8dfa7;
