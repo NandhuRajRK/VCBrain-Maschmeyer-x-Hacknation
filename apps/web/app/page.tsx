@@ -7,6 +7,9 @@ import type { PipelineResult } from "../lib/api";
 import { listCompanies, analyzePipeline } from "../lib/api";
 import { DEFAULT_THESIS } from "../lib/thesis";
 
+// Max companies shown per page. Above this, the table paginates.
+const PAGE_SIZE = 8;
+
 interface CompanyRow {
   company: ApiCompany;
   pipeline: PipelineResult | null;
@@ -34,6 +37,7 @@ export default function Dashboard() {
   const [rows, setRows] = useState<CompanyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,9 +56,10 @@ export default function Dashboard() {
         setRows(initial);
         setLoading(false);
 
-        // Analyze each company in parallel (capped at 4 concurrent)
+        // Analyze each company, capped at 4 concurrent. Resolved tasks are
+        // removed from the set so the cap actually holds.
         const queue = [...companies];
-        const running: Promise<void>[] = [];
+        const running = new Set<Promise<void>>();
 
         for (const company of queue) {
           const task = (async () => {
@@ -78,9 +83,11 @@ export default function Dashboard() {
                 )
               );
             }
-          })();
-          running.push(task);
-          if (running.length >= 4) {
+          })().then(() => {
+            running.delete(task);
+          });
+          running.add(task);
+          if (running.size >= 4) {
             await Promise.race(running);
           }
         }
@@ -93,10 +100,12 @@ export default function Dashboard() {
     }
 
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Summary stats
+  // Summary stats (across ALL companies, not just the current page)
   const analyzed = rows.filter((r) => r.pipeline !== null);
   const investCount = analyzed.filter(
     (r) => r.pipeline?.memo.decision === "invest"
@@ -110,6 +119,12 @@ export default function Dashboard() {
   const rejectCount = analyzed.filter(
     (r) => r.pipeline?.memo.decision === "reject"
   ).length;
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className={styles.page}>
@@ -183,7 +198,7 @@ export default function Dashboard() {
             <span className={styles.colStatus}>Status</span>
           </div>
 
-          {rows.map((row) => (
+          {pageRows.map((row) => (
             <a
               key={row.company.id}
               href={`/company/${row.company.id}`}
@@ -289,6 +304,47 @@ export default function Dashboard() {
               ) : null}
             </a>
           ))}
+        </div>
+      )}
+
+      {/* ── Pager ── */}
+      {totalPages > 1 && (
+        <div className={styles.pager}>
+          <button
+            type="button"
+            className={styles.pagerBtn}
+            onClick={() => setPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+          >
+            Prev
+          </button>
+
+          <div className={styles.pagerPages}>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={styles.pagerPage}
+                data-active={p === currentPage}
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className={styles.pagerBtn}
+            onClick={() => setPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+          >
+            Next
+          </button>
+
+          <span className={styles.pagerMeta}>
+            {startIndex + 1}-{Math.min(startIndex + PAGE_SIZE, rows.length)} of {rows.length}
+          </span>
         </div>
       )}
     </div>

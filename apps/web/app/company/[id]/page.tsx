@@ -98,7 +98,7 @@ export default function CompanyDetail() {
   const { dossier, thesis, scores, memo } = result;
   const company = dossier.company;
 
-  const evidenceById = new Map(dossier.evidence.map((e) => [e.id, e]));
+  const evidenceById = new Map(dossier.evidence.map((e) => [e.id, e] as const));
 
   const axes = [
     { key: "founder", label: "Founder", axis: scores.founder },
