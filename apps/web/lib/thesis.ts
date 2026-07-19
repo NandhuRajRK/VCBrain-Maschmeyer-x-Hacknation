@@ -189,7 +189,13 @@ export function evaluateThesis(
 export const DEFAULT_THESIS: ThesisConfig = {
   sectors: ["ai", "cybersecurity", "fintech", "developer_tools", "ai_infra"],
   stages: ["pre_seed", "seed"],
-  geographies: ["US", "EU", "DACH", "UK"],
+  geographies: [
+    "US", "EU", "UK", "DACH",
+    // European hubs the fund actively covers (matched by city, since sourcing data is city-level)
+    "Berlin", "Munich", "Hamburg", "Cologne", "Frankfurt",
+    "London", "Paris", "Milan", "Amsterdam", "Zurich",
+    "Stockholm", "Copenhagen", "Dublin", "Vienna", "Zug",
+  ],
   checkSize: { min: 50_000, max: 150_000 },
   ownershipTarget: 5,
   riskAppetite: "moderate",
