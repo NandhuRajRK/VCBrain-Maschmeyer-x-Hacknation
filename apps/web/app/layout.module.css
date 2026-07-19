@@ -1,6 +1,6 @@
 /* ── App Shell ──────────────────────────────────────────────────
- * Sidebar + content area. The sidebar is a light "paper" panel
- * with animated ASCII wave canvas; the content area stays dark.
+ * Sidebar + content area. Both sit in the same dark environment;
+ * the sidebar uses an animated, low-contrast ASCII wave for texture.
  * Sidebar collapses to icon-only rail on toggle.
  */
 
@@ -12,14 +12,14 @@
 /* ── Sidebar ── */
 
 .sidebar {
-  /* Light-panel palette, scoped to the sidebar only */
-  --side-bg: #ffffff;
-  --side-text: #0a0a0a;
-  --side-text-2: #3f3f46;
-  --side-muted: #8b8b86;
-  --side-border: rgba(0, 0, 0, 0.1);
-  --side-hover: rgba(0, 0, 0, 0.05);
-  --side-active: rgba(0, 0, 0, 0.08);
+  /* Dark sidebar palette, scoped to the sidebar only */
+  --side-bg: #0b0b0e;
+  --side-text: #f4f4f5;
+  --side-text-2: #d4d4d8;
+  --side-muted: #8b8b96;
+  --side-border: rgba(255, 255, 255, 0.08);
+  --side-hover: rgba(255, 255, 255, 0.055);
+  --side-active: rgba(255, 255, 255, 0.085);
 
   position: fixed;
   top: 0;
@@ -177,7 +177,7 @@
 
 .navLink[data-active="true"] {
   background: var(--side-active);
-  border-color: rgba(0, 0, 0, 0.12);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--side-text);
   font-weight: var(--weight-medium);
 }

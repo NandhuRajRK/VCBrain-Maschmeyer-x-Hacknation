@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [sortKey, setSortKey] = useState<SortKey>("none");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [filter, setFilter] = useState<DecisionFilter>("all");
+  const [selectedPriorityId, setSelectedPriorityId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,15 +206,9 @@ export default function Dashboard() {
     .filter((row) => row.pipeline!.memo.decision !== "reject")
     .slice(0, 3);
 
-  const sourceSummary = useMemo(() => {
-    const sources = analyzed.flatMap((row) => row.pipeline!.dossier.sources);
-    const counts = new Map<string, number>();
-    sources.forEach((source) => {
-      const label = source.source_type.replace(/[_-]/g, " ");
-      counts.set(label, (counts.get(label) ?? 0) + 1);
-    });
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-  }, [analyzed]);
+  const activePriorityId = priorityRows.some((row) => row.company.id === selectedPriorityId)
+    ? selectedPriorityId
+    : priorityRows[0]?.company.id;
 
   const handleFilter = useCallback((d: DecisionFilter) => {
     setFilter((prev) => (prev === d ? "all" : d));
@@ -233,8 +228,8 @@ export default function Dashboard() {
           <div className={styles.cockpitLead}>
             <div className={styles.sectionHeading}>
               <div>
-                <p className={styles.sectionKicker}>Move now</p>
-                <h2>Priority introductions</h2>
+                <p className={styles.sectionKicker}>This week</p>
+                <h2>Review queue</h2>
               </div>
               <span className={styles.sectionMeta}>{priorityRows.length} recommendations</span>
             </div>
@@ -242,31 +237,48 @@ export default function Dashboard() {
             <div className={styles.priorityList}>
               {priorityRows.map((row, index) => {
                 const pipeline = row.pipeline!;
+                const isActive = row.company.id === activePriorityId;
                 const evidence = pipeline.memo.sections.investmentHypotheses.supportingClaims[0]
                   ?? pipeline.memo.sections.companySnapshot.supportingClaims[0];
-                const reason = evidence?.text ?? row.company.description ?? "Evidence is still being assembled for this opportunity.";
+                const reason = pipeline.memo.decision === "invest"
+                  ? evidence?.text ?? row.company.description ?? "Review the evidence behind this recommendation."
+                  : pipeline.memo.redTeam.headline
+                    || pipeline.memo.decisionFlip.becomesInvestIf[0]
+                    || "Evidence is still being assembled for this opportunity.";
 
                 return (
-                  <a key={row.company.id} href={`/company/${row.company.id}`} className={styles.priorityCard}>
+                  <article key={row.company.id} className={styles.priorityCard} data-active={isActive}>
                     <span className={styles.priorityNumber}>0{index + 1}</span>
                     <div className={styles.priorityBody}>
-                      <div className={styles.priorityTopline}>
+                      <button
+                        type="button"
+                        className={styles.prioritySelect}
+                        onClick={() => setSelectedPriorityId(row.company.id)}
+                        aria-expanded={isActive}
+                      >
                         <div>
                           <h3>{row.company.name}</h3>
                           <p>{[row.company.sector, row.company.stage, row.company.geography].filter(Boolean).join(" · ") || "Opportunity profile"}</p>
                         </div>
                         <span className={styles.decision} data-decision={pipeline.memo.decision}>{decisionLabel(pipeline.memo.decision)}</span>
-                      </div>
-                      <p className={styles.priorityReason}>{reason}</p>
-                      <div className={styles.priorityFooter}>
-                        <span>Trust {Math.round(pipeline.scores.overallConfidence * 100)}%</span>
-                        <span>F {pipeline.scores.founder.adjustedScore}</span>
-                        <span>M {pipeline.scores.market.adjustedScore}</span>
-                        <span>I/M {pipeline.scores.ideaVsMarket.adjustedScore}</span>
-                        <span className={styles.priorityAction}>Review memo →</span>
-                      </div>
+                      </button>
+                      {isActive && (
+                        <div className={styles.priorityDetail}>
+                          <p className={styles.priorityReason}>{reason}</p>
+                          <div className={styles.priorityFooter}>
+                            <span>Trust {Math.round(pipeline.scores.overallConfidence * 100)}%</span>
+                            <span>Founder {pipeline.scores.founder.adjustedScore}</span>
+                            <span>Market {pipeline.scores.market.adjustedScore}</span>
+                            <span>Idea/Mkt {pipeline.scores.ideaVsMarket.adjustedScore}</span>
+                          </div>
+                          <div className={styles.priorityActions}>
+                            <a href={`/company/${row.company.id}`} className={styles.memoLink}>Review memo <span aria-hidden="true">→</span></a>
+                            <span className={styles.evidenceNote}>{pipeline.scores.risks.length > 0 ? `${pipeline.scores.risks.length} evidence item${pipeline.scores.risks.length === 1 ? "" : "s"} to resolve` : "Ready for human review"}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </a>
+                  </article>
                 );
               })}
             </div>
@@ -287,7 +299,7 @@ export default function Dashboard() {
                   return (
                     <a key={row.company.id} href={`/company/${row.company.id}`} className={styles.actionItem}>
                       <span className={styles.actionMark} data-decision={pipeline.memo.decision} />
-                      <span><strong>{hasGaps ? "Resolve evidence" : "Book an introduction"}</strong><small>{row.company.name} · {hasGaps ? `${pipeline.scores.risks.length || 1} item to verify` : "decision-ready"}</small></span>
+                      <span><strong>{hasGaps ? "Resolve evidence" : "Review memo"}</strong><small>{row.company.name} · {hasGaps ? `${pipeline.scores.risks.length || 1} item to verify` : "decision-ready"}</small></span>
                       <span aria-hidden="true">→</span>
                     </a>
                   );
@@ -295,25 +307,17 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className={styles.sidePanel}>
-              <div className={styles.sectionHeading}>
-                <div>
-                  <p className={styles.sectionKicker}>Sourcing intelligence</p>
-                  <h2>Where conviction is coming from</h2>
-                </div>
-              </div>
-              <div className={styles.sourceList}>
-                {sourceSummary.length > 0 ? sourceSummary.map(([source, count]) => (
-                  <div key={source} className={styles.sourceRow}><span>{source}</span><span>{count}</span></div>
-                )) : <p className={styles.noSources}>Source signals will appear as dossiers are enriched.</p>}
-              </div>
-            </div>
           </aside>
         </section>
       )}
 
-      {/* ── Summary cards (clickable as filters) ── */}
-      <div className={styles.stats}>
+      {/* ── Compact queue snapshot (clickable filters) ── */}
+      <section className={styles.snapshot}>
+        <div className={styles.snapshotHeader}>
+          <span>Queue snapshot</span>
+          <span>{analyzed.length} analyzed</span>
+        </div>
+        <div className={styles.stats}>
         <button
           type="button"
           className={styles.stat}
@@ -364,7 +368,8 @@ export default function Dashboard() {
           <span className={styles.statValue}>{rejectCount}</span>
           <span className={styles.statLabel}>Reject</span>
         </button>
-      </div>
+        </div>
+      </section>
 
       {/* ── Loading / error states ── */}
       {loading && (
@@ -391,6 +396,10 @@ export default function Dashboard() {
       {/* ── Company list ── */}
       {sorted.length > 0 && (
         <div className={styles.list}>
+          <div className={styles.listTitle}>
+            <h2>All opportunities</h2>
+            <span>Sort, filter, and drill into every decision.</span>
+          </div>
           <div className={styles.listHeader}>
             <button type="button" className={styles.colHeaderCompany} onClick={() => handleSort("name")}>
               Company{sortIndicator(sortKey === "name", sortDir)}

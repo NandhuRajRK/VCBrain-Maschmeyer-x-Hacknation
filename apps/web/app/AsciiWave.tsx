@@ -6,7 +6,7 @@ const DENSITY = " .:-=+*#%@";
 const CHAR_W = 5.4;
 const CHAR_H = 11;
 const FONT = '9px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-const FILL = "#bababa";
+const FILL = "#c4c8cf";
 const SPEED = 0.004;
 
 function wave(col: number, row: number, t: number, fx: number, fy: number) {
@@ -111,7 +111,7 @@ export default function AsciiWave() {
         inset: 0,
         pointerEvents: "none",
         zIndex: 0,
-        opacity: 0.38,
+        opacity: 0.16,
       }}
     />
   );

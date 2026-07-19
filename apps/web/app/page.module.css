@@ -52,6 +52,7 @@
 .cockpit {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.85fr);
+  align-items: start;
   gap: var(--space-4);
   margin-bottom: var(--space-8);
 }
@@ -124,7 +125,7 @@
   padding-bottom: 0;
 }
 
-.priorityCard:hover {
+.priorityCard[data-active="true"] {
   background: rgba(255, 255, 255, 0.025);
   margin: 0 calc(var(--space-3) * -1);
   padding-left: var(--space-3);
@@ -142,27 +143,44 @@
   min-width: 0;
 }
 
-.priorityTopline {
+.prioritySelect {
+  width: 100%;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
+  text-align: left;
 }
 
-.priorityTopline h3 {
+.prioritySelect:hover h3,
+.prioritySelect:focus-visible h3 {
+  color: var(--text-secondary);
+}
+
+.prioritySelect:focus-visible {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 4px;
+}
+
+.prioritySelect h3 {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   letter-spacing: -0.015em;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
-.priorityTopline p,
+.prioritySelect p,
 .priorityReason {
   color: var(--text-tertiary);
   font-size: var(--text-xs);
 }
 
-.priorityTopline p {
+.prioritySelect p {
   margin-top: 2px;
+}
+
+.priorityDetail {
+  animation: priorityReveal 260ms var(--ease-out) both;
 }
 
 .priorityReason {
@@ -185,9 +203,46 @@
   color: var(--text-muted);
 }
 
-.priorityAction {
-  margin-left: auto;
-  color: var(--text-secondary);
+.priorityActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.memoLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.memoLink span {
+  color: var(--text-muted);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.memoLink:hover span {
+  transform: translateX(3px);
+}
+
+.evidenceNote {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: right;
+}
+
+@keyframes priorityReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .actionList,
@@ -245,26 +300,21 @@
 .actionMark[data-decision="hold"] { background: #8d9aaa; }
 .actionMark[data-decision="reject"] { background: #bd8585; }
 
-.sourceRow {
+/* ── Compact queue snapshot ── */
+
+.snapshot {
+  margin-bottom: var(--space-10);
+}
+
+.snapshotHeader {
   display: flex;
   justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--border-subtle);
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
-  text-transform: capitalize;
-}
-
-.sourceRow span:last-child {
+  margin-bottom: var(--space-3);
   font-family: var(--font-mono);
-  color: var(--text-secondary);
-}
-
-.noSources {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  line-height: var(--leading-relaxed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .filterTag {
@@ -294,8 +344,8 @@
 .stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  gap: var(--space-3);
+  margin-bottom: 0;
 }
 
 .stat {
@@ -304,7 +354,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-5) var(--space-6);
+  min-height: 5.5rem;
+  padding: var(--space-3) var(--space-4);
   isolation: isolate;
   background:
     linear-gradient(115deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.025) 42%, rgba(255, 255, 255, 0.06));
@@ -412,6 +463,10 @@
   .stat[data-active="true"]::before {
     animation: none;
   }
+
+  .priorityDetail {
+    animation: none;
+  }
 }
 
 /* Keep text above the grain layer */
@@ -423,7 +478,7 @@
 
 .statValue {
   font-family: var(--font-sans);
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: var(--weight-normal);
   color: var(--text-primary);
   letter-spacing: -0.05em;
@@ -666,6 +721,25 @@
 .list {
   display: flex;
   flex-direction: column;
+}
+
+.listTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.listTitle h2 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.02em;
+}
+
+.listTitle span {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 .listHeader {
@@ -988,7 +1062,7 @@
     grid-template-columns: 1fr;
   }
 
-  .priorityTopline {
+  .prioritySelect {
     gap: var(--space-2);
   }
 
@@ -996,10 +1070,14 @@
     gap: var(--space-2);
   }
 
-  .priorityAction {
-    width: 100%;
-    margin-left: 0;
-    margin-top: var(--space-1);
+  .priorityActions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .evidenceNote {
+    text-align: left;
   }
 
   .listHeader,
