@@ -188,17 +188,32 @@ export default function Dashboard() {
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const pageRows = sorted.slice(startIndex, startIndex + PAGE_SIZE);
 
-  /* ── Chart data ── */
+  /* ── Weekly investment desk ── */
 
-  const avgFounder = analyzed.length > 0
-    ? Math.round(analyzed.reduce((s, r) => s + (r.pipeline?.scores.founder.adjustedScore ?? 0), 0) / analyzed.length)
-    : 0;
-  const avgMarket = analyzed.length > 0
-    ? Math.round(analyzed.reduce((s, r) => s + (r.pipeline?.scores.market.adjustedScore ?? 0), 0) / analyzed.length)
-    : 0;
-  const avgIdea = analyzed.length > 0
-    ? Math.round(analyzed.reduce((s, r) => s + (r.pipeline?.scores.ideaVsMarket.adjustedScore ?? 0), 0) / analyzed.length)
-    : 0;
+  const priorityRows = useMemo(() => [...analyzed]
+    .sort((a, b) => {
+      const aPipeline = a.pipeline!;
+      const bPipeline = b.pipeline!;
+      const decisionDelta = (DECISION_ORDER[aPipeline.memo.decision] ?? 99) - (DECISION_ORDER[bPipeline.memo.decision] ?? 99);
+      if (decisionDelta !== 0) return decisionDelta;
+      return (bPipeline.thesis.fitScore * 100 + bPipeline.scores.overallConfidence * 20)
+        - (aPipeline.thesis.fitScore * 100 + aPipeline.scores.overallConfidence * 20);
+    })
+    .slice(0, 3), [analyzed]);
+
+  const actionRows = priorityRows
+    .filter((row) => row.pipeline!.memo.decision !== "reject")
+    .slice(0, 3);
+
+  const sourceSummary = useMemo(() => {
+    const sources = analyzed.flatMap((row) => row.pipeline!.dossier.sources);
+    const counts = new Map<string, number>();
+    sources.forEach((source) => {
+      const label = source.source_type.replace(/[_-]/g, " ");
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  }, [analyzed]);
 
   const handleFilter = useCallback((d: DecisionFilter) => {
     setFilter((prev) => (prev === d ? "all" : d));
@@ -212,6 +227,90 @@ export default function Dashboard() {
           <h1 className={styles.title}>Welcome back, Julia</h1>
         </div>
       </header>
+
+      {analyzed.length > 0 && (
+        <section className={styles.cockpit} aria-label="This week">
+          <div className={styles.cockpitLead}>
+            <div className={styles.sectionHeading}>
+              <div>
+                <p className={styles.sectionKicker}>Move now</p>
+                <h2>Priority introductions</h2>
+              </div>
+              <span className={styles.sectionMeta}>{priorityRows.length} recommendations</span>
+            </div>
+
+            <div className={styles.priorityList}>
+              {priorityRows.map((row, index) => {
+                const pipeline = row.pipeline!;
+                const evidence = pipeline.memo.sections.investmentHypotheses.supportingClaims[0]
+                  ?? pipeline.memo.sections.companySnapshot.supportingClaims[0];
+                const reason = evidence?.text ?? row.company.description ?? "Evidence is still being assembled for this opportunity.";
+
+                return (
+                  <a key={row.company.id} href={`/company/${row.company.id}`} className={styles.priorityCard}>
+                    <span className={styles.priorityNumber}>0{index + 1}</span>
+                    <div className={styles.priorityBody}>
+                      <div className={styles.priorityTopline}>
+                        <div>
+                          <h3>{row.company.name}</h3>
+                          <p>{[row.company.sector, row.company.stage, row.company.geography].filter(Boolean).join(" · ") || "Opportunity profile"}</p>
+                        </div>
+                        <span className={styles.decision} data-decision={pipeline.memo.decision}>{decisionLabel(pipeline.memo.decision)}</span>
+                      </div>
+                      <p className={styles.priorityReason}>{reason}</p>
+                      <div className={styles.priorityFooter}>
+                        <span>Trust {Math.round(pipeline.scores.overallConfidence * 100)}%</span>
+                        <span>F {pipeline.scores.founder.adjustedScore}</span>
+                        <span>M {pipeline.scores.market.adjustedScore}</span>
+                        <span>I/M {pipeline.scores.ideaVsMarket.adjustedScore}</span>
+                        <span className={styles.priorityAction}>Review memo →</span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+
+          <aside className={styles.cockpitSide}>
+            <div className={styles.sidePanel}>
+              <div className={styles.sectionHeading}>
+                <div>
+                  <p className={styles.sectionKicker}>Human actions</p>
+                  <h2>Make progress today</h2>
+                </div>
+              </div>
+              <div className={styles.actionList}>
+                {actionRows.map((row) => {
+                  const pipeline = row.pipeline!;
+                  const hasGaps = pipeline.scores.risks.length > 0 || pipeline.scores.coldStart;
+                  return (
+                    <a key={row.company.id} href={`/company/${row.company.id}`} className={styles.actionItem}>
+                      <span className={styles.actionMark} data-decision={pipeline.memo.decision} />
+                      <span><strong>{hasGaps ? "Resolve evidence" : "Book an introduction"}</strong><small>{row.company.name} · {hasGaps ? `${pipeline.scores.risks.length || 1} item to verify` : "decision-ready"}</small></span>
+                      <span aria-hidden="true">→</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className={styles.sidePanel}>
+              <div className={styles.sectionHeading}>
+                <div>
+                  <p className={styles.sectionKicker}>Sourcing intelligence</p>
+                  <h2>Where conviction is coming from</h2>
+                </div>
+              </div>
+              <div className={styles.sourceList}>
+                {sourceSummary.length > 0 ? sourceSummary.map(([source, count]) => (
+                  <div key={source} className={styles.sourceRow}><span>{source}</span><span>{count}</span></div>
+                )) : <p className={styles.noSources}>Source signals will appear as dossiers are enriched.</p>}
+              </div>
+            </div>
+          </aside>
+        </section>
+      )}
 
       {/* ── Summary cards (clickable as filters) ── */}
       <div className={styles.stats}>
@@ -266,119 +365,6 @@ export default function Dashboard() {
           <span className={styles.statLabel}>Reject</span>
         </button>
       </div>
-
-      {/* ── Charts row ── */}
-      {analyzed.length > 0 && (
-        <div className={styles.charts}>
-          {/* Decision breakdown strip */}
-          <div className={styles.chartCard}>
-            <span className={styles.chartTitle}>Decision Breakdown</span>
-            <div className={styles.breakdownBar}>
-              {investCount > 0 && (
-                <div
-                  className={styles.breakdownSeg}
-                  data-decision="invest"
-                  style={{ flex: investCount }}
-                  title={`Invest: ${investCount}`}
-                >
-                  {investCount}
-                </div>
-              )}
-              {conditionalCount > 0 && (
-                <div
-                  className={styles.breakdownSeg}
-                  data-decision="conditional_invest"
-                  style={{ flex: conditionalCount }}
-                  title={`Conditional: ${conditionalCount}`}
-                >
-                  {conditionalCount}
-                </div>
-              )}
-              {holdCount > 0 && (
-                <div
-                  className={styles.breakdownSeg}
-                  data-decision="hold"
-                  style={{ flex: holdCount }}
-                  title={`Hold: ${holdCount}`}
-                >
-                  {holdCount}
-                </div>
-              )}
-              {rejectCount > 0 && (
-                <div
-                  className={styles.breakdownSeg}
-                  data-decision="reject"
-                  style={{ flex: rejectCount }}
-                  title={`Reject: ${rejectCount}`}
-                >
-                  {rejectCount}
-                </div>
-              )}
-            </div>
-            <div className={styles.breakdownLegend}>
-              <span data-decision="invest">Invest</span>
-              <span data-decision="conditional_invest">Conditional</span>
-              <span data-decision="hold">Hold</span>
-              <span data-decision="reject">Reject</span>
-            </div>
-          </div>
-
-          {/* Average scores */}
-          <div className={styles.chartCard}>
-            <span className={styles.chartTitle}>Avg Scores ({analyzed.length} analyzed)</span>
-            <div className={styles.scoreBars}>
-              <div className={styles.scoreBarRow}>
-                <span className={styles.scoreBarLabel}>Founder</span>
-                <div className={styles.scoreBarTrack}>
-                  <div className={styles.scoreBarFill} style={{ width: `${Math.min(100, avgFounder)}%` }} />
-                </div>
-                <span className={styles.scoreBarValue}>{avgFounder}</span>
-              </div>
-              <div className={styles.scoreBarRow}>
-                <span className={styles.scoreBarLabel}>Market</span>
-                <div className={styles.scoreBarTrack}>
-                  <div className={styles.scoreBarFill} style={{ width: `${Math.min(100, avgMarket)}%` }} />
-                </div>
-                <span className={styles.scoreBarValue}>{avgMarket}</span>
-              </div>
-              <div className={styles.scoreBarRow}>
-                <span className={styles.scoreBarLabel}>Idea/Mkt</span>
-                <div className={styles.scoreBarTrack}>
-                  <div className={styles.scoreBarFill} style={{ width: `${Math.min(100, avgIdea)}%` }} />
-                </div>
-                <span className={styles.scoreBarValue}>{avgIdea}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Pipeline quality */}
-          <div className={styles.chartCard}>
-            <span className={styles.chartTitle}>Pipeline Quality</span>
-            <div className={styles.qualityStats}>
-              <div className={styles.qualityStat}>
-                <span className={styles.qualityValue}>
-                  {analyzed.length > 0
-                    ? Math.round(analyzed.reduce((s, r) => s + (r.pipeline?.thesis.fitScore ?? 0), 0) / analyzed.length * 100)
-                    : 0}%
-                </span>
-                <span className={styles.qualityLabel}>Avg thesis fit</span>
-              </div>
-              <div className={styles.qualityStat}>
-                <span className={styles.qualityValue}>
-                  {analyzed.filter((r) => r.pipeline?.scores.coldStart).length}
-                </span>
-                <span className={styles.qualityLabel}>Cold starts</span>
-              </div>
-              <div className={styles.qualityStat}>
-                <span className={styles.qualityValue}>
-                  {analyzed.filter((r) => (r.pipeline?.scores.risks.length ?? 0) > 0).length}
-                </span>
-                <span className={styles.qualityLabel}>With risks</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Loading / error states ── */}
       {loading && (
